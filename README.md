@@ -47,7 +47,7 @@ whole lesson.
 ## Using it
 
 1. **Use this template** on GitHub, or `gh repo create <name> --public --template shyden-labs/repo-template`. New repos are public and open source: `LICENSE` is Apache-2.0, and a repo carrying game, art or learning content adds its own content licence on top.
-2. Create `develop` and make it the default branch; protect `main`.
+2. Create `develop` and make it the default branch before Dependabot first runs: `.github/dependabot.yml` targets `develop`, and a repository created from a template copies only the default branch. Protect `main`.
 3. Add the ecosystems your repo actually uses to `.github/dependabot.yml`.
 4. `npm ci && npm run test:unit` — the supply-chain suite must be green before anything else is written.
 5. Enable Dependabot alerts and security updates on the new repo. Org defaults now cover new repositories, but check rather than assume.
