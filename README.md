@@ -15,6 +15,8 @@ rotting.
 | `.npmrc` | `engine-strict=true` turns the `engines` floor from a warning into a hard install failure. |
 | `package-lock.json` | `npm ci` refuses to run without it, so CI installs exactly what was tested. |
 | `LICENSE` | Apache-2.0, the default for new Shyden Labs code. |
+| `.github/ISSUE_TEMPLATE/story.yml` | A story is fully defined at filing: story line, context, complete acceptance criteria, and an Estimate on the board. |
+| `scripts/board-setup.ts`, `scripts/board-progress.ts`, `docs/project-board.md` | Every board has a Number field `Estimate`. Every close-out reports progress by tickets and by effort, measured from the board. |
 
 ## The four rules
 
@@ -49,3 +51,4 @@ whole lesson.
 3. Add the ecosystems your repo actually uses to `.github/dependabot.yml`.
 4. `npm ci && npm run test:unit` — the supply-chain suite must be green before anything else is written.
 5. Enable Dependabot alerts and security updates on the new repo. Org defaults now cover new repositories, but check rather than assume.
+6. Set up the project board as `docs/project-board.md` describes: record its node id and title, run `node scripts/board-setup.ts`, and give every story an Estimate when it is filed.
