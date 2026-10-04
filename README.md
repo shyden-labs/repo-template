@@ -1,6 +1,6 @@
-# Shyden Ltd repo template
+# Shyden Labs repo template
 
-Start every new Shyden Ltd repository from this one. It carries the supply-chain
+Start every new Shyden Labs repository from this one. It carries the supply-chain
 configuration that is **mandatory in every repo**, and the test that stops it
 rotting.
 
@@ -13,6 +13,8 @@ rotting.
 | `tests/unit/supply-chain.test.ts` | Asserts the rules below, so a new unpinned action or an undeclared ecosystem fails CI instead of being noticed years later. |
 | `tests/unit/source-text.ts` | Comment stripping. A guard that reads a file as text must never be satisfiable by that file's own documentation. |
 | `.npmrc` | `engine-strict=true` turns the `engines` floor from a warning into a hard install failure. |
+| `package-lock.json` | `npm ci` refuses to run without it, so CI installs exactly what was tested. |
+| `LICENSE` | Apache-2.0, the default for new Shyden Labs code. |
 
 ## The four rules
 
@@ -42,7 +44,7 @@ whole lesson.
 
 ## Using it
 
-1. **Use this template** on GitHub, or `gh repo create <name> --template Shyden-Ltd/repo-template`.
+1. **Use this template** on GitHub, or `gh repo create <name> --public --template shyden-labs/repo-template`. New repos are public and open source: `LICENSE` is Apache-2.0, and a repo carrying game, art or learning content adds its own content licence on top.
 2. Create `develop` and make it the default branch; protect `main`.
 3. Add the ecosystems your repo actually uses to `.github/dependabot.yml`.
 4. `npm ci && npm run test:unit` — the supply-chain suite must be green before anything else is written.
