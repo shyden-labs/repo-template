@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
   assertTitle,
+  formatLeftOut,
   formatLines,
   inScope,
   parseItems,
   progress,
+  QUERY,
   type BoardItem,
 } from '../../scripts/board-progress';
 
@@ -16,7 +18,7 @@ import {
 
 const TODAY = '2026-10-04';
 
-function item(over: Partial<BoardItem> & { number: number }): BoardItem {
+function item(over: Partial<BoardItem> & { number: number | null }): BoardItem {
   return {
     title: `Story ${String(over.number)}`,
     state: 'OPEN',
@@ -92,6 +94,32 @@ describe('progress by tickets', () => {
   it('leaves a closure 7 days before today out of the window', () => {
     const p = progress([closedOn(1, '2026-09-27')], TODAY);
     expect(p.tickets.pace).toEqual([0, 0, 0, 0, 0, 0, 0]);
+  });
+});
+
+describe('a draft card', () => {
+  const draft = (estimate: number | null = 3) => item({ number: null, title: 'Idea', estimate });
+
+  it('counts as an open in-scope story', () => {
+    expect(progress([closedOn(1, '2026-10-03'), draft()], TODAY).tickets).toMatchObject({
+      closed: 1,
+      total: 2,
+      drafts: 1,
+    });
+  });
+
+  it('holds effort unavailable while it has no estimate', () => {
+    expect(progress([closedOn(1, '2026-10-03'), draft(null)], TODAY).effort).toEqual({
+      available: false,
+      scored: 0,
+      open: 1,
+    });
+  });
+
+  it('is named in the tickets line', () => {
+    expect(formatLines(progress([closedOn(1, '2026-10-03'), draft()], TODAY), TODAY)[0]).toContain(
+      '(1 of 2 in-scope stories closed, counting 1 open draft; ',
+    );
   });
 });
 
@@ -190,6 +218,22 @@ describe('formatLines', () => {
     );
   });
 
+  it('names several unscored closed stories in the plural', () => {
+    const lines = formatLines(
+      progress(
+        [
+          closedOn(1, '2026-10-03', 4),
+          closedOn(2, '2026-08-01', null),
+          closedOn(3, '2026-08-02', null),
+          item({ number: 4, estimate: 8 }),
+        ],
+        TODAY,
+      ),
+      TODAY,
+    );
+    expect(lines[1]).toContain('2 closed stories unscored');
+  });
+
   it('says effort is unavailable, with the count scored, before the backfill', () => {
     expect(
       formatLines(
@@ -216,6 +260,23 @@ describe('parseItems', () => {
     },
   });
 
+  const issue = (number: number) => ({
+    estimate: null,
+    content: {
+      __typename: 'Issue',
+      number,
+      title: 'S',
+      state: 'OPEN',
+      createdAt: '2026-10-01T00:00:00Z',
+      closedAt: null,
+      labels: { nodes: [] },
+    },
+  });
+  const pullRequest = (number: number) => ({
+    estimate: null,
+    content: { __typename: 'PullRequest', number, title: `PR ${String(number)}` },
+  });
+
   it('reads an issue with its Estimate, state, close time and labels', () => {
     expect(
       parseItems([
@@ -233,7 +294,7 @@ describe('parseItems', () => {
             },
           },
         ]),
-      ]),
+      ]).items,
     ).toEqual([
       {
         number: 7,
@@ -263,32 +324,106 @@ describe('parseItems', () => {
           },
         },
       ]),
-    ]);
+    ]).items;
     expect(read?.estimate).toBeNull();
   });
 
-  it('refuses a draft item by name, never skipping it', () => {
+  it('leaves a pull request out of the count, by number', () => {
+    expect(parseItems([page([issue(1), pullRequest(100)])])).toEqual({
+      items: [expect.objectContaining({ number: 1 })],
+      pullRequests: [100],
+    });
+  });
+
+  it('reads a draft card as an open story with no number, keeping its Estimate', () => {
+    expect(
+      parseItems([
+        page([
+          {
+            estimate: { number: 5 },
+            content: { __typename: 'DraftIssue', title: 'Idea', createdAt: '2026-10-02T00:00:00Z' },
+          },
+        ]),
+      ]),
+    ).toEqual({
+      items: [
+        {
+          number: null,
+          title: 'Idea',
+          state: 'OPEN',
+          createdAt: '2026-10-02T00:00:00Z',
+          closedAt: null,
+          estimate: 5,
+          labels: [],
+        },
+      ],
+      pullRequests: [],
+    });
+  });
+
+  it('refuses a draft card that came back without its creation time', () => {
     expect(() =>
       parseItems([page([{ estimate: null, content: { __typename: 'DraftIssue', title: 'Idea' } }])]),
-    ).toThrow('draft item "Idea" is not an issue: convert it, or remove it from the board');
+    ).toThrow('a draft card on the board came back without its title or creation time');
+  });
+
+  it('refuses a card it cannot read, which could be open work', () => {
+    expect(() => parseItems([page([{ estimate: null, content: null }])])).toThrow(
+      'a card on the board came back with no content (this token cannot read it): nothing read, as the count would not be exact',
+    );
+  });
+
+  it('refuses a kind of card it does not know, by name', () => {
+    expect(() =>
+      parseItems([page([{ estimate: null, content: { __typename: 'Mystery', title: 'X' } }])]),
+    ).toThrow('a "Mystery" card is not one this script knows how to count: nothing read');
+  });
+
+  it('refuses an issue that came back without its number', () => {
+    const { number: _number, ...rest } = issue(1).content;
+    expect(() => parseItems([page([{ estimate: null, content: rest }])])).toThrow(
+      'an issue on the board came back without its number, title, state or creation time',
+    );
+  });
+
+  it('refuses a pull request that came back without its number', () => {
+    expect(() =>
+      parseItems([page([{ estimate: null, content: { __typename: 'PullRequest', title: 'PR' } }])]),
+    ).toThrow('a pull request on the board came back without its number');
   });
 
   it('reads every page', () => {
-    const one = (number: number) => ({
-      estimate: null,
-      content: {
-        __typename: 'Issue',
-        number,
-        title: 'S',
-        state: 'OPEN',
-        createdAt: '2026-10-01T00:00:00Z',
-        closedAt: null,
-        labels: { nodes: [] },
-      },
-    });
-    expect(parseItems([page([one(1)]), page([one(2), one(3)])]).map((i) => i.number)).toEqual([
+    expect(parseItems([page([issue(1)]), page([issue(2), issue(3)])]).items.map((i) => i.number)).toEqual([
       1, 2, 3,
     ]);
+  });
+
+  it('collects what it left out from every page', () => {
+    expect(parseItems([page([pullRequest(100)]), page([pullRequest(101)])]).pullRequests).toEqual([
+      100, 101,
+    ]);
+  });
+
+  it('asks the board for each pull request card by number', () => {
+    expect(QUERY).toMatch(/\.\.\. on PullRequest \{ number title \}/);
+  });
+
+  it('asks the board for each draft card’s creation time', () => {
+    expect(QUERY).toMatch(/\.\.\. on DraftIssue \{ title createdAt \}/);
+  });
+});
+
+describe('formatLeftOut', () => {
+  it('prints nothing when no pull request is on the board', () => {
+    expect(formatLeftOut([])).toBeNull();
+  });
+
+  it('counts and names every pull request left out', () => {
+    expect(formatLeftOut([100, 101])).toBe('Left out, not issues: 2 pull requests (#100, #101).');
+  });
+
+  it('names a single pull request in the singular', () => {
+    expect(formatLeftOut([100])).toBe('Left out, not issues: 1 pull request (#100).');
   });
 });
 
