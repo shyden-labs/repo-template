@@ -69,7 +69,9 @@ once; when a ticket is picked up, its branch is named `<issue>-<slug>`.
 `scripts/board-orphans.ts <board-node-id> "<board title>" <owner/repo>` fails,
 naming each, while an open issue is In Progress and no open pull request names it
 (`#<n>` in its title or body, a closing reference, or a head branch starting
-`<n>-`) and no remote branch starts `<n>-`. It fails closed when it cannot read the
+`<n>-`) and no remote branch starts `<n>-`. A branch counts only while it has no
+closed pull request, merged or not (operator: *"Branch counts until its PR
+closes"*), so a leftover branch cannot hide an abandoned ticket. It fails closed when it cannot read the
 board, the pull requests or the branches. Run it in the repository's required PR
 checks, with a token that can read the board (`GITHUB_TOKEN` cannot read an
 organisation's project: use the repository's GitHub App token).
