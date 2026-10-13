@@ -6,7 +6,7 @@ body:
     id: estimate-note
     attributes:
       value: |
-        After filing, add the issue to the project board. Set the board’s **Estimate** field: 1, 2, 3, 5, 8 or 13 story points. Anything larger is an epic: split it into stories.
+        After filing, add the issue to the project board. Set the board’s **Estimate** field: 1, 2, 3, 5, 8 or 13 story points. Anything larger is an epic: split it into stories. Set its **Priority** too: P0 (now) to P5 (someday), as docs/project-board.md defines them.
         Score from the acceptance criteria against similar closed stories, never from felt hours. Progress by effort reads the board field and nothing else (see `docs/project-board.md`).
   - type: textarea
     id: story
