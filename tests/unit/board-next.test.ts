@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   nextTicket,
+  offBoardBlockers,
   parseNextItems,
   type NextItem,
 } from "../../scripts/board-next";
@@ -122,27 +123,41 @@ describe("nextTicket", () => {
     expect(next?.number).toBe(6);
   });
 
-  it("refuses an open blocker the board does not hold, since its Priority cannot be read", () => {
-    expect(() =>
-      nextTicket([item({ number: 1, blockedBy: [ref(9)] })]),
-    ).toThrow(
-      "Raise each blocker to at least the Priority of what waits on it: #9 (not on this board) blocks #1 (P3).",
-    );
+  it("picks past an open blocker the board does not hold, rather than stopping", () => {
+    const next = nextTicket([
+      item({ number: 1, priority: "P1", blockedBy: [ref(9)] }),
+      item({ number: 2, priority: "P2" }),
+    ]);
+    expect(next?.number).toBe(1);
   });
 
   it("reads a blocker in another repository as that repository's issue, not this one's namesake", () => {
-    expect(() =>
-      nextTicket([
+    const next = nextTicket([
+      item({
+        number: 1,
+        priority: "P1",
+        blockedBy: [ref(3, "shyden-labs/other")],
+      }),
+      item({ number: 3, priority: "P4" }),
+    ]);
+    expect(next?.number).toBe(1);
+  });
+
+  it("names each open blocker the board does not hold, for a note beside the answer", () => {
+    expect(
+      offBoardBlockers([
+        item({ number: 1, priority: "P1", blockedBy: [ref(9)] }),
         item({
-          number: 1,
-          priority: "P1",
-          blockedBy: [ref(3, "shyden-labs/other")],
+          number: 2,
+          priority: "P2",
+          blockedBy: [ref(3, "shyden-labs/other"), ref(4)],
         }),
-        item({ number: 3, priority: "P0" }),
+        item({ number: 4 }),
       ]),
-    ).toThrow(
-      "Raise each blocker to at least the Priority of what waits on it: shyden-labs/other#3 (not on this board) blocks #1 (P1).",
-    );
+    ).toEqual([
+      "#9 blocks #1 (P1) but is not on this board, so its Priority is not checked",
+      "shyden-labs/other#3 blocks #2 (P2) but is not on this board, so its Priority is not checked",
+    ]);
   });
 
   it("passes over an epic while it has open sub-issues", () => {

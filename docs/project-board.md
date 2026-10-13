@@ -46,8 +46,9 @@ It refuses, naming them, while any open issue has no Priority.
 **A blocker inherits, it is not P1** (operator 2026-10-13, #6). A ticket that
 blocks others is raised to at least the Priority of the highest open issue
 waiting on it, and `board-next` refuses, naming each pair, while an open
-blocker sits below an issue it blocks, or is not on the board, where its
-Priority cannot be read.
+blocker sits below an issue it blocks. A blocker that is not on the board
+(another repository's issue, say) has no Priority to read: `board-next` names
+it in a note and still names the next ticket.
 
 **An epic waits for its stories.** An open issue with open sub-issues is
 passed over until they close; if nothing else is open, `board-next` refuses,

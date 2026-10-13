@@ -11,8 +11,8 @@
  *
  * A blocker inherits the level of what waits on it (operator 2026-10-13,
  * repo-template#6): it refuses while an open blocker sits below an open issue
- * it blocks, or off the board where its Priority cannot be read, naming each
- * pair. An epic's work is its stories, so an issue with open sub-issues is
+ * it blocks, naming each pair. A blocker off the board, whose Priority cannot
+ * be read, is named in a note and never stops the pick. An epic's work is its stories, so an issue with open sub-issues is
  * passed over until they close.
  */
 import { execFileSync } from "node:child_process";
@@ -73,11 +73,9 @@ export function nextTicket(items: NextItem[]): NextItem | null {
   const inversions = open.flatMap((waiting) =>
     waiting.blockedBy.flatMap((b) => {
       const blocker = onBoard.get(key(b));
-      if (blocker === undefined) {
-        return [
-          `${label(b, waiting.repo)} (not on this board) blocks #${waiting.number} (${waiting.priority})`,
-        ];
-      }
+      // Off the board, its Priority cannot be read: a note, never a stop
+      // (operator 2026-10-13). See offBoardBlockers.
+      if (blocker === undefined) return [];
       return LEVELS.indexOf(blocker.priority as string) >
         LEVELS.indexOf(waiting.priority as string)
         ? [
@@ -114,6 +112,24 @@ export function nextTicket(items: NextItem[]): NextItem | null {
     return 0;
   });
   return sorted[0] ?? null;
+}
+
+/**
+ * Each open blocker the board does not hold, for a note beside the answer:
+ * its Priority cannot be read, so the inheritance check cannot judge it, and
+ * it never stops the pick (operator 2026-10-13).
+ */
+export function offBoardBlockers(items: NextItem[]): string[] {
+  const open = items.filter((i) => i.state === "OPEN");
+  const onBoard = new Set(open.map(key));
+  return open.flatMap((waiting) =>
+    waiting.blockedBy
+      .filter((b) => !onBoard.has(key(b)))
+      .map(
+        (b) =>
+          `${label(b, waiting.repo)} blocks #${waiting.number} (${waiting.priority}) but is not on this board, so its Priority is not checked`,
+      ),
+  );
 }
 
 const QUERY = `query($id: ID!, $endCursor: String) {
@@ -229,7 +245,11 @@ function main(): void {
   );
   const pages = JSON.parse(out) as RawPage[];
   assertTitle(pages[0]?.data.node.title ?? "", title);
-  const next = nextTicket(parseNextItems(pages));
+  const items = parseNextItems(pages);
+  for (const note of offBoardBlockers(items)) {
+    process.stderr.write(`Note: ${note}.\n`);
+  }
+  const next = nextTicket(items);
   process.stdout.write(
     next === null
       ? "Next: nothing is open.\n"
