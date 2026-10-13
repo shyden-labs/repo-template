@@ -53,4 +53,4 @@ whole lesson.
 4. Add the ecosystems your repo actually uses to `.github/dependabot.yml`.
 5. `npm ci && npm run test:unit` — the supply-chain suite must be green before anything else is written.
 6. Enable Dependabot alerts and security updates on the new repo. Org defaults now cover new repositories, but check rather than assume.
-7. Set up the project board as `docs/project-board.md` describes: record its node id and title, run `node scripts/board-setup.ts`, and give every story an Estimate when it is filed.
+7. Set up the project board as `docs/project-board.md` describes: record its node id and title, run `node scripts/board-setup.ts`, give every story an Estimate when it is filed, and run `node scripts/board-orphans.ts` in the required PR checks so no ticket stays In Progress without a branch or pull request.

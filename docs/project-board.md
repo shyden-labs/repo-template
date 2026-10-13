@@ -59,6 +59,23 @@ By effort: 14% complete (160 of 1114 points closed). Measured pace 40.00 points 
   outside waits (store review, operator sign-offs, devices), any assumed
   change of pace, and which figures are measured and which assumed.
 
+## In Progress means someone is working it
+
+A ticket is In Progress only while a branch or an open pull request is working it
+(operator, 2026-10-13: *"if a ticket is not in progress then it should not be
+marked as in progress"*). When work stops, its Status goes back to the backlog at
+once; when a ticket is picked up, its branch is named `<issue>-<slug>`.
+
+`scripts/board-orphans.ts <board-node-id> "<board title>" <owner/repo>` fails,
+naming each, while an open issue is In Progress and no open pull request names it
+(`#<n>` in its title or body, a closing reference, or a head branch starting
+`<n>-`) and no remote branch starts `<n>-`. A branch counts only while it has no
+closed pull request, merged or not (operator: *"Branch counts until its PR
+closes"*), so a leftover branch cannot hide an abandoned ticket. It fails closed when it cannot read the
+board, the pull requests or the branches. Run it in the repository's required PR
+checks, with a token that can read the board (`GITHUB_TOKEN` cannot read an
+organisation's project: use the repository's GitHub App token).
+
 ## A board new to estimates
 
 The first session on a board that has no Estimates does this before its
