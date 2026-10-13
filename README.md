@@ -17,6 +17,7 @@ rotting.
 | `LICENSE` | Apache-2.0, the default for new Shyden Labs code. |
 | `.github/ISSUE_TEMPLATE/story.yml` | A story is fully defined at filing: story line, context, complete acceptance criteria, and an Estimate on the board. |
 | `scripts/board-setup.ts`, `scripts/board-progress.ts`, `docs/project-board.md` | Every board has a Number field `Estimate`. Every close-out reports progress by tickets and by effort, measured from the board. |
+| `scripts/branch-rules-setup.ts` | `develop` and `main` each carry a ruleset naming the branch, with strict required checks, so two pull requests that pass alone can never land untested together (issue #8). |
 
 ## The four rules
 
@@ -47,8 +48,9 @@ whole lesson.
 ## Using it
 
 1. **Use this template** on GitHub, or `gh repo create <name> --public --template shyden-labs/repo-template`. New repos are public and open source: `LICENSE` is Apache-2.0, and a repo carrying game, art or learning content adds its own content licence on top.
-2. Create `develop` and make it the default branch before Dependabot first runs: `.github/dependabot.yml` targets `develop`, and a repository created from a template copies only the default branch. Protect `main`.
-3. Add the ecosystems your repo actually uses to `.github/dependabot.yml`.
-4. `npm ci && npm run test:unit` — the supply-chain suite must be green before anything else is written.
-5. Enable Dependabot alerts and security updates on the new repo. Org defaults now cover new repositories, but check rather than assume.
-6. Set up the project board as `docs/project-board.md` describes: record its node id and title, run `node scripts/board-setup.ts`, and give every story an Estimate when it is filed.
+2. Create `develop` and make it the default branch before Dependabot first runs: `.github/dependabot.yml` targets `develop`, and a repository created from a template copies only the default branch.
+3. **Require up-to-date pull requests on `develop` and `main`, each by its own ruleset.** As the operator (rulesets need admin rights): `node scripts/branch-rules-setup.ts <owner/repo> <required check>...`. Each ruleset names its branch, requires pull requests, signed commits and the named checks with *require branches to be up to date* (strict), so what lands is exactly what CI tested. It refuses a ruleset that targets `~DEFAULT_BRANCH`: that target moves when the default branch changes, which is how ShyTalk's `main` lost its rules (2026-10-13).
+4. Add the ecosystems your repo actually uses to `.github/dependabot.yml`.
+5. `npm ci && npm run test:unit` — the supply-chain suite must be green before anything else is written.
+6. Enable Dependabot alerts and security updates on the new repo. Org defaults now cover new repositories, but check rather than assume.
+7. Set up the project board as `docs/project-board.md` describes: record its node id and title, run `node scripts/board-setup.ts`, and give every story an Estimate when it is filed.
