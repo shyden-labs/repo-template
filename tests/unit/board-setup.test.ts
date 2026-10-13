@@ -49,7 +49,7 @@ describe('PRIORITY_OPTIONS', () => {
       'Now: a live defect, a vulnerability, broken CI or deploy, or a release blocker.',
     );
     expect(PRIORITY_OPTIONS[1].description).toBe(
-      'Next: something the operator asked for directly, work already in flight, or a ticket that blocks others.',
+      'Next: something the operator asked for directly, or work already in flight. A blocker is not P1 by being one: it is raised to the level of what waits on it.',
     );
     expect(PRIORITY_OPTIONS[2].description).toBe(
       'Important: user-facing improvements and the standing quality rules (test limits, guards that cannot see what they judge).',

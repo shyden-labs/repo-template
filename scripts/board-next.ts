@@ -8,52 +8,105 @@
  * is In Progress first, then what no open issue blocks, then the oldest. It
  * refuses while any open issue has no Priority, naming them, because a
  * ticket nobody scored would never be chosen and never be noticed.
+ *
+ * A blocker inherits the level of what waits on it (operator 2026-10-13,
+ * repo-template#6): it refuses while an open blocker sits below an open issue
+ * it blocks, or off the board where its Priority cannot be read, naming each
+ * pair. An epic's work is its stories, so an issue with open sub-issues is
+ * passed over until they close.
  */
-import { execFileSync } from 'node:child_process';
-import { pathToFileURL } from 'node:url';
-import { assertTitle } from './board-progress.ts';
-import { PRIORITY_OPTIONS } from './board-setup.ts';
+import { execFileSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
+import { assertTitle } from "./board-progress.ts";
+import { PRIORITY_OPTIONS } from "./board-setup.ts";
+
+/** An issue, by repository, so another repository's #3 is not this one's. */
+export interface IssueRef {
+  /** `owner/name`. */
+  repo: string;
+  number: number;
+}
 
 export interface NextItem {
+  /** `owner/name`. */
+  repo: string;
   number: number;
   title: string;
-  state: 'OPEN' | 'CLOSED';
+  state: "OPEN" | "CLOSED";
   createdAt: string;
   /** The board's Status option, e.g. "Todo" or "In Progress". */
   status: string | null;
   priority: string | null;
-  /** The numbers of the OPEN issues this one is blocked by. */
-  blockedBy: number[];
+  /** The OPEN issues this one is blocked by. */
+  blockedBy: IssueRef[];
+  /** How many of its sub-issues are open: an epic waits for them. */
+  openSubIssues: number;
 }
+
+const key = (r: IssueRef): string => `${r.repo}#${r.number}`;
+
+/** `#n` within `home`'s repository, `owner/name#n` outside it. */
+export const label = (r: IssueRef, home: string): string =>
+  r.repo === home ? `#${r.number}` : key(r);
 
 const LEVELS: readonly string[] = PRIORITY_OPTIONS.map((o) => o.name);
 
 /** The next ticket, or `null` when nothing is open. */
 export function nextTicket(items: NextItem[]): NextItem | null {
-  const open = items.filter((i) => i.state === 'OPEN');
+  const open = items.filter((i) => i.state === "OPEN");
   const unscored = open.filter((i) => i.priority === null);
   if (unscored.length > 0) {
     throw new Error(
       `${unscored.length} open tickets have no Priority: ${unscored
         .map((i) => `#${i.number}`)
-        .join(', ')}. Score them on the board first.`,
+        .join(", ")}. Score them on the board first.`,
     );
   }
   for (const i of open) {
     if (!LEVELS.includes(i.priority as string)) {
       throw new Error(
-        `#${i.number} has Priority "${i.priority}", which is not one of ${LEVELS.join(', ')}`,
+        `#${i.number} has Priority "${i.priority}", which is not one of ${LEVELS.join(", ")}`,
       );
     }
   }
+  const onBoard = new Map(open.map((i) => [key(i), i]));
+  const inversions = open.flatMap((waiting) =>
+    waiting.blockedBy.flatMap((b) => {
+      const blocker = onBoard.get(key(b));
+      if (blocker === undefined) {
+        return [
+          `${label(b, waiting.repo)} (not on this board) blocks #${waiting.number} (${waiting.priority})`,
+        ];
+      }
+      return LEVELS.indexOf(blocker.priority as string) >
+        LEVELS.indexOf(waiting.priority as string)
+        ? [
+            `${label(b, waiting.repo)} (${blocker.priority}) blocks #${waiting.number} (${waiting.priority})`,
+          ]
+        : [];
+    }),
+  );
+  if (inversions.length > 0) {
+    throw new Error(
+      `Raise each blocker to at least the Priority of what waits on it: ${inversions.join("; ")}.`,
+    );
+  }
+  const workable = open.filter((i) => i.openSubIssues === 0);
+  if (open.length > 0 && workable.length === 0) {
+    throw new Error(
+      `Every open issue is an epic with open sub-issues: ${open
+        .map((i) => `#${i.number}`)
+        .join(", ")}. Put their stories on this board.`,
+    );
+  }
   const rank = (i: NextItem): number[] => [
     LEVELS.indexOf(i.priority as string),
-    i.status === 'In Progress' ? 0 : 1,
+    i.status === "In Progress" ? 0 : 1,
     i.blockedBy.length === 0 ? 0 : 1,
     Date.parse(i.createdAt),
     i.number,
   ];
-  const sorted = [...open].sort((a, b) => {
+  const sorted = [...workable].sort((a, b) => {
     const [ra, rb] = [rank(a), rank(b)];
     for (let k = 0; k < ra.length; k++) {
       if (ra[k] !== rb[k]) return ra[k] - rb[k];
@@ -73,7 +126,10 @@ const QUERY = `query($id: ID!, $endCursor: String) {
           ... on DraftIssue { title }
           ... on PullRequest { title }
           ... on Issue { number title state createdAt
-            blockedBy(first: 50) { nodes { number state } } }
+            repository { nameWithOwner }
+            blockedBy(first: 50) { totalCount
+              nodes { number state repository { nameWithOwner } } }
+            subIssues(first: 100) { totalCount nodes { state } } }
         } } } } } }`;
 
 interface RawNode {
@@ -83,9 +139,18 @@ interface RawNode {
     __typename: string;
     title?: string;
     number?: number;
-    state?: 'OPEN' | 'CLOSED';
+    state?: "OPEN" | "CLOSED";
     createdAt?: string;
-    blockedBy?: { nodes: Array<{ number: number; state: string }> };
+    repository?: { nameWithOwner: string };
+    blockedBy?: {
+      totalCount: number;
+      nodes: Array<{
+        number: number;
+        state: string;
+        repository: { nameWithOwner: string };
+      }>;
+    };
+    subIssues?: { totalCount: number; nodes: Array<{ state: string }> };
   } | null;
 }
 
@@ -99,26 +164,43 @@ export function parseNextItems(pages: RawPage[]): NextItem[] {
     page.data.node.items.nodes.map((node): NextItem => {
       const c = node.content;
       if (
-        c?.__typename !== 'Issue' ||
+        c?.__typename !== "Issue" ||
         c.number === undefined ||
         c.title === undefined ||
         c.state === undefined ||
-        c.createdAt === undefined
+        c.createdAt === undefined ||
+        c.repository === undefined ||
+        c.blockedBy === undefined ||
+        c.subIssues === undefined
       ) {
         throw new Error(
-          `"${c?.title ?? '(no content)'}" is not an issue with a number, title, state and creation time: convert it, or remove it from the board`,
+          `"${c?.title ?? "(no content)"}" is not an issue with a number, title, state, creation time, repository, blockers and sub-issues: convert it, or remove it from the board`,
+        );
+      }
+      // One page each: a list longer than that is refused, not judged in part.
+      if (c.blockedBy.totalCount > c.blockedBy.nodes.length) {
+        throw new Error(
+          `#${c.number} has ${c.blockedBy.totalCount} blockers and one page read ${c.blockedBy.nodes.length}`,
+        );
+      }
+      if (c.subIssues.totalCount > c.subIssues.nodes.length) {
+        throw new Error(
+          `#${c.number} has ${c.subIssues.totalCount} sub-issues and one page read ${c.subIssues.nodes.length}`,
         );
       }
       return {
+        repo: c.repository.nameWithOwner,
         number: c.number,
         title: c.title,
         state: c.state,
         createdAt: c.createdAt,
         status: node.status?.name ?? null,
         priority: node.priority?.name ?? null,
-        blockedBy: (c.blockedBy?.nodes ?? [])
-          .filter((b) => b.state === 'OPEN')
-          .map((b) => b.number),
+        blockedBy: c.blockedBy.nodes
+          .filter((b) => b.state === "OPEN")
+          .map((b) => ({ repo: b.repository.nameWithOwner, number: b.number })),
+        openSubIssues: c.subIssues.nodes.filter((n) => n.state === "OPEN")
+          .length,
       };
     }),
   );
@@ -132,20 +214,29 @@ function main(): void {
     );
   }
   const out = execFileSync(
-    'gh',
-    ['api', 'graphql', '--paginate', '--slurp', '-f', `query=${QUERY}`, '-f', `id=${id}`],
-    { encoding: 'utf8' },
+    "gh",
+    [
+      "api",
+      "graphql",
+      "--paginate",
+      "--slurp",
+      "-f",
+      `query=${QUERY}`,
+      "-f",
+      `id=${id}`,
+    ],
+    { encoding: "utf8" },
   );
   const pages = JSON.parse(out) as RawPage[];
-  assertTitle(pages[0]?.data.node.title ?? '', title);
+  assertTitle(pages[0]?.data.node.title ?? "", title);
   const next = nextTicket(parseNextItems(pages));
   process.stdout.write(
     next === null
-      ? 'Next: nothing is open.\n'
-      : `Next: #${next.number} ${next.title} (${next.priority}, ${next.status ?? 'no status'}${
+      ? "Next: nothing is open.\n"
+      : `Next: #${next.number} ${next.title} (${next.priority}, ${next.status ?? "no status"}${
           next.blockedBy.length > 0
-            ? `, blocked by ${next.blockedBy.map((n) => `#${n}`).join(', ')}`
-            : ''
+            ? `, blocked by ${next.blockedBy.map((b) => label(b, next.repo)).join(", ")}`
+            : ""
         }).\n`,
   );
 }

@@ -47,7 +47,7 @@ export const PRIORITY_OPTIONS = [
     name: 'P1',
     color: 'ORANGE',
     description:
-      'Next: something the operator asked for directly, work already in flight, or a ticket that blocks others.',
+      'Next: something the operator asked for directly, or work already in flight. A blocker is not P1 by being one: it is raised to the level of what waits on it.',
   },
   {
     name: 'P2',

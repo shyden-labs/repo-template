@@ -28,7 +28,7 @@ Estimate. The board, not a handover file, decides what is worked on next.
 | Priority | Means |
 | --- | --- |
 | **P0** | Now: a live defect, a vulnerability, broken CI or deploy, or a release blocker. |
-| **P1** | Next: something the operator asked for directly, work already in flight, or a ticket that blocks others. |
+| **P1** | Next: something the operator asked for directly, or work already in flight. A blocker is not P1 by being one: it is raised to the level of what waits on it. |
 | **P2** | Important: user-facing improvements and the standing quality rules (test limits, guards that cannot see what they judge). |
 | **P3** | Planned: ordinary backlog. |
 | **P4** | Later: worth doing, no pressure. |
@@ -42,6 +42,16 @@ node scripts/board-next.ts <board-node-id> "<board title>"
 ```
 
 It refuses, naming them, while any open issue has no Priority.
+
+**A blocker inherits, it is not P1** (operator 2026-10-13, #6). A ticket that
+blocks others is raised to at least the Priority of the highest open issue
+waiting on it, and `board-next` refuses, naming each pair, while an open
+blocker sits below an issue it blocks, or is not on the board, where its
+Priority cannot be read.
+
+**An epic waits for its stories.** An open issue with open sub-issues is
+passed over until they close; if nothing else is open, `board-next` refuses,
+naming the epics, rather than calling the board empty.
 
 ## Estimates
 
