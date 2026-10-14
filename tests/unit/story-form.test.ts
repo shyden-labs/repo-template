@@ -32,6 +32,12 @@ describe('the story form', () => {
     );
   });
 
+  it('asks for the board Priority, P0 to P5', () => {
+    expect(block('estimate-note')).toContain(
+      'Set its **Priority** too: P0 (now) to P5 (someday), as docs/project-board.md defines them.',
+    );
+  });
+
   it('sends anything larger than 13 to an epic', () => {
     expect(block('estimate-note')).toContain(
       'Anything larger is an epic: split it into stories.',
