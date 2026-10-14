@@ -14,6 +14,10 @@
  * it blocks, naming each pair. A blocker off the board, whose Priority cannot
  * be read, is named in a note and never stops the pick. An epic's work is its stories, so an issue with open sub-issues is
  * passed over until they close.
+ *
+ * A ticket in the `After release` column (operator 2026-10-14: website work
+ * and the release first, infrastructure after) is never picked, but is still
+ * scored and still counts as a blocker.
  */
 import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
@@ -50,6 +54,9 @@ export const label = (r: IssueRef, home: string): string =>
   r.repo === home ? `#${r.number}` : key(r);
 
 const LEVELS: readonly string[] = PRIORITY_OPTIONS.map((o) => o.name);
+
+/** The Status column whose tickets wait until the release ships. */
+export const PARKED = "After release";
 
 /** The next ticket, or `null` when nothing is open. */
 export function nextTicket(items: NextItem[]): NextItem | null {
@@ -89,10 +96,11 @@ export function nextTicket(items: NextItem[]): NextItem | null {
       `Raise each blocker to at least the Priority of what waits on it: ${inversions.join("; ")}.`,
     );
   }
-  const workable = open.filter((i) => i.openSubIssues === 0);
-  if (open.length > 0 && workable.length === 0) {
+  const candidates = open.filter((i) => i.status !== PARKED);
+  const workable = candidates.filter((i) => i.openSubIssues === 0);
+  if (candidates.length > 0 && workable.length === 0) {
     throw new Error(
-      `Every open issue is an epic with open sub-issues: ${open
+      `Every open issue is an epic with open sub-issues: ${candidates
         .map((i) => `#${i.number}`)
         .join(", ")}. Put their stories on this board.`,
     );
@@ -252,7 +260,9 @@ function main(): void {
   const next = nextTicket(items);
   process.stdout.write(
     next === null
-      ? "Next: nothing is open.\n"
+      ? items.some((i) => i.state === "OPEN" && i.status === PARKED)
+        ? `Next: nothing before the release; the rest is in "${PARKED}".\n`
+        : "Next: nothing is open.\n"
       : `Next: #${next.number} ${next.title} (${next.priority}, ${next.status ?? "no status"}${
           next.blockedBy.length > 0
             ? `, blocked by ${next.blockedBy.map((b) => label(b, next.repo)).join(", ")}`

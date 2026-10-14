@@ -3,6 +3,7 @@ import {
   nextTicket,
   offBoardBlockers,
   parseNextItems,
+  PARKED,
   type NextItem,
 } from "../../scripts/board-next";
 
@@ -185,6 +186,28 @@ describe("nextTicket", () => {
     ).toThrow(
       "Every open issue is an epic with open sub-issues: #1, #4. Put their stories on this board.",
     );
+  });
+
+  it("passes over a ticket parked After release, however high its priority", () => {
+    const next = nextTicket([
+      item({ number: 1, priority: "P0", status: PARKED }),
+      item({ number: 2, priority: "P4" }),
+    ]);
+    expect(next?.number).toBe(2);
+  });
+
+  it("answers nothing while every open ticket is parked After release", () => {
+    expect(nextTicket([item({ number: 1, priority: "P1", status: PARKED })])).toBeNull();
+  });
+
+  it("still refuses a parked ticket nobody scored", () => {
+    expect(() =>
+      nextTicket([item({ number: 3, priority: null, status: PARKED }), item({ number: 4 })]),
+    ).toThrow("1 open tickets have no Priority: #3. Score them on the board first.");
+  });
+
+  it("names the parked column as the board shows it", () => {
+    expect(PARKED).toBe("After release");
   });
 });
 
