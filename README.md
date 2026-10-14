@@ -54,3 +54,4 @@ whole lesson.
 5. `npm ci && npm run test:unit` — the supply-chain suite must be green before anything else is written.
 6. Enable Dependabot alerts and security updates on the new repo. Org defaults now cover new repositories, but check rather than assume.
 7. Set up the project board as `docs/project-board.md` describes: record its node id and title, run `node scripts/board-setup.ts`, give every story an Estimate when it is filed, and run `node scripts/board-orphans.ts` in the required PR checks so no ticket stays In Progress without a branch or pull request.
+8. **Fill in `.github/workflows/deploy-dev.yml`.** Every merge into `develop` deploys to dev by this trigger; replace its last step with your own deploy, acting only on the areas in `changed-files.txt`. Until then it fails, naming that step. A repository that hosts nothing deletes the workflow and `tests/unit/deploy-dev.test.ts`, and says why in its README.
