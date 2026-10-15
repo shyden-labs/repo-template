@@ -52,3 +52,39 @@ describe('a new repository', () => {
     expect(readme()).toContain('`node scripts/branch-rules-setup.ts <owner/repo> <required check>...`');
   });
 });
+
+/**
+ * Every API a repository builds has a fully capable Swagger interface, public
+ * or private (operator ruling 2026-10-15, Refs #14). A new repository learns
+ * it here, before its first route ships.
+ */
+describe('the API documentation standard (#14)', () => {
+  const standard = () => readFileSync('docs/api-docs.md', 'utf8');
+
+  it('quotes the ruling', () => {
+    expect(standard()).toContain(
+      'we must have a fully capable Swagger interface for documenation purposes. this include public and private APIs. but the swagger must be private for a private API, the public cannot be allowed to see it or interact with it, only public is public.',
+    );
+  });
+
+  it.each([
+    ['writes are tried on dev only', '**Try it out.** Public docs on production document every operation, but "Try it out" works there only for operations that change nothing. Operations that write are tried on the dev site\'s docs.'],
+    ['private docs sit behind a sign-in', '**Private docs.** A private API\'s spec and its Swagger page are reachable only after the operator signs in'],
+    ['the spec is written by hand and contract-tested', '**One contract.** A hand-written OpenAPI spec per API is the source of truth, and contract tests fail when the real API answers differently from it.'],
+    ['the library is self-hosted', '**Self-hosted.** Swagger UI comes from the `swagger-ui-dist` npm package (Apache-2.0, the swagger-api project), served from the project\'s own origin, never a CDN.'],
+  ])('states that %s', (_what, sentence) => {
+    expect(standard()).toContain(sentence);
+  });
+
+  it('is named in the file table', () => {
+    expect(readme()).toContain('| `docs/api-docs.md` |');
+  });
+
+  it('is a setup step, after the project board', () => {
+    const text = readme();
+    const board = text.indexOf('7. Set up the project board');
+    const api = text.indexOf('8. **Every API gets a Swagger interface.**');
+    expect(board).toBeGreaterThan(-1);
+    expect(api).toBeGreaterThan(board);
+  });
+});
