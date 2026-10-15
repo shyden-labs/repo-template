@@ -18,6 +18,7 @@ rotting.
 | `.github/ISSUE_TEMPLATE/story.yml` | A story is fully defined at filing: story line, context, complete acceptance criteria, and an Estimate on the board. |
 | `scripts/board-setup.ts`, `scripts/board-progress.ts`, `docs/project-board.md` | Every board has a Number field `Estimate`. Every close-out reports progress by tickets and by effort, measured from the board. |
 | `scripts/branch-rules-setup.ts` | `develop` and `main` each carry a ruleset naming the branch, with strict required checks, so two pull requests that pass alone can never land untested together (issue #8). |
+| `docs/api-docs.md` | Every API a repository builds has a fully capable Swagger interface; a private API's docs are private (operator ruling 2026-10-15). The standard, its four decisions, and what a project does. |
 
 ## The four rules
 
@@ -54,3 +55,4 @@ whole lesson.
 5. `npm ci && npm run test:unit` — the supply-chain suite must be green before anything else is written.
 6. Enable Dependabot alerts and security updates on the new repo. Org defaults now cover new repositories, but check rather than assume.
 7. Set up the project board as `docs/project-board.md` describes: record its node id and title, run `node scripts/board-setup.ts`, give every story an Estimate when it is filed, and run `node scripts/board-orphans.ts` in the required PR checks so no ticket stays In Progress without a branch or pull request.
+8. **Every API gets a Swagger interface.** If the repository serves any API (an HTTP route, a function, a webhook), follow `docs/api-docs.md` before its first route ships: a hand-written OpenAPI spec with contract tests, self-hosted Swagger UI, and private docs behind the operator's sign-in.
