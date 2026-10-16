@@ -3,6 +3,9 @@
   "private": true,
   "type": "module",
   "engines": { "node": ">=24" },
-  "scripts": { "test:unit": "vitest run" },
+  "scripts": {
+    "test:unit": "vitest run --config vitest.unit.config.ts",
+    "test:logs": "vitest run --config vitest.logs.config.ts"
+  },
   "devDependencies": { "vitest": "^5.0.0" }
 }
