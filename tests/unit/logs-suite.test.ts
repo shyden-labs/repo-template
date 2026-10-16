@@ -61,6 +61,12 @@ describe('the logs workflow', () => {
     expect([install > -1, lines.indexOf('- run: npm run test:logs') > install]).toEqual([true, true]);
   });
 
+  it('stops within 30 minutes when a step hangs, not GitHub’s default 360', () => {
+    const minutes = workflow('logs.yml').match(/^ {4}timeout-minutes: (\d+)$/m)?.[1];
+    expect(Number(minutes)).toBeGreaterThan(0);
+    expect(Number(minutes)).toBeLessThanOrEqual(30);
+  });
+
   it('pins the same actions at the same SHAs as ci.yml', () => {
     const logs = usesLines(readFileSync('.github/workflows/logs.yml', 'utf8'));
     expect(logs.length).toBe(2);
