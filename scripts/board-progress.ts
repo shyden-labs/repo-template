@@ -8,13 +8,17 @@
  * Usage: node scripts/board-progress.ts <board-node-id> "<board title>"
  *
  * Epics are left out (an epic is the sum of its stories), and so is anything
- * labelled `post-launch`, which is not part of release-ready.
+ * labelled `post-launch`, which is not part of release-ready. A draft card is
+ * planned work, so it counts as an open story. A pull-request card is finished
+ * code, not work left, so it is left out, and a third line names every one. A
+ * card the token cannot read could be open work, so it stops the read.
  */
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
 export interface BoardItem {
-  number: number;
+  /** `null` for a draft card, which has no number. */
+  number: number | null;
   title: string;
   state: 'OPEN' | 'CLOSED';
   createdAt: string;
@@ -23,11 +27,20 @@ export interface BoardItem {
   labels: string[];
 }
 
+export interface BoardRead {
+  /** The issues and draft cards, which both counts include. */
+  items: BoardItem[];
+  /** The pull-request cards by number, which neither count includes. */
+  pullRequests: number[];
+}
+
 export interface TicketProgress {
   closed: number;
   total: number;
   epics: number;
   postLaunch: number;
+  /** In-scope draft cards, each counted as an open story. */
+  drafts: number;
   /**
    * Closures per UTC day over the 7 days ending today, oldest first; fewer
    * days while the board's oldest story is younger than that, because days
@@ -57,6 +70,7 @@ export interface Progress {
 const WINDOW_DAYS = 7;
 const DAY_MS = 86_400_000;
 const isEpic = (item: BoardItem): boolean => /^Epic\b/.test(item.title);
+const isDraft = (item: BoardItem): boolean => item.number === null;
 const isPostLaunch = (item: BoardItem): boolean =>
   item.labels.includes('post-launch');
 
@@ -101,6 +115,7 @@ export function progress(items: BoardItem[], today: string): Progress {
     epics: items.filter(isEpic).length,
     postLaunch: items.filter((item) => !isEpic(item) && isPostLaunch(item))
       .length,
+    drafts: scope.filter(isDraft).length,
     pace: perDay(closed, days, () => 1),
   };
   const scoredOpen = open.filter((item) => item.estimate !== null);
@@ -130,8 +145,8 @@ export function progress(items: BoardItem[], today: string): Progress {
   };
 }
 
-const plural = (n: number, word: string): string =>
-  `${String(n)} ${word}${n === 1 ? '' : 's'}`;
+const plural = (n: number, word: string, words = `${word}s`): string =>
+  `${String(n)} ${n === 1 ? word : words}`;
 
 const meanOf = (pace: number[]): number =>
   pace.reduce((a, b) => a + b, 0) / pace.length;
@@ -152,7 +167,9 @@ export function formatLines(p: Progress, today: string): [string, string] {
   const t = p.tickets;
   const tickets =
     `By tickets: ${String(Math.round((100 * t.closed) / t.total))}% complete ` +
-    `(${String(t.closed)} of ${String(t.total)} in-scope stories closed; ` +
+    `(${String(t.closed)} of ${String(t.total)} in-scope stories closed` +
+    (t.drafts === 0 ? '' : `, counting ${plural(t.drafts, 'open draft')}`) +
+    '; ' +
     `${plural(t.epics, 'epic')} and ${String(t.postLaunch)} post-launch left out). ` +
     `Measured pace ${meanOf(t.pace).toFixed(2)} a day over the last ${plural(t.pace.length, 'day')} (${t.pace.join(', ')}). ` +
     eta(t.total - t.closed, t.pace, today);
@@ -167,7 +184,7 @@ export function formatLines(p: Progress, today: string): [string, string] {
   const assumed =
     e.assumedClosed === 0
       ? ''
-      : `; ${plural(e.assumedClosed, 'closed story')} unscored, counted at the scored mean of ${e.scoredMean.toFixed(1)} points (assumed)`;
+      : `; ${plural(e.assumedClosed, 'closed story', 'closed stories')} unscored, counted at the scored mean of ${e.scoredMean.toFixed(1)} points (assumed)`;
   const effort =
     `By effort: ${String(Math.round((100 * e.closedPoints) / total))}% complete ` +
     `(${String(Math.round(e.closedPoints))} of ${String(Math.round(total))} points closed${assumed}). ` +
@@ -193,38 +210,85 @@ interface RawPage {
   data: { node: { title: string; items: { nodes: RawNode[] } } };
 }
 
-/** Board items from the GraphQL pages; anything that is not an issue is refused by name. */
-export function parseItems(pages: unknown[]): BoardItem[] {
-  return (pages as RawPage[]).flatMap((page) =>
-    page.data.node.items.nodes.map((node): BoardItem => {
-      const c = node.content;
-      if (c?.__typename !== 'Issue') {
-        const kind = c?.__typename === 'DraftIssue' ? 'draft item' : 'item';
-        throw new Error(
-          `${kind} "${c?.title ?? '(no content)'}" is not an issue: convert it, or remove it from the board`,
-        );
+/**
+ * The issues and draft cards on the board, and the pull-request cards left
+ * out, from the GraphQL pages. A card that cannot be read, or a kind this
+ * script does not know, stops the read by name.
+ */
+export function parseItems(pages: unknown[]): BoardRead {
+  const read: BoardRead = { items: [], pullRequests: [] };
+  for (const node of (pages as RawPage[]).flatMap((page) => page.data.node.items.nodes)) {
+    const c = node.content;
+    if (c === null) {
+      throw new Error(
+        'a card on the board came back with no content (this token cannot read it): nothing read, as the count would not be exact',
+      );
+    } else if (c.__typename === 'PullRequest') {
+      if (c.number === undefined) {
+        throw new Error('a pull request on the board came back without its number');
       }
-      if (
-        c.number === undefined ||
-        c.title === undefined ||
-        c.state === undefined ||
-        c.createdAt === undefined
-      ) {
-        throw new Error(
-          'an issue on the board came back without its number, title, state or creation time',
-        );
-      }
-      return {
-        number: c.number,
-        title: c.title,
-        state: c.state,
-        createdAt: c.createdAt,
-        closedAt: c.closedAt ?? null,
-        estimate: node.estimate?.number ?? null,
-        labels: (c.labels?.nodes ?? []).map((l) => l.name),
-      };
-    }),
-  );
+      read.pullRequests.push(c.number);
+    } else if (c.__typename === 'DraftIssue') {
+      read.items.push(parseDraft(node.estimate, c));
+    } else if (c.__typename === 'Issue') {
+      read.items.push(parseIssue(node.estimate, c));
+    } else {
+      throw new Error(
+        `a "${c.__typename}" card is not one this script knows how to count: nothing read`,
+      );
+    }
+  }
+  return read;
+}
+
+function parseDraft(
+  estimate: RawNode['estimate'],
+  c: NonNullable<RawNode['content']>,
+): BoardItem {
+  if (c.title === undefined || c.createdAt === undefined) {
+    throw new Error('a draft card on the board came back without its title or creation time');
+  }
+  return {
+    number: null,
+    title: c.title,
+    state: 'OPEN',
+    createdAt: c.createdAt,
+    closedAt: null,
+    estimate: estimate?.number ?? null,
+    labels: [],
+  };
+}
+
+function parseIssue(
+  estimate: RawNode['estimate'],
+  c: NonNullable<RawNode['content']>,
+): BoardItem {
+  if (
+    c.number === undefined ||
+    c.title === undefined ||
+    c.state === undefined ||
+    c.createdAt === undefined
+  ) {
+    throw new Error(
+      'an issue on the board came back without its number, title, state or creation time',
+    );
+  }
+  return {
+    number: c.number,
+    title: c.title,
+    state: c.state,
+    createdAt: c.createdAt,
+    closedAt: c.closedAt ?? null,
+    estimate: estimate?.number ?? null,
+    labels: (c.labels?.nodes ?? []).map((l) => l.name),
+  };
+}
+
+/** The third line, naming every pull-request card left out, or `null` when there are none. */
+export function formatLeftOut(pullRequests: number[]): string | null {
+  if (pullRequests.length === 0) return null;
+  const numbers = pullRequests.map((n) => `#${String(n)}`).join(', ');
+  return `Left out, not issues: ${plural(pullRequests.length, 'pull request')} (${numbers}).`;
 }
 
 /** Refuse to read a board other than the one asked for. */
@@ -234,14 +298,14 @@ export function assertTitle(actual: string, expected: string): void {
   }
 }
 
-const QUERY = `query($id: ID!, $endCursor: String) {
+export const QUERY = `query($id: ID!, $endCursor: String) {
   node(id: $id) { ... on ProjectV2 { title
     items(first: 100, after: $endCursor) { pageInfo { hasNextPage endCursor }
       nodes {
         estimate: fieldValueByName(name: "Estimate") { ... on ProjectV2ItemFieldNumberValue { number } }
         content { __typename
-          ... on DraftIssue { title }
-          ... on PullRequest { title }
+          ... on DraftIssue { title createdAt }
+          ... on PullRequest { number title }
           ... on Issue { number title state createdAt closedAt labels(first: 20) { nodes { name } } }
         } } } } } }`;
 
@@ -260,9 +324,13 @@ function main(): void {
   const pages = JSON.parse(out) as RawPage[];
   for (const page of pages) assertTitle(page.data.node.title, title);
   const today = new Date().toISOString().slice(0, 10);
-  for (const line of formatLines(progress(parseItems(pages), today), today)) {
-    process.stdout.write(`${line}\n`);
-  }
+  const { items, pullRequests } = parseItems(pages);
+  const leftOutLine = formatLeftOut(pullRequests);
+  const lines = [
+    ...formatLines(progress(items, today), today),
+    ...(leftOutLine === null ? [] : [leftOutLine]),
+  ];
+  for (const line of lines) process.stdout.write(`${line}\n`);
 }
 
 if (
