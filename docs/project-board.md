@@ -9,14 +9,50 @@ effort, each with a % complete and an ETA. The board carries what both need.
 1. Create the board under the `shyden-labs` organisation and record its node
    id and title in the repo's `CLAUDE.md`. Every script and every write
    resolves the board from that node id and checks the title first.
-2. Give it the Number field `Estimate`:
+2. Give it the Number field `Estimate` and the single-select field
+   `Priority`:
 
    ```sh
    node scripts/board-setup.ts <board-node-id> "<board title>"
    ```
 
-   The script refuses a board whose title differs, creates the field only if
-   it is missing, and reads it back.
+   The script refuses a board whose title differs, creates each field only if
+   it is missing (and refuses a same-named field of another type, or a
+   `Priority` with other options), and reads both back.
+
+## Priorities and the next ticket
+
+Every open story carries a `Priority`, set when it is filed, like its
+Estimate. The board, not a handover file, decides what is worked on next.
+
+| Priority | Means |
+| --- | --- |
+| **P0** | Now: a live defect, a vulnerability, broken CI or deploy, or a release blocker. |
+| **P1** | Next: something the operator asked for directly, or work already in flight. A blocker is not P1 by being one: it is raised to the level of what waits on it. |
+| **P2** | Important: user-facing improvements and the standing quality rules (test limits, guards that cannot see what they judge). |
+| **P3** | Planned: ordinary backlog. |
+| **P4** | Later: worth doing, no pressure. |
+| **P5** | Someday: ideas and nice-to-haves. |
+
+The next ticket is the highest Priority among open issues; within a level,
+In Progress first, then unblocked (no open "Blocked by"), then the oldest:
+
+```sh
+node scripts/board-next.ts <board-node-id> "<board title>"
+```
+
+It refuses, naming them, while any open issue has no Priority.
+
+**A blocker inherits, it is not P1** (operator 2026-10-13, #6). A ticket that
+blocks others is raised to at least the Priority of the highest open issue
+waiting on it, and `board-next` refuses, naming each pair, while an open
+blocker sits below an issue it blocks. A blocker that is not on the board
+(another repository's issue, say) has no Priority to read: `board-next` names
+it in a note and still names the next ticket.
+
+**An epic waits for its stories.** An open issue with open sub-issues is
+passed over until they close; if nothing else is open, `board-next` refuses,
+naming the epics, rather than calling the board empty.
 
 ## Estimates
 
