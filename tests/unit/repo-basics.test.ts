@@ -55,6 +55,18 @@ describe("a new repository", () => {
       "`node scripts/branch-rules-setup.ts <owner/repo> <required check>...`",
     );
   });
+
+  // A template copies files, not settings, so the setup step carries it (#28).
+  it("says the script deletes merged head branches, after develop and main forbid deletion", () => {
+    const text = readme();
+    const step = text.slice(
+      text.indexOf("3. **Require up-to-date pull requests"),
+      text.indexOf("4. Add the ecosystems"),
+    );
+    expect(step).toContain(
+      "then turns on **Automatically delete head branches** (`delete_branch_on_merge`)",
+    );
+  });
 });
 
 /**

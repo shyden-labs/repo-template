@@ -3,6 +3,7 @@ import {
   desiredRuleset,
   planRulesets,
   auditBranchRules,
+  auditRepoSettings,
   type ExistingRuleset,
 } from '../../scripts/branch-rules-setup';
 
@@ -127,17 +128,19 @@ describe('planRulesets', () => {
 
 describe('auditBranchRules', () => {
   const good = [
+    { type: 'deletion' },
     { type: 'pull_request' },
     { type: 'required_status_checks', parameters: { strict_required_status_checks_policy: true } },
   ];
 
-  it('passes a branch that requires pull requests and strict checks', () => {
+  it('passes a branch that forbids deletion and requires pull requests and strict checks', () => {
     expect(auditBranchRules('develop', good)).toEqual([]);
   });
 
   it('names a branch whose required checks are not strict', () => {
     expect(
       auditBranchRules('develop', [
+        { type: 'deletion' },
         { type: 'pull_request' },
         { type: 'required_status_checks', parameters: { strict_required_status_checks_policy: false } },
       ]),
@@ -145,12 +148,36 @@ describe('auditBranchRules', () => {
   });
 
   it('names a branch with no required checks at all', () => {
-    expect(auditBranchRules('main', [{ type: 'pull_request' }, { type: 'non_fast_forward' }])).toEqual([
+    expect(auditBranchRules('main', [{ type: 'deletion' }, { type: 'pull_request' }, { type: 'non_fast_forward' }])).toEqual([
       'main: no rule requires status checks',
     ]);
   });
 
   it('names a branch that does not require pull requests', () => {
-    expect(auditBranchRules('main', [good[1]])).toEqual(['main: no rule requires a pull request']);
+    expect(auditBranchRules('main', [good[0], good[2]])).toEqual(['main: no rule requires a pull request']);
+  });
+
+  // With "Automatically delete head branches" on, merging a develop -> main
+  // release pull request deletes develop unless a rule forbids it (#28).
+  it('names a branch that can be deleted', () => {
+    expect(auditBranchRules('develop', [good[1], good[2]])).toEqual(['develop: no rule forbids deleting it']);
+  });
+});
+
+describe('auditRepoSettings', () => {
+  it('passes a repository that deletes merged head branches', () => {
+    expect(auditRepoSettings({ delete_branch_on_merge: true })).toEqual([]);
+  });
+
+  it('names a repository that keeps merged head branches', () => {
+    expect(auditRepoSettings({ delete_branch_on_merge: false })).toEqual([
+      'merged head branches are not deleted (delete_branch_on_merge is false)',
+    ]);
+  });
+
+  it('names a repository whose answer leaves the setting out', () => {
+    expect(auditRepoSettings({})).toEqual([
+      'merged head branches are not deleted (delete_branch_on_merge is undefined)',
+    ]);
   });
 });
