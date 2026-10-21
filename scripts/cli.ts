@@ -27,5 +27,5 @@ export async function runIfEntry(
   proc.exit(await main(proc.argv.slice(2)));
 }
 
-// TEST ONLY (#61 AC4): a planted type error, to watch CI's Typecheck step fail.
-export const plantedTypeError: number = 'not a number';
+// TEST ONLY (#61 AC4): a planted lint error, to watch CI's Lint step fail.
+export const plantedLintError = (value: unknown) => value!;
