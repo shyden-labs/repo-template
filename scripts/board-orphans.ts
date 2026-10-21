@@ -13,8 +13,8 @@
  * setting its Status back, or push its branch.
  */
 import { execFileSync } from 'node:child_process';
-import { pathToFileURL } from 'node:url';
 import { assertTitle } from './board-progress.ts';
+import { runIfEntry } from './cli.ts';
 
 export interface OpenPullRequest {
   title: string;
@@ -89,8 +89,8 @@ function gh(args: string[]): unknown {
   return JSON.parse(execFileSync('gh', args, { encoding: 'utf8', maxBuffer: 64e6 }));
 }
 
-function main(): number {
-  const [id, title, repo] = process.argv.slice(2);
+export function main(args: string[]): number {
+  const [id, title, repo] = args;
   if (id === undefined || title === undefined || repo === undefined || !/^[^/\s]+\/[^/\s]+$/.test(repo)) {
     throw new Error('usage: node scripts/board-orphans.ts <board-node-id> "<board title>" <owner/repo>');
   }
@@ -130,6 +130,4 @@ function main(): number {
   return orphans.length === 0 ? 0 : 1;
 }
 
-if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  process.exit(main());
-}
+runIfEntry(import.meta.url, main);

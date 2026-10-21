@@ -1,14 +1,20 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { execFileSync } from 'node:child_process';
 import {
   assertTitle,
   formatLeftOut,
   formatLines,
   inScope,
+  main,
   parseItems,
   progress,
   QUERY,
   type BoardItem,
 } from '../../scripts/board-progress';
+
+// `gh` is stood in: a unit test starts no process.
+vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
+const gh = vi.mocked(execFileSync);
 
 /**
  * Progress from the board, never from feel: every session close-out states
@@ -361,6 +367,20 @@ describe('parseItems', () => {
     });
   });
 
+  it('reads a draft card with no Estimate as unscored', () => {
+    expect(
+      parseItems([
+        page([{ estimate: null, content: { __typename: 'DraftIssue', title: 'Idea', createdAt: '2026-10-02T00:00:00Z' } }]),
+      ]).items[0]?.estimate,
+    ).toBeNull();
+  });
+
+  it('reads an issue that came back with no labels as having none', () => {
+    const { content } = issue(4);
+    const { labels: _labels, ...withoutLabels } = content;
+    expect(parseItems([page([{ estimate: null, content: withoutLabels }])]).items[0]?.labels).toEqual([]);
+  });
+
   it('refuses a draft card that came back without its creation time', () => {
     expect(() =>
       parseItems([page([{ estimate: null, content: { __typename: 'DraftIssue', title: 'Idea' } }])]),
@@ -436,5 +456,70 @@ describe('assertTitle', () => {
     expect(() => assertTitle('ShyTalk Stories', 'Example Stories')).toThrow(
       'the board is "ShyTalk Stories", not "Example Stories": nothing read',
     );
+  });
+});
+
+describe('main', () => {
+  const card = (number: number, typename = 'Issue') => ({
+    estimate: { number: 3 },
+    content: {
+      __typename: typename,
+      number,
+      title: `S${String(number)}`,
+      state: 'OPEN',
+      createdAt: '2026-10-01T00:00:00Z',
+      closedAt: null,
+      labels: { nodes: [] },
+    },
+  });
+  const boardPage = (title: string, nodes: unknown[]) => ({ data: { node: { title, items: { nodes } } } });
+  let out: string[];
+  beforeEach(() => {
+    gh.mockReset();
+    out = [];
+    vi.spyOn(process.stdout, 'write').mockImplementation((t) => (out.push(String(t)), true));
+    vi.useFakeTimers({ now: new Date(`${TODAY}T12:00:00Z`) });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it.each([[[]], [['PVT_1']]])('refuses the arguments %j', (args) => {
+    expect(() => main(args)).toThrow('usage: node scripts/board-progress.ts <board-node-id> "<board title>"');
+  });
+
+  it('reads the board by its node id', () => {
+    gh.mockReturnValueOnce(JSON.stringify([boardPage('Example Stories', [card(1)])]));
+    main(['PVT_1', 'Example Stories']);
+    expect(gh).toHaveBeenCalledWith(
+      'gh',
+      ['api', 'graphql', '--paginate', '--slurp', '-f', `query=${QUERY}`, '-f', 'id=PVT_1'],
+      { encoding: 'utf8' },
+    );
+  });
+
+  it('refuses when any page names another board', () => {
+    gh.mockReturnValueOnce(
+      JSON.stringify([boardPage('Example Stories', [card(1)]), boardPage('ShyTalk Stories', [card(2)])]),
+    );
+    expect(() => main(['PVT_1', 'Example Stories'])).toThrow(
+      'the board is "ShyTalk Stories", not "Example Stories": nothing read',
+    );
+  });
+
+  it('prints both progress lines, dated today, and exits 0', () => {
+    const pages = [boardPage('Example Stories', [card(1)])];
+    gh.mockReturnValueOnce(JSON.stringify(pages));
+    expect(main(['PVT_1', 'Example Stories'])).toBe(0);
+    const { items } = parseItems(pages);
+    expect(out).toEqual(formatLines(progress(items, TODAY), TODAY).map((line) => `${line}\n`));
+  });
+
+  it('adds the line naming each pull request it left out', () => {
+    const pages = [boardPage('Example Stories', [card(1), card(9, 'PullRequest')])];
+    gh.mockReturnValueOnce(JSON.stringify(pages));
+    main(['PVT_1', 'Example Stories']);
+    expect(out.at(-1)).toBe('Left out, not issues: 1 pull request (#9).\n');
   });
 });

@@ -1,10 +1,16 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { execFileSync } from 'node:child_process';
 import {
   desiredRuleset,
+  main,
   planRulesets,
   auditBranchRules,
   type ExistingRuleset,
 } from '../../scripts/branch-rules-setup';
+
+// `gh` is stood in: a unit test starts no process. Each test queues gh's replies in call order.
+vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
+const gh = vi.mocked(execFileSync);
 
 /**
  * Every repository requires pull requests to be up to date with their base
@@ -152,5 +158,65 @@ describe('auditBranchRules', () => {
 
   it('names a branch that does not require pull requests', () => {
     expect(auditBranchRules('main', [good[1]])).toEqual(['main: no rule requires a pull request']);
+  });
+});
+
+describe('main', () => {
+  const REPO = 'shyden-labs/app';
+  const CHECKS = ['build-and-test', 'coverage'];
+  const strict = [
+    { type: 'pull_request' },
+    { type: 'required_status_checks', parameters: { strict_required_status_checks_policy: true } },
+  ];
+  const reply = (...values: unknown[]) => {
+    for (const value of values) gh.mockReturnValueOnce(JSON.stringify(value));
+  };
+  /** Each gh call's arguments and the body it sent on stdin, if any. */
+  const calls = () => gh.mock.calls.map((c) => [c[1], (c[2] as { input?: string }).input]);
+  let out: string[];
+  beforeEach(() => {
+    gh.mockReset();
+    out = [];
+    vi.spyOn(process.stdout, 'write').mockImplementation((t) => (out.push(String(t)), true));
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it.each([[[]], [['not-a-repo', 'build-and-test']], [[REPO]]])('refuses the arguments %j', (args) => {
+    expect(() => main(args)).toThrow('usage: node scripts/branch-rules-setup.ts <owner/repo> <required check>...');
+  });
+
+  it('creates both rulesets where there are none, reads both branches back and exits 0', () => {
+    reply([], {}, {}, strict, strict);
+    expect(main([REPO, ...CHECKS])).toBe(0);
+    expect(calls()).toEqual([
+      [['api', `repos/${REPO}/rulesets`], undefined],
+      [['api', '-X', 'POST', `repos/${REPO}/rulesets`, '--input', '-'], JSON.stringify(desiredRuleset('develop', CHECKS))],
+      [['api', '-X', 'POST', `repos/${REPO}/rulesets`, '--input', '-'], JSON.stringify(desiredRuleset('main', CHECKS))],
+      [['api', `repos/${REPO}/rules/branches/develop`], undefined],
+      [['api', `repos/${REPO}/rules/branches/main`], undefined],
+    ]);
+    expect(out).toEqual([
+      'develop: create\n',
+      'main: create\n',
+      `${REPO}: develop and main each require pull requests and strict checks.\n`,
+    ]);
+  });
+
+  it('keeps a ruleset that matches and updates one that differs, by id', () => {
+    const developRuleset = { id: 1, ...desiredRuleset('develop', CHECKS) };
+    const mainRuleset = { id: 2, ...desiredRuleset('main', ['build-and-test']) };
+    reply([{ id: 1 }, { id: 2 }], developRuleset, mainRuleset, {}, strict, strict);
+    expect(main([REPO, ...CHECKS])).toBe(0);
+    expect(calls().slice(1, 4)).toEqual([
+      [['api', `repos/${REPO}/rulesets/1`], undefined],
+      [['api', `repos/${REPO}/rulesets/2`], undefined],
+      [['api', '-X', 'PUT', `repos/${REPO}/rulesets/2`, '--input', '-'], JSON.stringify(desiredRuleset('main', CHECKS))],
+    ]);
+    expect(out.slice(0, 2)).toEqual(['develop: keep\n', 'main: update\n']);
+  });
+
+  it('fails, naming each shortfall, when the rules read back fall short', () => {
+    reply([], {}, {}, strict, [strict[1]]);
+    expect(() => main([REPO, ...CHECKS])).toThrow('read back, the rules still fall short:\n  main: no rule requires a pull request');
   });
 });

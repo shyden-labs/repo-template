@@ -13,7 +13,7 @@
  * branches' rules back, failing unless both are strict.
  */
 import { execFileSync } from 'node:child_process';
-import { pathToFileURL } from 'node:url';
+import { runIfEntry } from './cli.ts';
 
 export interface Rule {
   type: string;
@@ -127,8 +127,8 @@ function gh(args: string[], input?: string): unknown {
   return JSON.parse(execFileSync('gh', args, { encoding: 'utf8', input }));
 }
 
-function main(): void {
-  const [repo, ...checks] = process.argv.slice(2);
+export function main(args: string[]): number {
+  const [repo, ...checks] = args;
   if (repo === undefined || !/^[^/\s]+\/[^/\s]+$/.test(repo) || checks.length === 0) {
     throw new Error('usage: node scripts/branch-rules-setup.ts <owner/repo> <required check>...');
   }
@@ -147,8 +147,7 @@ function main(): void {
     throw new Error(`read back, the rules still fall short:\n  ${problems.join('\n  ')}`);
   }
   process.stdout.write(`${repo}: develop and main each require pull requests and strict checks.\n`);
+  return 0;
 }
 
-if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main();
-}
+runIfEntry(import.meta.url, main);

@@ -14,7 +14,7 @@
  * card the token cannot read could be open work, so it stops the read.
  */
 import { execFileSync } from 'node:child_process';
-import { pathToFileURL } from 'node:url';
+import { runIfEntry } from './cli.ts';
 
 export interface BoardItem {
   /** `null` for a draft card, which has no number. */
@@ -85,8 +85,8 @@ function windowDays(today: string, since: string): string[] {
   const days = Array.from({ length: WINDOW_DAYS }, (_, i) =>
     new Date(end - (WINDOW_DAYS - 1 - i) * DAY_MS).toISOString().slice(0, 10),
   );
-  const kept = days.filter((day) => day >= since);
-  return kept.length === 0 ? [today] : kept;
+  // `since` is never after `today` (progress seeds it with today), so today is always kept.
+  return days.filter((day) => day >= since);
 }
 
 function perDay(
@@ -125,11 +125,13 @@ export function progress(items: BoardItem[], today: string): Progress {
       effort: { available: false, scored: scoredOpen.length, open: open.length },
     };
   }
-  const scoredClosed = closed.filter((item) => item.estimate !== null);
+  const scoredClosed = closed.filter(
+    (item): item is BoardItem & { estimate: number } => item.estimate !== null,
+  );
   const scoredMean =
     scoredClosed.length === 0
       ? 0
-      : scoredClosed.reduce((sum, item) => sum + (item.estimate ?? 0), 0) /
+      : scoredClosed.reduce((sum, item) => sum + item.estimate, 0) /
         scoredClosed.length;
   const points = (item: BoardItem): number => item.estimate ?? scoredMean;
   return {
@@ -309,8 +311,8 @@ export const QUERY = `query($id: ID!, $endCursor: String) {
           ... on Issue { number title state createdAt closedAt labels(first: 20) { nodes { name } } }
         } } } } } }`;
 
-function main(): void {
-  const [id, title] = process.argv.slice(2);
+export function main(args: string[]): number {
+  const [id, title] = args;
   if (id === undefined || title === undefined) {
     throw new Error(
       'usage: node scripts/board-progress.ts <board-node-id> "<board title>"',
@@ -331,11 +333,7 @@ function main(): void {
     ...(leftOutLine === null ? [] : [leftOutLine]),
   ];
   for (const line of lines) process.stdout.write(`${line}\n`);
+  return 0;
 }
 
-if (
-  process.argv[1] !== undefined &&
-  import.meta.url === pathToFileURL(process.argv[1]).href
-) {
-  main();
-}
+runIfEntry(import.meta.url, main);
