@@ -13,7 +13,7 @@ import { main, parseReportTask, verdict } from '../../scripts/sonar-verdict.ts';
  * HTTP and the wait are stood in: nothing reaches the network.
  */
 
-vi.mock('node:timers/promises', () => ({ setTimeout: vi.fn(async () => undefined) }));
+vi.mock('node:timers/promises', () => ({ setTimeout: vi.fn(() => Promise.resolve()) }));
 const waited = vi.mocked(sleep);
 
 const REPORT = ['projectKey=shyden-labs_app', 'serverUrl=https://sonarcloud.io', 'dashboardUrl=https://sonarcloud.io/dashboard?id=x&pullRequest=7', 'ceTaskId=AX1'].join('\n');
@@ -95,10 +95,10 @@ describe('main', () => {
   const answer = (...replies: [number, unknown][]) => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (url: string, init: { headers: Record<string, string> }) => {
+      vi.fn((url: string, init: { headers: { Authorization: string } }) => {
         fetched.push(`${url} ${init.headers.Authorization}`);
         const [status, body] = replies.shift() as [number, unknown];
-        return { ok: status === 200, status, json: async () => body };
+        return Promise.resolve({ ok: status === 200, status, json: () => Promise.resolve(body) });
       }),
     );
   };

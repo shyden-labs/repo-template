@@ -1,0 +1,4 @@
+# Written by tools, in their own format: npm, and scripts/coverage-record.ts.
+package-lock.json
+coverage-record.json
+coverage/

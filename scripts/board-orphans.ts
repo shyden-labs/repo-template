@@ -130,4 +130,4 @@ export function main(args: string[]): number {
   return orphans.length === 0 ? 0 : 1;
 }
 
-runIfEntry(import.meta.url, main);
+await runIfEntry(import.meta.url, main);

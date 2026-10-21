@@ -47,6 +47,7 @@ describe('parseStory', () => {
     ['a blocker that is not an issue number', JSON.stringify({ ...STORY, blockedBy: ['12'] }), 'file-story: blockedBy must list issue numbers'],
     ['a parent that is not an issue number', JSON.stringify({ ...STORY, parent: 0 }), 'file-story: parent must be an issue number'],
     ['a status that is not text', JSON.stringify({ ...STORY, status: 3 }), 'file-story: status must be the name of a Status option'],
+    ['a body that is not text', JSON.stringify({ ...STORY, body: { text: 'x' } }), 'file-story: body must be text'],
     ['a body with no Announce', JSON.stringify({ ...STORY, body: BODY.replace('## Announce', '## Notes') }), 'file-story: the body has no "## Announce" section'],
     ['a story with no body', JSON.stringify({ ...STORY, body: undefined }), 'file-story: the body has no "## Story" section'],
     ['a closing keyword', JSON.stringify({ ...STORY, body: `${BODY}\n\nFixes #4` }), 'file-story: the body would close #4 on merge ("Fixes #4"); write "Refs #4"'],
@@ -232,8 +233,7 @@ describe('main', () => {
     ['the Status', { readBack: { status: null } }, 'Status read back as none, not Todo'],
     ['the board', { readBack: { project: { title: 'Other' } } }, 'the item read back on Other, not App Stories'],
     ['a blocker', { blockers: [] }, 'blocked by read back as nothing, not #12'],
-    ['the parent', { parent: { number: 8 } }, 'parent read back as #8, not #7'],
-  ])('fails, naming it, when %s does not read back', (_what, over, problem) => {
+    ['the parent', { parent: { number: 8 } }, 'parent read back as #8, not #7'],  ])('fails, naming it, when %s does not read back', (_what, over, problem) => {
     reply(...filing(over));
     expect(() => main(['PVT_1', 'App Stories', write(STORY)])).toThrow(`file-story: shyden-labs/app#40 was filed, but ${problem}`);
   });

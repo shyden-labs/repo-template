@@ -129,4 +129,4 @@ export function main(args: string[]): number {
   return 0;
 }
 
-runIfEntry(import.meta.url, main);
+await runIfEntry(import.meta.url, main);

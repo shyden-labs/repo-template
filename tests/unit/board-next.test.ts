@@ -177,6 +177,12 @@ describe("nextTicket", () => {
     ]);
   });
 
+  it("names an unscored ticket's off-board blocker without printing null", () => {
+    expect(offBoardBlockers([item({ number: 1, priority: null, blockedBy: [ref(9)] })])).toEqual([
+      "#9 blocks #1 (no Priority) but is not on this board, so its Priority is not checked",
+    ]);
+  });
+
   it("passes over an epic while it has open sub-issues", () => {
     const next = nextTicket([
       item({ number: 1, priority: "P0", openSubIssues: 2 }),

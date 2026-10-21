@@ -84,11 +84,16 @@ function shape(body: RulesetBody): string {
   return canonical({ name, target, enforcement, conditions, rules });
 }
 
+/** One branch's ruleset: created, or updated or kept by its id. */
+export type RulesetStep =
+  | { action: 'create'; body: RulesetBody }
+  | { action: 'update' | 'keep'; id: number; body: RulesetBody };
+
 /** What each branch's ruleset needs: created, updated by id, or kept. */
 export function planRulesets(
   existing: ExistingRuleset[],
   checks: string[],
-): { action: 'create' | 'update' | 'keep'; id?: number; body: RulesetBody }[] {
+): RulesetStep[] {
   for (const r of existing) {
     if (r.conditions.ref_name.include.includes('~DEFAULT_BRANCH')) {
       throw new Error(
@@ -171,4 +176,4 @@ export function main(args: string[]): number {
   return 0;
 }
 
-runIfEntry(import.meta.url, main);
+await runIfEntry(import.meta.url, main);

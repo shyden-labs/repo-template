@@ -100,7 +100,7 @@ describe('planRulesets', () => {
 
   it('updates a same-named ruleset that is not strict, by its id', () => {
     const plan = planRulesets([existing(11, 'develop', ['refs/heads/develop'], false)], CHECKS);
-    expect(plan.map((p) => [p.action, p.body.name, p.id])).toEqual([
+    expect(plan.map((p) => [p.action, p.body.name, 'id' in p ? p.id : undefined])).toEqual([
       ['update', 'develop', 11],
       ['create', 'main', undefined],
     ]);

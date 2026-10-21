@@ -38,9 +38,9 @@ interface ProjectStatus {
 
 const STEP_MS = 5000;
 
-const fail = (message: string): never => {
+function fail(message: string): never {
   throw new Error(`sonar-verdict: ${message}`);
-};
+}
 
 /** The scan's task id, server and dashboard, from report-task.txt (`key=value` lines). */
 export function parseReportTask(text: string): { serverUrl: string; ceTaskId: string; dashboardUrl: string } {
@@ -124,4 +124,4 @@ async function judge(path: string): Promise<{ ok: boolean; lines: string[]; dash
   return { ...verdict(status), dashboardUrl: report.dashboardUrl };
 }
 
-runIfEntry(import.meta.url, main);
+await runIfEntry(import.meta.url, main);

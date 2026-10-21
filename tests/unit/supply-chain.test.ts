@@ -82,8 +82,8 @@ const subPathRepos = (uses: Use[]): [string, Set<string>][] => {
   for (const { text } of uses) {
     const ref = /uses:\s*([^@\s]+)@/.exec(text)?.[1];
     if (ref === undefined) continue;
-    const [owner, repo] = ref.split('/');
-    const key = `${owner}/${repo}`;
+    // The repository is the first two segments of an action's path.
+    const key = ref.split('/').slice(0, 2).join('/');
     refs.set(key, (refs.get(key) ?? new Set()).add(ref));
   }
   return [...refs.entries()].filter(([, seen]) => seen.size > 1);

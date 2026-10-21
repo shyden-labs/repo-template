@@ -41,9 +41,9 @@ export const SUITES: Record<string, { dir: string; config: string }> = {
 const TEST_FILE = /\.test\.[cm]?[jt]sx?$/;
 const KEYS = ['mutations', 'suite', 'targets'];
 
-const fail = (message: string): never => {
+function fail(message: string): never {
   throw new Error(`mutate: ${message}`);
-};
+}
 
 /** A test file in one of the non-unit suites. */
 export const nonUnitTest = (path: string): boolean =>
@@ -167,7 +167,7 @@ export function main(args: string[]): number {
   const root = process.cwd();
   let files = rest;
   if (mode === 'pr') {
-    const changed = execFileSync('git', ['diff', '--name-only', '--diff-filter=AMR', `${rest[0]}...HEAD`], { encoding: 'utf8' })
+    const changed = execFileSync('git', ['diff', '--name-only', '--diff-filter=AMR', `${rest[0] as string}...HEAD`], { encoding: 'utf8' })
       .split('\n')
       .filter((p) => p !== '');
     files = changed.filter((p) => p.startsWith('mutations/') && p.endsWith('.json'));
@@ -183,4 +183,4 @@ export function main(args: string[]): number {
   return problems.length === 0 ? 0 : 1;
 }
 
-runIfEntry(import.meta.url, main);
+await runIfEntry(import.meta.url, main);

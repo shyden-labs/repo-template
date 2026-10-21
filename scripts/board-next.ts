@@ -58,9 +58,13 @@ const LEVELS: readonly string[] = PRIORITY_OPTIONS.map((o) => o.name);
 /** The Status column whose tickets wait until the release ships. */
 export const PARKED = "After release";
 
+/** An open ticket whose Priority is set. */
+export type ScoredItem = NextItem & { priority: string };
+
 /** The next ticket, or `null` when nothing is open. */
-export function nextTicket(items: NextItem[]): NextItem | null {
+export function nextTicket(items: NextItem[]): ScoredItem | null {
   const open = items.filter((i) => i.state === "OPEN");
+  const scored = open.filter((i): i is ScoredItem => i.priority !== null);
   const unscored = open.filter((i) => i.priority === null);
   if (unscored.length > 0) {
     throw new Error(
@@ -69,22 +73,21 @@ export function nextTicket(items: NextItem[]): NextItem | null {
         .join(", ")}. Score them on the board first.`,
     );
   }
-  for (const i of open) {
-    if (!LEVELS.includes(i.priority as string)) {
+  for (const i of scored) {
+    if (!LEVELS.includes(i.priority)) {
       throw new Error(
         `#${i.number} has Priority "${i.priority}", which is not one of ${LEVELS.join(", ")}`,
       );
     }
   }
-  const onBoard = new Map(open.map((i) => [key(i), i]));
-  const inversions = open.flatMap((waiting) =>
+  const onBoard = new Map(scored.map((i) => [key(i), i]));
+  const inversions = scored.flatMap((waiting) =>
     waiting.blockedBy.flatMap((b) => {
       const blocker = onBoard.get(key(b));
       // Off the board, its Priority cannot be read: a note, never a stop
       // (operator 2026-10-13). See offBoardBlockers.
       if (blocker === undefined) return [];
-      return LEVELS.indexOf(blocker.priority as string) >
-        LEVELS.indexOf(waiting.priority as string)
+      return LEVELS.indexOf(blocker.priority) > LEVELS.indexOf(waiting.priority)
         ? [
             `${label(b, waiting.repo)} (${blocker.priority}) blocks #${waiting.number} (${waiting.priority})`,
           ]
@@ -96,7 +99,7 @@ export function nextTicket(items: NextItem[]): NextItem | null {
       `Raise each blocker to at least the Priority of what waits on it: ${inversions.join("; ")}.`,
     );
   }
-  const candidates = open.filter((i) => i.status !== PARKED);
+  const candidates = scored.filter((i) => i.status !== PARKED);
   const workable = candidates.filter((i) => i.openSubIssues === 0);
   if (candidates.length > 0 && workable.length === 0) {
     throw new Error(
@@ -105,8 +108,8 @@ export function nextTicket(items: NextItem[]): NextItem | null {
         .join(", ")}. Put their stories on this board.`,
     );
   }
-  const rank = (i: NextItem): number[] => [
-    LEVELS.indexOf(i.priority as string),
+  const rank = (i: ScoredItem): number[] => [
+    LEVELS.indexOf(i.priority),
     i.status === "In Progress" ? 0 : 1,
     i.blockedBy.length === 0 ? 0 : 1,
     Date.parse(i.createdAt),
@@ -137,7 +140,7 @@ export function offBoardBlockers(items: NextItem[]): string[] {
       .filter((b) => !onBoard.has(key(b)))
       .map(
         (b) =>
-          `${label(b, waiting.repo)} blocks #${waiting.number} (${waiting.priority}) but is not on this board, so its Priority is not checked`,
+          `${label(b, waiting.repo)} blocks #${waiting.number} (${waiting.priority ?? "no Priority"}) but is not on this board, so its Priority is not checked`,
       ),
   );
 }
@@ -274,4 +277,4 @@ export function main(args: string[]): number {
   return 0;
 }
 
-runIfEntry(import.meta.url, main);
+await runIfEntry(import.meta.url, main);

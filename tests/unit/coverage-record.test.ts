@@ -214,7 +214,9 @@ describe('codeFiles', () => {
   beforeEach(() => {
     root = mkdtempSync(join(tmpdir(), 'coverage-record-'));
   });
-  afterEach(() => rmSync(root, { recursive: true, force: true }));
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
 
   it('lists every TypeScript and JavaScript file, sorted, outside dependency and output folders', () => {
     for (const dir of ['scripts', 'tests/unit', 'node_modules/x', 'coverage', '.git', '.vite']) {
@@ -296,13 +298,15 @@ describe('main', () => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  const summary = (statementsCovered: number) =>
+  const summary = (statementsCovered: number) => {
     writeFileSync(
       join(root, 'coverage/coverage-summary.json'),
       JSON.stringify({ total: entry(4, statementsCovered, 2, 2), [join(root, 'scripts/a.ts')]: entry(4, statementsCovered, 2, 2) }),
     );
-  const record = (statements: number) =>
+  };
+  const record = (statements: number) => {
     writeFileSync(join(root, 'coverage-record.json'), JSON.stringify({ 'scripts/a.ts': { statements, branches: 0 } }));
+  };
 
   it('check passes when the record equals the report, and prints the totals', () => {
     summary(3);

@@ -44,7 +44,9 @@ describe('projectFiles', () => {
       writeFileSync(join(root, f), '');
     }
   });
-  afterEach(() => rmSync(root, { recursive: true, force: true }));
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
 
   it("finds the config's test files the way Playwright's default match does", () => {
     expect(projectFiles({ testDir: 'tests/devices' }, android, root)).toEqual([

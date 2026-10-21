@@ -40,9 +40,9 @@ const CODE = /\.(?:[cm]?[jt]s|[jt]sx)$/;
 /** Dependencies, git's own files, and what tools write: never the repo's code. */
 const NOT_SOURCE = new Set(['node_modules', '.git', 'coverage', '.vite']);
 
-const fail = (message: string): never => {
+function fail(message: string): never {
   throw new Error(`coverage-record: ${message}`);
-};
+}
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -243,7 +243,7 @@ export function main(args: string[]): number {
   );
   process.stdout.write(`${formatTotals(measured)}\n`);
   if (mode === 'record') {
-    const old = existsSync(join(root, RECORD)) ? parseRecord(readFileSync(join(root, RECORD), 'utf8')) : new Map();
+    const old = existsSync(join(root, RECORD)) ? parseRecord(readFileSync(join(root, RECORD), 'utf8')) : new Map<string, Counts>();
     const { record, changes } = recordFrom(old, measured);
     writeFileSync(join(root, RECORD), record);
     if (changes.length === 0) process.stdout.write('coverage-record: no change; the record already equals the report\n');
@@ -265,4 +265,4 @@ export function main(args: string[]): number {
   return 0;
 }
 
-runIfEntry(import.meta.url, main);
+await runIfEntry(import.meta.url, main);

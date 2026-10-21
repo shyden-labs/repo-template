@@ -4,9 +4,10 @@
  * so the started-or-imported branch is tested once, in-process, and each
  * script's own last line always runs (issue #32).
  *
- *   runIfEntry(import.meta.url, main);
+ *   await runIfEntry(import.meta.url, main);
  *
- * An error thrown by `main` is left to node, which prints it and exits 1.
+ * The call is awaited at the top of the module, so an error thrown by `main`
+ * rejects the module and node prints it and exits 1.
  */
 import { pathToFileURL } from 'node:url';
 

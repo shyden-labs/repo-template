@@ -449,11 +449,15 @@ describe('formatLeftOut', () => {
 
 describe('assertTitle', () => {
   it('passes the board it was asked for', () => {
-    expect(() => assertTitle('Example Stories', 'Example Stories')).not.toThrow();
+    expect(() => {
+      assertTitle('Example Stories', 'Example Stories');
+    }).not.toThrow();
   });
 
   it('refuses any other board by name', () => {
-    expect(() => assertTitle('ShyTalk Stories', 'Example Stories')).toThrow(
+    expect(() => {
+      assertTitle('ShyTalk Stories', 'Example Stories');
+    }).toThrow(
       'the board is "ShyTalk Stories", not "Example Stories": nothing read',
     );
   });

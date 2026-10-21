@@ -3,7 +3,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { apply, judge, main, nonUnitTest, parseMutationFile, SUITES, verdict, type MutationFile } from '../../scripts/mutate.ts';
+import { apply, judge, main, nonUnitTest, parseMutationFile, SUITES, verdict, type MutationFile, type Row } from '../../scripts/mutate.ts';
 
 /**
  * The mutations check (issue #21; Shyden 2026-10-16: "mutation testing is
@@ -18,14 +18,9 @@ vi.mock('node:child_process', () => ({ execFileSync: vi.fn(), spawnSync: vi.fn()
 const git = vi.mocked(execFileSync);
 const suite = vi.mocked(spawnSync);
 
-const FILE: MutationFile = {
-  targets: ['tests/logs/writer.test.ts'],
-  suite: 'logs',
-  mutations: [
-    { name: 'drops the timestamp', path: 'src/writer.ts', anchor: 'at: now()', replacement: 'at: 0', predict: { red: ['stamps each line'] } },
-    { name: 'an equivalent rename', path: 'src/writer.ts', anchor: 'const line', replacement: 'const entry', predict: { green: true } },
-  ],
-};
+const RED: Row = { name: 'drops the timestamp', path: 'src/writer.ts', anchor: 'at: now()', replacement: 'at: 0', predict: { red: ['stamps each line'] } };
+const GREEN: Row = { name: 'an equivalent rename', path: 'src/writer.ts', anchor: 'const line', replacement: 'const entry', predict: { green: true } };
+const FILE: MutationFile = { targets: ['tests/logs/writer.test.ts'], suite: 'logs', mutations: [RED, GREEN] };
 
 describe('SUITES', () => {
   it('lists every non-unit suite with the folder it holds and the command that runs it', () => {
@@ -49,7 +44,7 @@ describe('parseMutationFile', () => {
   });
 
   const broken = (over: object) => JSON.stringify({ ...FILE, ...over });
-  const row = (over: object) => JSON.stringify({ ...FILE, mutations: [{ ...FILE.mutations[0], ...over }] });
+  const row = (over: object) => JSON.stringify({ ...FILE, mutations: [{ ...RED, ...over }] });
   it.each([
     ['not JSON', '{', 'is not JSON'],
     ['not an object', '[]', 'is not a JSON object'],
@@ -82,11 +77,11 @@ describe('judge', () => {
 
 describe('apply', () => {
   it('replaces an anchor that appears exactly once', () => {
-    expect(apply('a at: now() b', FILE.mutations[0]!)).toBe('a at: 0 b');
+    expect(apply('a at: now() b', RED)).toBe('a at: 0 b');
   });
 
   it.each([['never', 'a b', 0], ['twice', 'at: now() at: now()', 2]])('refuses an anchor that appears %s', (_kind, text, count) => {
-    expect(() => apply(text, FILE.mutations[0]!)).toThrow(
+    expect(() => apply(text, RED)).toThrow(
       `mutate: row "drops the timestamp": its anchor appears ${count} times in src/writer.ts, not exactly once`,
     );
   });
@@ -96,19 +91,19 @@ describe('verdict', () => {
   const run = (failed: string[], total = 5) => ({ failed, total });
 
   it('accepts red with every named test failing and no other', () => {
-    expect(verdict(FILE.mutations[0]!, run(['writer > stamps each line']), 5)).toBe('');
+    expect(verdict(RED, run(['writer > stamps each line']), 5)).toBe('');
   });
 
   it('accepts green with nothing failing', () => {
-    expect(verdict(FILE.mutations[1]!, run([]), 5)).toBe('');
+    expect(verdict(GREEN, run([]), 5)).toBe('');
   });
 
   it.each([
-    ['a predicted red that stayed green', FILE.mutations[0]!, run([]), 'predicted red (stamps each line), but nothing failed'],
-    ['a predicted test that did not fail', FILE.mutations[0]!, run(['writer > other']), 'predicted stamps each line to fail; failed instead: writer > other'],
-    ['a failure nobody predicted', FILE.mutations[0]!, run(['writer > stamps each line', 'writer > other']), 'failed too, unpredicted: writer > other'],
-    ['a predicted green that went red', FILE.mutations[1]!, run(['writer > other']), 'predicted green, but failed: writer > other'],
-    ['a moved test total', FILE.mutations[1]!, run([], 4), 'ran 4 tests, not the clean 5: tests were dropped or added'],
+    ['a predicted red that stayed green', RED, run([]), 'predicted red (stamps each line), but nothing failed'],
+    ['a predicted test that did not fail', RED, run(['writer > other']), 'predicted stamps each line to fail; failed instead: writer > other'],
+    ['a failure nobody predicted', RED, run(['writer > stamps each line', 'writer > other']), 'failed too, unpredicted: writer > other'],
+    ['a predicted green that went red', GREEN, run(['writer > other']), 'predicted green, but failed: writer > other'],
+    ['a moved test total', GREEN, run([], 4), 'ran 4 tests, not the clean 5: tests were dropped or added'],
   ])('names %s', (_kind, row, result, problem) => {
     expect(verdict(row, result, 5)).toBe(problem);
   });
@@ -139,9 +134,11 @@ describe('main', () => {
   /** One suite run: writes vitest's JSON report where the runner asked for it. */
   const report = (failed: string[], total = 5) =>
     suite.mockImplementationOnce((_cmd, args) => {
-      const outputFile = (args as string[]).find((a) => a.startsWith('--outputFile='))!.slice('--outputFile='.length);
       const results = [...failed.map((f) => ({ fullName: f, status: 'failed' })), ...Array.from({ length: total - failed.length }, () => ({ fullName: 'ok', status: 'passed' }))];
-      writeFileSync(outputFile, JSON.stringify({ numTotalTests: total, testResults: [{ assertionResults: results }] }));
+      // Written at each --outputFile the runner passed; with none, the run reads no report and fails.
+      for (const arg of (args as string[]).filter((a) => a.startsWith('--outputFile='))) {
+        writeFileSync(arg.slice('--outputFile='.length), JSON.stringify({ numTotalTests: total, testResults: [{ assertionResults: results }] }));
+      }
       return { status: failed.length > 0 ? 1 : 0 } as never;
     });
   const changed = (...paths: string[]) => git.mockReturnValueOnce(`${paths.join('\n')}\n`);

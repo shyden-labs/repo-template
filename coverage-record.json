@@ -1,4 +1,5 @@
 {
+  "eslint.config.js": { "statements": 0, "branches": 0 },
   "playwright.config.ts": { "statements": 0, "branches": 0 },
   "scripts/board-next.ts": { "statements": 0, "branches": 0 },
   "scripts/board-orphans.ts": { "statements": 0, "branches": 0 },
@@ -32,6 +33,7 @@
   "tests/unit/devices-report.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/file-story.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/fold-record.test.ts": { "statements": 0, "branches": 0 },
+  "tests/unit/lint-config.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/logs-suite.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/mutate.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/mutations-workflow.test.ts": { "statements": 0, "branches": 0 },

@@ -1,5 +1,5 @@
 {
-  "//": "Checks every .ts file; Node runs them by stripping types, so nothing is emitted and only erasable syntax is allowed (issue #61).",
+  "//": "Checks every .ts and .js file; Node runs them by stripping types, so nothing is emitted and only erasable syntax is allowed (issue #61).",
   "compilerOptions": {
     "target": "es2024",
     "module": "nodenext",
@@ -7,6 +7,8 @@
     "lib": ["es2024"],
     "types": ["node"],
     "noEmit": true,
+    "allowJs": true,
+    "checkJs": true,
     "allowImportingTsExtensions": true,
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,
@@ -23,6 +25,6 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": false
   },
-  "include": ["**/*.ts"],
+  "include": ["**/*.ts", "**/*.js"],
   "exclude": ["node_modules", "coverage"]
 }
