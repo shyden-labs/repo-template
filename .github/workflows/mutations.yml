@@ -1,0 +1,32 @@
+# The mutations check (issue #21; Shyden 2026-10-16: "mutation testing is
+# vital. we need it", then "it must be run"). On every pull request, with no
+# label to opt in: a pull request that adds or changes a non-unit test file
+# must carry a mutation file targeting it, and every mutation file it adds or
+# changes runs, each row judged against its written prediction
+# (docs/mutations.md). Make `mutations` a required check on develop and main.
+#
+# Every third-party `uses:` is a full commit SHA with its `# vX.Y.Z` comment.
+name: mutations
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  mutations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+      - run: npm ci
+      - name: Judge the changed tests and run the changed mutation files
+        env:
+          BASE: origin/${{ github.base_ref }}
+        run: node scripts/mutate.ts pr "$BASE"
