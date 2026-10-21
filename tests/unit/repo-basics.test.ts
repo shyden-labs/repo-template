@@ -56,6 +56,14 @@ describe("a new repository", () => {
     );
   });
 
+  it("names every check the template's CI runs as required, and says to read the rules back (#21)", () => {
+    const text = readme();
+    const step = text.slice(text.indexOf("3. **Require up-to-date pull requests"), text.indexOf("4. Add the ecosystems"));
+    expect(step).toContain(
+      "Name every check the template's CI runs: `build-and-test coverage mutations`. Then read both branches' rules back (`rules/branches/develop` and `rules/branches/main`) and see all three there.",
+    );
+  });
+
   // A template copies files, not settings, so the setup step carries it (#28).
   it("says the script deletes merged head branches, after develop and main forbid deletion", () => {
     const text = readme();
