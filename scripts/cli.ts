@@ -26,3 +26,6 @@ export async function runIfEntry(
   // An async main (one that reads over HTTP) is waited for; its rejection is left to node, which prints it and exits 1.
   proc.exit(await main(proc.argv.slice(2)));
 }
+
+// TEST ONLY (#61 AC4): a planted type error, to watch CI's Typecheck step fail.
+export const plantedTypeError: number = 'not a number';
