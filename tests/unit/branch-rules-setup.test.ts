@@ -5,6 +5,7 @@ import {
   main,
   planRulesets,
   auditBranchRules,
+  auditRepoSettings,
   type ExistingRuleset,
 } from '../../scripts/branch-rules-setup';
 
@@ -133,17 +134,19 @@ describe('planRulesets', () => {
 
 describe('auditBranchRules', () => {
   const good = [
+    { type: 'deletion' },
     { type: 'pull_request' },
     { type: 'required_status_checks', parameters: { strict_required_status_checks_policy: true } },
   ];
 
-  it('passes a branch that requires pull requests and strict checks', () => {
+  it('passes a branch that forbids deletion and requires pull requests and strict checks', () => {
     expect(auditBranchRules('develop', good)).toEqual([]);
   });
 
   it('names a branch whose required checks are not strict', () => {
     expect(
       auditBranchRules('develop', [
+        { type: 'deletion' },
         { type: 'pull_request' },
         { type: 'required_status_checks', parameters: { strict_required_status_checks_policy: false } },
       ]),
@@ -151,13 +154,37 @@ describe('auditBranchRules', () => {
   });
 
   it('names a branch with no required checks at all', () => {
-    expect(auditBranchRules('main', [{ type: 'pull_request' }, { type: 'non_fast_forward' }])).toEqual([
+    expect(auditBranchRules('main', [{ type: 'deletion' }, { type: 'pull_request' }, { type: 'non_fast_forward' }])).toEqual([
       'main: no rule requires status checks',
     ]);
   });
 
   it('names a branch that does not require pull requests', () => {
-    expect(auditBranchRules('main', [good[1]])).toEqual(['main: no rule requires a pull request']);
+    expect(auditBranchRules('main', [good[0], good[2]])).toEqual(['main: no rule requires a pull request']);
+  });
+
+  // With "Automatically delete head branches" on, merging a develop -> main
+  // release pull request deletes develop unless a rule forbids it (#28).
+  it('names a branch that can be deleted', () => {
+    expect(auditBranchRules('develop', [good[1], good[2]])).toEqual(['develop: no rule forbids deleting it']);
+  });
+});
+
+describe('auditRepoSettings', () => {
+  it('passes a repository that deletes merged head branches', () => {
+    expect(auditRepoSettings({ delete_branch_on_merge: true })).toEqual([]);
+  });
+
+  it('names a repository that keeps merged head branches', () => {
+    expect(auditRepoSettings({ delete_branch_on_merge: false })).toEqual([
+      'merged head branches are not deleted (delete_branch_on_merge is false)',
+    ]);
+  });
+
+  it('names a repository whose answer leaves the setting out', () => {
+    expect(auditRepoSettings({})).toEqual([
+      'merged head branches are not deleted (delete_branch_on_merge is undefined)',
+    ]);
   });
 });
 
@@ -165,9 +192,11 @@ describe('main', () => {
   const REPO = 'shyden-labs/app';
   const CHECKS = ['build-and-test', 'coverage'];
   const strict = [
+    { type: 'deletion' },
     { type: 'pull_request' },
     { type: 'required_status_checks', parameters: { strict_required_status_checks_policy: true } },
   ];
+  const deletes = { delete_branch_on_merge: true };
   const reply = (...values: unknown[]) => {
     for (const value of values) gh.mockReturnValueOnce(JSON.stringify(value));
   };
@@ -186,7 +215,7 @@ describe('main', () => {
   });
 
   it('creates both rulesets where there are none, reads both branches back and exits 0', () => {
-    reply([], {}, {}, strict, strict);
+    reply([], {}, {}, strict, strict, {}, deletes);
     expect(main([REPO, ...CHECKS])).toBe(0);
     expect(calls()).toEqual([
       [['api', `repos/${REPO}/rulesets`], undefined],
@@ -194,18 +223,20 @@ describe('main', () => {
       [['api', '-X', 'POST', `repos/${REPO}/rulesets`, '--input', '-'], JSON.stringify(desiredRuleset('main', CHECKS))],
       [['api', `repos/${REPO}/rules/branches/develop`], undefined],
       [['api', `repos/${REPO}/rules/branches/main`], undefined],
+      [['api', '-X', 'PATCH', `repos/${REPO}`, '-F', 'delete_branch_on_merge=true'], undefined],
+      [['api', `repos/${REPO}`], undefined],
     ]);
     expect(out).toEqual([
       'develop: create\n',
       'main: create\n',
-      `${REPO}: develop and main each require pull requests and strict checks.\n`,
+      `${REPO}: develop and main each forbid deletion and require pull requests and strict checks; merged head branches are deleted.\n`,
     ]);
   });
 
   it('keeps a ruleset that matches and updates one that differs, by id', () => {
     const developRuleset = { id: 1, ...desiredRuleset('develop', CHECKS) };
     const mainRuleset = { id: 2, ...desiredRuleset('main', ['build-and-test']) };
-    reply([{ id: 1 }, { id: 2 }], developRuleset, mainRuleset, {}, strict, strict);
+    reply([{ id: 1 }, { id: 2 }], developRuleset, mainRuleset, {}, strict, strict, {}, deletes);
     expect(main([REPO, ...CHECKS])).toBe(0);
     expect(calls().slice(1, 4)).toEqual([
       [['api', `repos/${REPO}/rulesets/1`], undefined],
@@ -216,7 +247,15 @@ describe('main', () => {
   });
 
   it('fails, naming each shortfall, when the rules read back fall short', () => {
-    reply([], {}, {}, strict, [strict[1]]);
+    reply([], {}, {}, strict, [strict[0], strict[2]]);
     expect(() => main([REPO, ...CHECKS])).toThrow('read back, the rules still fall short:\n  main: no rule requires a pull request');
+    expect(gh).toHaveBeenCalledTimes(5);
+  });
+
+  it('fails, naming the setting, when the repository still keeps merged head branches', () => {
+    reply([], {}, {}, strict, strict, {}, { delete_branch_on_merge: false });
+    expect(() => main([REPO, ...CHECKS])).toThrow(
+      'read back, the repository still falls short:\n  merged head branches are not deleted (delete_branch_on_merge is false)',
+    );
   });
 });
