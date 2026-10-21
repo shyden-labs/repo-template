@@ -51,8 +51,8 @@ done, all required. Then:
 5. **Add a Blocked-by link** for each issue it waits on. A "Depends on" section
    is context, not the record.
 6. **Set its epic as its parent.**
-7. **Close it by hand.** Commits and pull requests write `Refs` before the
-   number, never a closing keyword. Close it once every criterion is verified.
+7. **Close it by hand.** Commits and pull requests write `Refs #N`, never a
+   closing keyword. Close it once every criterion is verified.
 
 `node scripts/file-story.ts <board-node-id> "<board title>" <story.json>` does
 steps 1 to 6 and prints every field it reads back. A ticket is In Progress only

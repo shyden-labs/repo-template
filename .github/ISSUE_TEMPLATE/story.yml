@@ -13,7 +13,7 @@ body:
         4. Set its **Priority** too: P0 (now) to P5 (someday), as docs/project-board.md defines them. A blocker takes at least the level of what waits on it.
         5. Add a **Blocked by** link for each issue it waits on: a “Depends on” section is context, not the record.
         6. Set its epic as its **parent**.
-        7. In commits and pull requests, write `Refs` before the issue number, never a closing keyword; close it by hand once every criterion is verified.
+        7. Write `Refs #N` in commits and pull requests, never a closing keyword; close it by hand once every criterion is verified.
 
         `node scripts/file-story.ts` does steps 1 to 6.
   - type: textarea
