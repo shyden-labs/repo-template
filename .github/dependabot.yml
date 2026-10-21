@@ -41,19 +41,19 @@ updates:
       # ungrouped they arrive as three PRs, each moving one SHA while its
       # siblings lag behind. ShyTalk shipped that bug as SHY-0226.
       #
-      # This group sits ABOVE patch-updates deliberately: Dependabot assigns a
-      # dependency to the FIRST group whose patterns match and then stops
-      # looking, so a catch-all keyed on update-type would swallow a patch bump
-      # of a sub-path before this group was ever consulted. Order is the
-      # control, not presence.
+      # Declaring it is not enough. Dependabot offers a package to every group
+      # that can hold it, and a group with no patterns outscores any wildcard,
+      # so order decides nothing (Shyden 2026-10-20). patch-updates excludes
+      # this group's pattern, so only this group can take a cache sub-path.
+      # tests/unit/supply-chain.test.ts checks every pattern group this way.
       #
       # It is declared here even though a new repo uses no sub-path actions
-      # yet, because the failure is silent on the day someone adds one. The
-      # guard in tests/unit/supply-chain.test.ts is dormant until then and
-      # fires the moment it matters.
+      # yet, because the failure is silent on the day someone adds one.
       actions-subpaths:
         patterns:
           - 'actions/cache*'
       patch-updates:
         update-types:
           - 'patch'
+        exclude-patterns:
+          - 'actions/cache*'

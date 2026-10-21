@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { withoutYamlComments, withoutYamlQuotes } from './source-text';
+import { leaks, parseGroups } from './dependabot-groups';
 
 /**
  * The CI supply chain is pinned, and something keeps it current.
@@ -23,95 +24,110 @@ import { withoutYamlComments, withoutYamlQuotes } from './source-text';
  *
  * SOURCE TEXT, not YAML parsing: no YAML parser is available here and none is
  * worth adding ("no new npm dependencies"), matching pipeline-wiring.test.ts.
+ *
+ * Each check is a function over text, run on this repo's files and on planted
+ * text that breaks it, so every check is seen to fail as well as pass.
  */
 
 const WORKFLOWS = '.github/workflows';
 const DEPENDABOT = '.github/dependabot.yml';
 
-const workflowFiles = () =>
-  readdirSync(WORKFLOWS).filter(
-    (f) => f.endsWith('.yml') || f.endsWith('.yaml'),
-  );
+interface Use {
+  where: string;
+  text: string;
+}
 
 /**
- * Every `uses:` naming a THIRD-PARTY action.
+ * Every `uses:` naming a THIRD-PARTY action in one workflow's text.
  *
  * Local references (`./.github/actions/x`, `./.github/workflows/y.yml`) are
  * excluded deliberately: they are this repo's own code, already reviewed at
  * the commit that introduced them, and have no upstream SHA to pin.
  */
-const externalUses = () =>
-  workflowFiles().flatMap((file) =>
-    readFileSync(join(WORKFLOWS, file), 'utf8')
-      .split('\n')
-      .map((text, i) => ({ where: `${file}:${i + 1}`, text: text.trim() }))
-      .filter(({ text }) => /^(-\s*)?uses:\s*[^.\s]/.test(text)),
-  );
+const usesIn = (file: string, source: string): Use[] =>
+  source
+    .split('\n')
+    .map((text, i) => ({ where: `${file}:${i + 1}`, text: text.trim() }))
+    .filter(({ text }) => /^(-\s*)?uses:\s*[^.\s]/.test(text));
 
-const dependabot = () =>
-  existsSync(DEPENDABOT) ? readFileSync(DEPENDABOT, 'utf8') : '';
+const externalUses = (): Use[] =>
+  readdirSync(WORKFLOWS)
+    .filter((f) => /\.ya?ml$/.test(f))
+    .flatMap((file) => usesIn(file, readFileSync(join(WORKFLOWS, file), 'utf8')));
+
+const unpinned = (uses: Use[]) =>
+  uses.filter(({ text }) => !/@[0-9a-f]{40}(?=\s|$)/.test(text)).map(({ where, text }) => `${where} ${text}`);
+
+const unlabelled = (uses: Use[]) =>
+  uses.filter(({ text }) => !/@[0-9a-f]{40}\s+#\s*v\d/.test(text)).map(({ where, text }) => `${where} ${text}`);
 
 /**
  * The config with its YAML comments removed. ASSERT ON THIS, never on the
  * raw text.
  *
  * These checks read source text, and this file DOCUMENTS the very patterns it
- * is checked for — the sub-path note spells out `patterns: ["actions/cache*"]`
- * verbatim. Matched against the raw text, that prose SATISFIES the sub-path
- * guard on its own: the repo could reference `actions/cache` at three
- * sub-paths with no group whatsoever and still go green, and the position of
- * the comment (above the groups) makes the ordering check pass too. Caught by
- * mutation while adding that ordering check.
+ * is checked for. Matched against the raw text, that prose SATISFIES a guard
+ * on its own: shyden.co.uk's note spelled out `patterns: ["actions/cache*"]`
+ * and passed its sub-path guard with no group configured (issue #23).
  */
-const configBody = () => withoutYamlComments(dependabot());
+const configBody = () => withoutYamlComments(readFileSync(DEPENDABOT, 'utf8'));
 
 /**
- * The config split into one text block per `package-ecosystem:` entry, so a
- * group's position is judged against the catch-all of ITS OWN ecosystem
- * rather than whichever one happens to appear first in the file.
+ * Every `owner/repo` used at MORE THAN ONE sub-path, with the distinct refs
+ * seen for it: the ones Dependabot would otherwise bump one sub-path at a
+ * time, leaving the siblings behind.
  */
-const ecosystemBlocks = () =>
-  configBody()
-    .split(/(?=^\s*-\s*package-ecosystem:)/m)
-    .filter((block) => /package-ecosystem:/.test(block));
-
-/**
- * Every `owner/repo` referenced at MORE THAN ONE sub-path, with the distinct
- * refs seen for it — the ones Dependabot would otherwise bump one sub-path at
- * a time, leaving the siblings behind.
- */
-const subPathRepos = (): [string, Set<string>][] => {
+const subPathRepos = (uses: Use[]): [string, Set<string>][] => {
   const refs = new Map<string, Set<string>>();
-  for (const { text } of externalUses()) {
-    const ref = text.match(/uses:\s*([^@\s]+)@/)?.[1];
-    if (!ref) continue;
+  for (const { text } of uses) {
+    const ref = /uses:\s*([^@\s]+)@/.exec(text)?.[1];
+    if (ref === undefined) continue;
     const [owner, repo] = ref.split('/');
     const key = `${owner}/${repo}`;
-    if (!refs.has(key)) refs.set(key, new Set());
-    refs.get(key)!.add(ref);
+    refs.set(key, (refs.get(key) ?? new Set()).add(ref));
   }
   return [...refs.entries()].filter(([, seen]) => seen.size > 1);
 };
+
+const ungroupedSubPaths = (uses: Use[], config: string) =>
+  subPathRepos(uses)
+    .filter(([key]) => !withoutYamlQuotes(config).includes(`${key}*`))
+    .map(([key, refs]) => `${key} used at ${refs.size} sub-paths, ungrouped`);
+
+/** How many times `pattern` occurs in `text`. */
+const count = (text: string, pattern: RegExp) => text.split(pattern).length - 1;
+
+const SHA = 'a'.repeat(40);
 
 describe('the CI supply chain is pinned', () => {
   it('there is something to check', () => {
     expect(externalUses().length).toBeGreaterThan(0);
   });
 
-  it('every third-party action is pinned to a full commit SHA', () => {
-    const unpinned = externalUses()
-      .filter(({ text }) => !/@[0-9a-f]{40}(?=\s|$)/.test(text))
-      .map(({ where, text }) => `${where} ${text}`);
+  it('reads the uses: lines of a workflow, leaving out local actions', () => {
+    expect(usesIn('ci.yml', `steps:\n  - uses: actions/checkout@${SHA}\n  - uses: ./.github/actions/x\n`)).toEqual([
+      { where: 'ci.yml:2', text: `- uses: actions/checkout@${SHA}` },
+    ]);
+  });
 
-    expect(unpinned, 'a mutable tag can be repointed under us').toEqual([]);
+  it('every third-party action is pinned to a full commit SHA', () => {
+    expect(unpinned(externalUses()), 'a mutable tag can be repointed under us').toEqual([]);
+  });
+
+  it('names an action pinned to a tag', () => {
+    expect(unpinned([{ where: 'ci.yml:3', text: 'uses: actions/checkout@v4' }])).toEqual([
+      'ci.yml:3 uses: actions/checkout@v4',
+    ]);
   });
 
   it('every pinned action names the version its SHA resolves to', () => {
-    const opaque = externalUses()
-      .filter(({ text }) => !/@[0-9a-f]{40}\s+#\s*v\d/.test(text))
-      .map(({ where, text }) => `${where} ${text}`);
+    expect(unlabelled(externalUses()), 'a bare SHA bump is unreviewable by a human').toEqual([]);
+  });
 
-    expect(opaque, 'a bare SHA bump is unreviewable by a human').toEqual([]);
+  it('names a SHA with no version comment', () => {
+    expect(unlabelled([{ where: 'ci.yml:3', text: `uses: actions/checkout@${SHA}` }])).toEqual([
+      `ci.yml:3 uses: actions/checkout@${SHA}`,
+    ]);
   });
 });
 
@@ -122,58 +138,50 @@ describe('Dependabot keeps the pins from rotting', () => {
    * Dependabot treats `actions/cache`, `actions/cache/restore` and
    * `actions/cache/save` as three SEPARATE dependencies. Ungrouped, they
    * arrive as three PRs, each moving one sub-path's SHA while its siblings
-   * lag — a one-SHA-per-repo violation by construction, and for codeql-action
-   * a runtime version mismatch ("Loaded a configuration file for version
-   * '4.36.3', but running version '4.37.1'"). ShyTalk's SHY-0226.
-   *
-   * Dormant today: this repo uses no sub-path actions. It fails the moment
-   * one is added without a matching Dependabot group. Verified by mutation,
-   * not by watching it pass.
+   * lag: a one-SHA-per-repo violation by construction (ShyTalk's SHY-0226).
+   * This repo uses no sub-path action today, so the planted case below is
+   * what shows the check working.
    */
   it('an action repo used at more than one sub-path is grouped into one PR', () => {
-    const config = configBody();
-    const ungrouped = subPathRepos()
-      .filter(([key]) => !withoutYamlQuotes(config).includes(`${key}*`))
-      .map(([key, refs]) => `${key} used at ${refs.size} sub-paths, ungrouped`);
+    expect(ungroupedSubPaths(externalUses(), configBody())).toEqual([]);
+  });
 
-    expect(
-      ungrouped,
-      'separate PRs per sub-path break the one-SHA-per-repo invariant',
-    ).toEqual([]);
+  const cacheUses: Use[] = [
+    { where: 'ci.yml:1', text: `uses: actions/cache/restore@${SHA} # v4.0.0` },
+    { where: 'ci.yml:2', text: `uses: actions/cache/save@${SHA} # v4.0.0` },
+    { where: 'ci.yml:3', text: 'uses: docker://alpine:3' },
+    { where: 'ci.yml:4', text: `uses: actions/checkout@${SHA} # v7.0.1` },
+  ];
+
+  it('names an action repo used at two sub-paths with no group', () => {
+    expect(ungroupedSubPaths(cacheUses, 'groups:\n  patch-updates:\n')).toEqual([
+      'actions/cache used at 2 sub-paths, ungrouped',
+    ]);
+  });
+
+  it('accepts that repo once a group names it', () => {
+    expect(ungroupedSubPaths(cacheUses, "groups:\n  cache:\n    patterns:\n      - 'actions/cache*'\n")).toEqual([]);
   });
 
   /**
-   * Declaring the group is not enough — it has to WIN.
-   *
-   * Dependabot assigns a dependency to the FIRST group whose patterns match
-   * and then stops looking. `patch-updates` is a catch-all keyed on
-   * update-type, so it swallows a patch bump of `actions/cache/restore`
-   * before an `actions/cache*` group declared BELOW it is ever consulted.
-   * The group is present, the config reads correct, and the sub-paths still
-   * arrive in separate PRs — SHY-0226 all over again. Order is the control,
-   * not presence, so the presence test above cannot stand alone.
-   *
-   * Dormant today (this repo uses no sub-path actions) and verified by
-   * mutation, not by watching it pass.
+   * Declaring the group is not enough: it has to be the ONLY group that can
+   * hold the package. Dependabot scores every group that matches, and a group
+   * with no patterns outscores any wildcard, so a catch-all must exclude each
+   * pattern group's patterns (Shyden 2026-10-20; issue #39). Order decides
+   * nothing. The model and its planted cases are in dependabot-groups.test.ts.
    */
-  it('a sub-path group is declared before the catch-all that would swallow it', () => {
-    const misordered = subPathRepos().flatMap(([key]) =>
-      ecosystemBlocks()
-        .filter((block) => withoutYamlQuotes(block).includes(`${key}*`))
-        .filter((block) => {
-          const catchAll = block.indexOf('patch-updates:');
-          return (
-            catchAll !== -1 &&
-            catchAll < withoutYamlQuotes(block).indexOf(`${key}*`)
-          );
-        })
-        .map(() => `${key} grouped after patch-updates`),
-    );
-
-    expect(
-      misordered,
-      'Dependabot assigns to the FIRST matching group and stops',
-    ).toEqual([]);
+  it("each pattern group's packages can land in that group alone, judged over every group read", () => {
+    const ecosystems = parseGroups(withoutYamlQuotes(configBody()));
+    expect({
+      judged: ecosystems.map(({ ecosystem, groups }) => [ecosystem, groups.map(({ name }) => name)]),
+      leaks: ecosystems.flatMap(leaks),
+    }).toEqual({
+      judged: [
+        ['npm', ['vitest', 'patch-updates']],
+        ['github-actions', ['actions-subpaths', 'patch-updates']],
+      ],
+      leaks: [],
+    });
   });
 
   it('a Dependabot config exists', () => {
@@ -183,22 +191,17 @@ describe('Dependabot keeps the pins from rotting', () => {
   it('watches npm AND the GitHub Actions themselves', () => {
     const config = configBody();
 
-    expect(config, 'npm dependencies unwatched').toMatch(
-      /package-ecosystem:\s*["']?npm["']?/,
-    );
-    expect(config, 'the actions that run CI are unwatched').toMatch(
-      /package-ecosystem:\s*["']?github-actions["']?/,
-    );
+    expect(config, 'npm dependencies unwatched').toMatch(/package-ecosystem:\s*["']?npm["']?/);
+    expect(config, 'the actions that run CI are unwatched').toMatch(/package-ecosystem:\s*["']?github-actions["']?/);
   });
 
   it('opens every PR against develop, never straight at main', () => {
     const config = configBody();
-    const ecosystems = (config.match(/package-ecosystem:/g) ?? []).length;
-    const onDevelop = config.match(/target-branch:\s*["']?develop["']?/g) ?? [];
+    const ecosystems = count(config, /package-ecosystem:/);
 
     expect(ecosystems, 'no ecosystems declared').toBeGreaterThan(0);
     expect(
-      onDevelop.length,
+      count(config, /target-branch:\s*["']?develop["']?/),
       'an ecosystem defaults to the default branch, bypassing the develop gate',
     ).toBe(ecosystems);
     expect(config).not.toMatch(/target-branch:\s*["']?main["']?/);

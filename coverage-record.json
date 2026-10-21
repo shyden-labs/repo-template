@@ -16,10 +16,12 @@
   "tests/unit/coverage-provider.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/coverage-record.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/coverage-tool.test.ts": { "statements": 0, "branches": 0 },
+  "tests/unit/dependabot-groups.test.ts": { "statements": 0, "branches": 0 },
+  "tests/unit/dependabot-groups.ts": { "statements": 0, "branches": 0 },
   "tests/unit/deploy-dev.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/repo-basics.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/source-text.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/source-text.ts": { "statements": 0, "branches": 0 },
   "tests/unit/story-form.test.ts": { "statements": 0, "branches": 0 },
-  "tests/unit/supply-chain.test.ts": { "statements": 12, "branches": 7 }
+  "tests/unit/supply-chain.test.ts": { "statements": 0, "branches": 0 }
 }
