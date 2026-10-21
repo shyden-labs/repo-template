@@ -1,11 +1,31 @@
 import { describe, it, expect } from 'vitest';
-import { withoutCommentLines, withoutTsComments } from './source-text';
+import { withoutCommentLines, withoutTsComments, yamlBlock } from './source-text';
 
 /**
  * The template's shared text strippers, for guards that read files as text.
  * A repository made from the template uses these rather than writing its own,
  * so each behaviour a guard relies on is pinned here.
  */
+
+describe('yamlBlock', () => {
+  const YAML = ['on:', '  push:', '    branches: [develop]', 'jobs:', '  build:', '    steps:', '      - run: x', '  test:', '    runs-on: y'].join('\n');
+
+  it('reads a top-level block up to the next top-level key', () => {
+    expect(yamlBlock(YAML, 'on')).toBe('on:\n  push:\n    branches: [develop]');
+  });
+
+  it('reads a nested block up to its next sibling', () => {
+    expect(yamlBlock(YAML, 'build', '  ')).toBe('  build:\n    steps:\n      - run: x');
+  });
+
+  it('reads a block that ends the file to its end', () => {
+    expect(yamlBlock(YAML, 'test', '  ')).toBe('  test:\n    runs-on: y');
+  });
+
+  it('reads an absent key as empty, so a test of a missing block fails', () => {
+    expect(yamlBlock(YAML, 'permissions')).toBe('');
+  });
+});
 
 describe('withoutCommentLines', () => {
   it('drops whole-line # comments, indented or not, and keeps trailing ones', () => {

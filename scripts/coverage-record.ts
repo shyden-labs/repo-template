@@ -7,7 +7,7 @@
  *
  *   npm run test:coverage                   # measure every code file
  *   node scripts/coverage-record.ts check   # CI: the record must equal the report
- *   node scripts/coverage-record.ts record  # laptop only: write the measured counts
+ *   node scripts/coverage-record.ts record  # laptop, or the record workflow on a scratch ref
  *
  * The check also fails on a code file no suite measured, and on any comment
  * telling coverage to skip a line: a skipped line counts as unrun. It fails
@@ -32,6 +32,8 @@ export interface Measured extends Counts {
 export const SUMMARY = 'coverage/coverage-summary.json';
 export const RECORD = 'coverage-record.json';
 const RECORD_COMMAND = 'npm run coverage:record';
+/** The refs the record workflow measures: never a branch, so measuring starts no other run. */
+const SCRATCH_REF = /^refs\/(?:floors|visual)\/./;
 
 /** Every TypeScript and JavaScript extension: tests and tool configs are code too. */
 const CODE = /\.(?:[cm]?[jt]s|[jt]sx)$/;
@@ -231,8 +233,9 @@ export function main(args: string[]): number {
   if ((mode !== 'check' && mode !== 'record') || rest.length > 0) {
     throw new Error('usage: node scripts/coverage-record.ts check|record');
   }
-  if (mode === 'record' && process.env.CI) {
-    fail('record never runs in CI; record on the laptop and commit the file');
+  // In CI only the record workflow may record, on a scratch ref, handing the file back as an artifact (#30).
+  if (mode === 'record' && process.env.CI && !SCRATCH_REF.test(process.env.RECORD_RUN ?? '')) {
+    fail('record never runs in CI but the record workflow on a scratch ref; record there or on the laptop');
   }
   const measured = untestedCounts(
     JSON.parse(read(root, SUMMARY, `no coverage summary at ${SUMMARY}; run npm run test:coverage first`)),

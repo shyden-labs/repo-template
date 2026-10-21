@@ -1,0 +1,64 @@
+# Measure-then-commit (issue #30; Shyden 2026-10-20/21: never force-push, and
+# no CI bot pushes). A session pushes its unpushed commit to a scratch ref,
+# refs/floors/<branch>/<short-sha> or refs/visual/<branch>/<short-sha>, which
+# is not a branch and so starts no other run, then starts this workflow by
+# hand on it. The workflow measures that commit and hands back what to commit
+# as an artifact; it can only read the repository and pushes nothing. The
+# session folds the artifact into its commit (scripts/fold-record.ts), pushes
+# once and deletes the scratch ref. docs/measure-then-commit.md has the steps.
+#
+# Every third-party `uses:` is a full commit SHA with its `# vX.Y.Z` comment.
+name: record
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'The scratch ref holding the commit: refs/floors/<branch>/<sha> or refs/visual/<branch>/<sha>'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    steps:
+      # Before anything is checked out: the ref reaches the shell only
+      # through env, never spliced into the script.
+      - name: Refuse any ref but a scratch ref
+        env:
+          REF: ${{ inputs.ref }}
+        run: |
+          case "$REF" in
+            refs/floors/?*|refs/visual/?*) echo "recording $REF" ;;
+            *) echo "::error title=not a scratch ref::record runs only on refs/floors/* or refs/visual/*, never on $REF"; exit 1 ;;
+          esac
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      # No cache: this runs a commit no review has seen, and a cache it saved
+      # would be restored by develop's own runs.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+      - run: npm ci
+      - run: npm run test:coverage
+      - name: Record coverage
+        env:
+          RECORD_RUN: ${{ inputs.ref }}
+        run: npm run coverage:record
+      - name: Gather what to commit
+        env:
+          REF: ${{ inputs.ref }}
+        run: |
+          mkdir -p record/files
+          cp coverage-record.json record/files/
+          git rev-parse HEAD > record/sha
+          echo "coverage: recorded by run $GITHUB_RUN_ID on $REF" > record/message.txt
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: record
+          path: record/
+          if-no-files-found: error
