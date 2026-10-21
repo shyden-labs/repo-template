@@ -60,28 +60,12 @@ describe('inScope', () => {
 
 describe('progress by tickets', () => {
   it('counts closed of all in-scope stories', () => {
-    const p = progress(
-      [
-        closedOn(1, '2026-10-03'),
-        item({ number: 2 }),
-        item({ number: 3 }),
-        item({ number: 4, title: 'Epic M2' }),
-      ],
-      TODAY,
-    );
+    const p = progress([closedOn(1, '2026-10-03'), item({ number: 2 }), item({ number: 3 }), item({ number: 4, title: 'Epic M2' })], TODAY);
     expect(p.tickets).toMatchObject({ closed: 1, total: 3 });
   });
 
   it('counts closures per UTC day over the 7 days ending today, oldest first', () => {
-    const p = progress(
-      [
-        closedOn(1, '2026-09-28'),
-        closedOn(2, '2026-10-03'),
-        closedOn(3, '2026-10-03'),
-        closedOn(4, '2026-10-04'),
-      ],
-      TODAY,
-    );
+    const p = progress([closedOn(1, '2026-09-28'), closedOn(2, '2026-10-03'), closedOn(3, '2026-10-03'), closedOn(4, '2026-10-04')], TODAY);
     expect(p.tickets.pace).toEqual([1, 0, 0, 0, 0, 2, 1]);
   });
 
@@ -131,18 +115,12 @@ describe('a draft card', () => {
 
 describe('progress by effort', () => {
   it('is unavailable while an open in-scope story has no estimate', () => {
-    const p = progress(
-      [item({ number: 1 }), item({ number: 2, estimate: null })],
-      TODAY,
-    );
+    const p = progress([item({ number: 1 }), item({ number: 2, estimate: null })], TODAY);
     expect(p.effort).toEqual({ available: false, scored: 1, open: 2 });
   });
 
   it('counts closed points of all points', () => {
-    const p = progress(
-      [closedOn(1, '2026-10-03', 5), item({ number: 2, estimate: 8 })],
-      TODAY,
-    );
+    const p = progress([closedOn(1, '2026-10-03', 5), item({ number: 2, estimate: 8 })], TODAY);
     expect(p.effort).toMatchObject({
       available: true,
       closedPoints: 5,
@@ -153,30 +131,19 @@ describe('progress by effort', () => {
 
   it('counts an unscored closed story at the scored closed mean, as assumed', () => {
     const p = progress(
-      [
-        closedOn(1, '2026-10-03', 2),
-        closedOn(2, '2026-10-03', 4),
-        closedOn(3, '2026-09-01', null),
-        item({ number: 4, estimate: 5 }),
-      ],
+      [closedOn(1, '2026-10-03', 2), closedOn(2, '2026-10-03', 4), closedOn(3, '2026-09-01', null), item({ number: 4, estimate: 5 })],
       TODAY,
     );
     expect(p.effort).toMatchObject({ closedPoints: 9, assumedClosed: 1 });
   });
 
   it('ignores an epic’s own estimate', () => {
-    const p = progress(
-      [item({ number: 1, estimate: 5 }), item({ number: 2, title: 'Epic X', estimate: 40 })],
-      TODAY,
-    );
+    const p = progress([item({ number: 1, estimate: 5 }), item({ number: 2, title: 'Epic X', estimate: 40 })], TODAY);
     expect(p.effort).toMatchObject({ openPoints: 5 });
   });
 
   it('counts points closed per day over the same window', () => {
-    const p = progress(
-      [closedOn(1, '2026-10-03', 5), closedOn(2, '2026-10-04', 8)],
-      TODAY,
-    );
+    const p = progress([closedOn(1, '2026-10-03', 5), closedOn(2, '2026-10-04', 8)], TODAY);
     expect(p.effort).toMatchObject({ pace: [0, 0, 0, 0, 0, 5, 8] });
   });
 });
@@ -209,30 +176,16 @@ describe('formatLines', () => {
 
   it('names the assumed points of unscored closed stories', () => {
     const lines = formatLines(
-      progress(
-        [
-          closedOn(1, '2026-10-03', 4),
-          closedOn(2, '2026-08-01', null),
-          item({ number: 3, estimate: 8 }),
-        ],
-        TODAY,
-      ),
+      progress([closedOn(1, '2026-10-03', 4), closedOn(2, '2026-08-01', null), item({ number: 3, estimate: 8 })], TODAY),
       TODAY,
     );
-    expect(lines[1]).toContain(
-      '1 closed story unscored, counted at the scored mean of 4.0 points (assumed)',
-    );
+    expect(lines[1]).toContain('1 closed story unscored, counted at the scored mean of 4.0 points (assumed)');
   });
 
   it('names several unscored closed stories in the plural', () => {
     const lines = formatLines(
       progress(
-        [
-          closedOn(1, '2026-10-03', 4),
-          closedOn(2, '2026-08-01', null),
-          closedOn(3, '2026-08-02', null),
-          item({ number: 4, estimate: 8 }),
-        ],
+        [closedOn(1, '2026-10-03', 4), closedOn(2, '2026-08-01', null), closedOn(3, '2026-08-02', null), item({ number: 4, estimate: 8 })],
         TODAY,
       ),
       TODAY,
@@ -241,12 +194,9 @@ describe('formatLines', () => {
   });
 
   it('says effort is unavailable, with the count scored, before the backfill', () => {
-    expect(
-      formatLines(
-        progress([item({ number: 1, estimate: null }), item({ number: 2 })], TODAY),
-        TODAY,
-      )[1],
-    ).toBe('By effort: unavailable, 1 of 2 open tickets scored');
+    expect(formatLines(progress([item({ number: 1, estimate: null }), item({ number: 2 })], TODAY), TODAY)[1]).toBe(
+      'By effort: unavailable, 1 of 2 open tickets scored',
+    );
   });
 
   it('gives no date when nothing closed in the window', () => {
@@ -369,9 +319,8 @@ describe('parseItems', () => {
 
   it('reads a draft card with no Estimate as unscored', () => {
     expect(
-      parseItems([
-        page([{ estimate: null, content: { __typename: 'DraftIssue', title: 'Idea', createdAt: '2026-10-02T00:00:00Z' } }]),
-      ]).items[0]?.estimate,
+      parseItems([page([{ estimate: null, content: { __typename: 'DraftIssue', title: 'Idea', createdAt: '2026-10-02T00:00:00Z' } }])])
+        .items[0]?.estimate,
     ).toBeNull();
   });
 
@@ -382,9 +331,9 @@ describe('parseItems', () => {
   });
 
   it('refuses a draft card that came back without its creation time', () => {
-    expect(() =>
-      parseItems([page([{ estimate: null, content: { __typename: 'DraftIssue', title: 'Idea' } }])]),
-    ).toThrow('a draft card on the board came back without its title or creation time');
+    expect(() => parseItems([page([{ estimate: null, content: { __typename: 'DraftIssue', title: 'Idea' } }])])).toThrow(
+      'a draft card on the board came back without its title or creation time',
+    );
   });
 
   it('refuses a card it cannot read, which could be open work', () => {
@@ -394,9 +343,9 @@ describe('parseItems', () => {
   });
 
   it('refuses a kind of card it does not know, by name', () => {
-    expect(() =>
-      parseItems([page([{ estimate: null, content: { __typename: 'Mystery', title: 'X' } }])]),
-    ).toThrow('a "Mystery" card is not one this script knows how to count: nothing read');
+    expect(() => parseItems([page([{ estimate: null, content: { __typename: 'Mystery', title: 'X' } }])])).toThrow(
+      'a "Mystery" card is not one this script knows how to count: nothing read',
+    );
   });
 
   it('refuses an issue that came back without its number', () => {
@@ -407,21 +356,17 @@ describe('parseItems', () => {
   });
 
   it('refuses a pull request that came back without its number', () => {
-    expect(() =>
-      parseItems([page([{ estimate: null, content: { __typename: 'PullRequest', title: 'PR' } }])]),
-    ).toThrow('a pull request on the board came back without its number');
+    expect(() => parseItems([page([{ estimate: null, content: { __typename: 'PullRequest', title: 'PR' } }])])).toThrow(
+      'a pull request on the board came back without its number',
+    );
   });
 
   it('reads every page', () => {
-    expect(parseItems([page([issue(1)]), page([issue(2), issue(3)])]).items.map((i) => i.number)).toEqual([
-      1, 2, 3,
-    ]);
+    expect(parseItems([page([issue(1)]), page([issue(2), issue(3)])]).items.map((i) => i.number)).toEqual([1, 2, 3]);
   });
 
   it('collects what it left out from every page', () => {
-    expect(parseItems([page([pullRequest(100)]), page([pullRequest(101)])]).pullRequests).toEqual([
-      100, 101,
-    ]);
+    expect(parseItems([page([pullRequest(100)]), page([pullRequest(101)])]).pullRequests).toEqual([100, 101]);
   });
 
   it('asks the board for each pull request card by number', () => {
@@ -457,9 +402,7 @@ describe('assertTitle', () => {
   it('refuses any other board by name', () => {
     expect(() => {
       assertTitle('ShyTalk Stories', 'Example Stories');
-    }).toThrow(
-      'the board is "ShyTalk Stories", not "Example Stories": nothing read',
-    );
+    }).toThrow('the board is "ShyTalk Stories", not "Example Stories": nothing read');
   });
 });
 
@@ -496,20 +439,14 @@ describe('main', () => {
   it('reads the board by its node id', () => {
     gh.mockReturnValueOnce(JSON.stringify([boardPage('Example Stories', [card(1)])]));
     main(['PVT_1', 'Example Stories']);
-    expect(gh).toHaveBeenCalledWith(
-      'gh',
-      ['api', 'graphql', '--paginate', '--slurp', '-f', `query=${QUERY}`, '-f', 'id=PVT_1'],
-      { encoding: 'utf8' },
-    );
+    expect(gh).toHaveBeenCalledWith('gh', ['api', 'graphql', '--paginate', '--slurp', '-f', `query=${QUERY}`, '-f', 'id=PVT_1'], {
+      encoding: 'utf8',
+    });
   });
 
   it('refuses when any page names another board', () => {
-    gh.mockReturnValueOnce(
-      JSON.stringify([boardPage('Example Stories', [card(1)]), boardPage('ShyTalk Stories', [card(2)])]),
-    );
-    expect(() => main(['PVT_1', 'Example Stories'])).toThrow(
-      'the board is "ShyTalk Stories", not "Example Stories": nothing read',
-    );
+    gh.mockReturnValueOnce(JSON.stringify([boardPage('Example Stories', [card(1)]), boardPage('ShyTalk Stories', [card(2)])]));
+    expect(() => main(['PVT_1', 'Example Stories'])).toThrow('the board is "ShyTalk Stories", not "Example Stories": nothing read');
   });
 
   it('prints both progress lines, dated today, and exits 0', () => {

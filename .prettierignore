@@ -2,3 +2,6 @@
 package-lock.json
 coverage-record.json
 coverage/
+# Docs are prose, kept as written: their exact wording is pinned by tests, and
+# reflowed emphasis or padded tables would change the text those tests read.
+*.md

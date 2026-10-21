@@ -8,8 +8,7 @@ import { withoutPinnedShas, withoutYamlComments, withoutYamlQuotes, yamlBlock } 
  * `mutations` so branch rules can require it, and with a timeout.
  */
 
-const workflow = () =>
-  withoutPinnedShas(withoutYamlQuotes(withoutYamlComments(readFileSync('.github/workflows/mutations.yml', 'utf8'))));
+const workflow = () => withoutPinnedShas(withoutYamlQuotes(withoutYamlComments(readFileSync('.github/workflows/mutations.yml', 'utf8'))));
 
 describe('mutations.yml', () => {
   it('runs on every pull request, with no label or type filter', () => {

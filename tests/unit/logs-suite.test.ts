@@ -14,10 +14,12 @@ import logsConfig from '../../vitest.logs.config.ts';
 
 const scripts = (): Record<string, string> =>
   (JSON.parse(readFileSync('package.json', 'utf8')) as { scripts: Record<string, string> }).scripts;
-const workflow = (file: string): string =>
-  withoutYamlQuotes(withoutYamlComments(readFileSync(`.github/workflows/${file}`, 'utf8')));
+const workflow = (file: string): string => withoutYamlQuotes(withoutYamlComments(readFileSync(`.github/workflows/${file}`, 'utf8')));
 const usesLines = (text: string): string[] =>
-  text.split('\n').filter((line) => /^\s*-?\s*uses:/.test(line)).map((line) => line.trim().replace(/^-\s*/, ''));
+  text
+    .split('\n')
+    .filter((line) => /^\s*-?\s*uses:/.test(line))
+    .map((line) => line.trim().replace(/^-\s*/, ''));
 const readme = () => readFileSync('README.md', 'utf8');
 
 describe('the unit suite', () => {
@@ -51,11 +53,17 @@ describe('the logs workflow', () => {
   });
 
   it('runs the logs suite', () => {
-    expect(workflow('logs.yml').split('\n').map((line) => line.trim())).toContain('- run: npm run test:logs');
+    expect(
+      workflow('logs.yml')
+        .split('\n')
+        .map((line) => line.trim()),
+    ).toContain('- run: npm run test:logs');
   });
 
   it('installs from the lock file before it runs the suite', () => {
-    const lines = workflow('logs.yml').split('\n').map((line) => line.trim());
+    const lines = workflow('logs.yml')
+      .split('\n')
+      .map((line) => line.trim());
     const install = lines.indexOf('- run: npm ci');
     expect([install > -1, lines.indexOf('- run: npm run test:logs') > install]).toEqual([true, true]);
   });
@@ -80,7 +88,11 @@ describe('pull-request CI', () => {
   });
 
   it('still runs the unit suite (the control for the absence above)', () => {
-    expect(workflow('ci.yml').split('\n').map((line) => line.trim())).toContain('- run: npm run test:unit');
+    expect(
+      workflow('ci.yml')
+        .split('\n')
+        .map((line) => line.trim()),
+    ).toContain('- run: npm run test:unit');
   });
 });
 
@@ -93,9 +105,7 @@ describe('a new repository', () => {
   });
 
   it('finds the logs suite’s files in the README’s file table', () => {
-    expect(readme()).toContain(
-      '| `docs/logs-suite.md`, `vitest.logs.config.ts`, `vitest.unit.config.ts`, `.github/workflows/logs.yml` |',
-    );
+    expect(readme()).toContain('| `docs/logs-suite.md`, `vitest.logs.config.ts`, `vitest.unit.config.ts`, `.github/workflows/logs.yml` |');
   });
 
   it('is told to fill the logs suite and gate its release on it before its first release', () => {

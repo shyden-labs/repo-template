@@ -40,7 +40,15 @@ describe('eslint.config.js', () => {
         '@typescript-eslint/restrict-template-expressions',
         [
           'error',
-          { allowAny: false, allowArray: false, allowBoolean: false, allowNever: false, allowNullish: false, allowNumber: true, allowRegExp: false },
+          {
+            allowAny: false,
+            allowArray: false,
+            allowBoolean: false,
+            allowNever: false,
+            allowNullish: false,
+            allowNumber: true,
+            allowRegExp: false,
+          },
         ],
       ],
     ]);

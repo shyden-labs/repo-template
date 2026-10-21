@@ -30,8 +30,7 @@ function ruleTypes(body: { rules: { type: string }[] }): string[] {
 
 function checksRule(body: { rules: { type: string; parameters?: unknown }[] }) {
   return body.rules.find((r) => r.type === 'required_status_checks')?.parameters as
-    | { strict_required_status_checks_policy: boolean; required_status_checks: { context: string }[] }
-    | undefined;
+    { strict_required_status_checks_policy: boolean; required_status_checks: { context: string }[] } | undefined;
 }
 
 describe('desiredRuleset', () => {
@@ -52,10 +51,7 @@ describe('desiredRuleset', () => {
   });
 
   it('requires exactly the named checks, in order', () => {
-    expect(checksRule(desiredRuleset('main', CHECKS))?.required_status_checks).toEqual([
-      { context: 'unit' },
-      { context: 'PR Gate' },
-    ]);
+    expect(checksRule(desiredRuleset('main', CHECKS))?.required_status_checks).toEqual([{ context: 'unit' }, { context: 'PR Gate' }]);
   });
 
   it('also forbids deletion and force pushes and requires pull requests and signed commits', () => {
@@ -74,9 +70,7 @@ describe('desiredRuleset', () => {
   });
 
   it('refuses an empty check list by name', () => {
-    expect(() => desiredRuleset('develop', [])).toThrow(
-      'name at least one required check: a strict rule with no checks tests nothing',
-    );
+    expect(() => desiredRuleset('develop', [])).toThrow('name at least one required check: a strict rule with no checks tests nothing');
   });
 });
 
@@ -107,10 +101,7 @@ describe('planRulesets', () => {
   });
 
   it('keeps a ruleset that already matches', () => {
-    const plan = planRulesets(
-      [existing(11, 'develop', ['refs/heads/develop']), existing(12, 'main', ['refs/heads/main'])],
-      CHECKS,
-    );
+    const plan = planRulesets([existing(11, 'develop', ['refs/heads/develop']), existing(12, 'main', ['refs/heads/main'])], CHECKS);
     expect(plan.map((p) => p.action)).toEqual(['keep', 'keep']);
   });
 
@@ -183,9 +174,7 @@ describe('auditRepoSettings', () => {
   });
 
   it('names a repository whose answer leaves the setting out', () => {
-    expect(auditRepoSettings({})).toEqual([
-      'merged head branches are not deleted (delete_branch_on_merge is undefined)',
-    ]);
+    expect(auditRepoSettings({})).toEqual(['merged head branches are not deleted (delete_branch_on_merge is undefined)']);
   });
 });
 

@@ -85,15 +85,10 @@ function shape(body: RulesetBody): string {
 }
 
 /** One branch's ruleset: created, or updated or kept by its id. */
-export type RulesetStep =
-  | { action: 'create'; body: RulesetBody }
-  | { action: 'update' | 'keep'; id: number; body: RulesetBody };
+export type RulesetStep = { action: 'create'; body: RulesetBody } | { action: 'update' | 'keep'; id: number; body: RulesetBody };
 
 /** What each branch's ruleset needs: created, updated by id, or kept. */
-export function planRulesets(
-  existing: ExistingRuleset[],
-  checks: string[],
-): RulesetStep[] {
+export function planRulesets(existing: ExistingRuleset[], checks: string[]): RulesetStep[] {
   for (const r of existing) {
     if (r.conditions.ref_name.include.includes('~DEFAULT_BRANCH')) {
       throw new Error(

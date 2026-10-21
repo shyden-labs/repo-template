@@ -61,18 +61,11 @@ function startsWithIssue(branch: string, n: number): boolean {
  * closed pull request, merged or not (operator 2026-10-13: "Branch counts until its
  * PR closes"), so a leftover branch cannot hide an abandoned ticket.
  */
-export function findOrphanIssues(
-  issues: number[],
-  prs: OpenPullRequest[],
-  branches: string[],
-  closedHeads: string[],
-): number[] {
+export function findOrphanIssues(issues: number[], prs: OpenPullRequest[], branches: string[], closedHeads: string[]): number[] {
   return issues.filter(
     (n) =>
-      !prs.some(
-        (p) =>
-          mentions(p.title, n) || mentions(p.body, n) || p.closes.includes(n) || startsWithIssue(p.headRefName, n),
-      ) && !branches.some((b) => startsWithIssue(b, n) && !closedHeads.includes(b)),
+      !prs.some((p) => mentions(p.title, n) || mentions(p.body, n) || p.closes.includes(n) || startsWithIssue(p.headRefName, n)) &&
+      !branches.some((b) => startsWithIssue(b, n) && !closedHeads.includes(b)),
   );
 }
 
@@ -100,8 +93,16 @@ export function main(args: string[]): number {
   process.stdout.write(`board-orphans: ${issues.length} open issue(s) In Progress on "${title}"\n`);
   if (issues.length === 0) return 0;
   const raw = gh([
-    'pr', 'list', '-R', repo, '--state', 'open', '--limit', String(PR_LIMIT),
-    '--json', 'title,body,headRefName,closingIssuesReferences',
+    'pr',
+    'list',
+    '-R',
+    repo,
+    '--state',
+    'open',
+    '--limit',
+    String(PR_LIMIT),
+    '--json',
+    'title,body,headRefName,closingIssuesReferences',
   ]) as { title: string; body: string; headRefName: string; closingIssuesReferences: { number: number }[] }[];
   if (raw.length >= PR_LIMIT) throw new Error(`gh pr list hit its limit of ${PR_LIMIT}; the list may be cut short`);
   const prs = raw.map((p) => ({ ...p, closes: p.closingIssuesReferences.map((c) => c.number) }));
@@ -112,9 +113,7 @@ export function main(args: string[]): number {
   // A branch counts only while it has no closed pull request: ask for each branch that names an issue.
   const candidates = branches.filter((b) => issues.some((n) => startsWithIssue(b, n)));
   const closedHeads = candidates.filter(
-    (b) =>
-      (gh(['pr', 'list', '-R', repo, '--state', 'closed', '--head', b, '--limit', '1', '--json', 'number']) as unknown[])
-        .length > 0,
+    (b) => (gh(['pr', 'list', '-R', repo, '--state', 'closed', '--head', b, '--limit', '1', '--json', 'number']) as unknown[]).length > 0,
   );
   process.stdout.write(
     `board-orphans: ${prs.length} open pull request(s), ${branches.length} branch(es) searched; ` +

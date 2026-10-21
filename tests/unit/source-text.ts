@@ -102,8 +102,7 @@ function yamlLineWithoutComment(line: string): string {
  * Only the quote characters go; separators and structure stay, so `['a','b']`
  * becomes `[a,b]` and two scalars cannot merge into one.
  */
-export const withoutYamlQuotes = (text: string): string =>
-  text.replace(/['"]/g, '');
+export const withoutYamlQuotes = (text: string): string => text.replace(/['"]/g, '');
 
 /**
  * Text with every full commit SHA after `@` read as `@<sha>` (issue #51), so
@@ -221,8 +220,7 @@ export function withoutTsComments(source: string): string {
 
     if (char === '/' && next === '*') {
       i += 2;
-      while (i < source.length && !(source[i] === '*' && source[i + 1] === '/'))
-        i += 1;
+      while (i < source.length && !(source[i] === '*' && source[i + 1] === '/')) i += 1;
       i += 1;
       continue;
     }

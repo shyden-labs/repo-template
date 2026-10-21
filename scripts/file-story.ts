@@ -137,13 +137,26 @@ export function main(args: string[]): number {
     throw new Error('usage: node scripts/file-story.ts <board-node-id> "<board title>" <story.json>');
   }
   const story = parseStory(readFileSync(file, 'utf8'));
-  const board = (gh(['api', 'graphql', '-f', `query=${READ_BOARD}`, '-f', `id=${id}`]) as {
-    data: { node: { title: string; fields: { nodes: Field[] } } };
-  }).data.node;
+  const board = (
+    gh(['api', 'graphql', '-f', `query=${READ_BOARD}`, '-f', `id=${id}`]) as {
+      data: { node: { title: string; fields: { nodes: Field[] } } };
+    }
+  ).data.node;
   assertTitle(board.title, title);
   const fields = boardFields(board.fields.nodes, story);
   const open = gh([
-    'issue', 'list', '-R', story.repo, '--state', 'open', '--search', `${story.title} in:title`, '--limit', '100', '--json', 'number,title',
+    'issue',
+    'list',
+    '-R',
+    story.repo,
+    '--state',
+    'open',
+    '--search',
+    `${story.title} in:title`,
+    '--limit',
+    '100',
+    '--json',
+    'number,title',
   ]) as { number: number; title: string }[];
   const same = open.find((i) => i.title.trim().toLowerCase() === story.title.trim().toLowerCase());
   if (same !== undefined) fail(`#${same.number} "${same.title}" is already open; add to it instead`);
@@ -155,9 +168,11 @@ export function main(args: string[]): number {
   };
   const ref = `${story.repo}#${issue.number}`;
   process.stdout.write(`file-story: filed ${ref} "${story.title}"\n`);
-  const item = (gh(['api', 'graphql', '-f', `query=${ADD}`, '-f', `project=${id}`, '-f', `content=${issue.node_id}`]) as {
-    data: { addProjectV2ItemById: { item: { id: string } } };
-  }).data.addProjectV2ItemById.item.id;
+  const item = (
+    gh(['api', 'graphql', '-f', `query=${ADD}`, '-f', `project=${id}`, '-f', `content=${issue.node_id}`]) as {
+      data: { addProjectV2ItemById: { item: { id: string } } };
+    }
+  ).data.addProjectV2ItemById.item.id;
   const on = ['-f', `project=${id}`, '-f', `item=${item}`];
   gh(['api', 'graphql', '-f', `query=${SET_NUMBER}`, ...on, '-f', `field=${fields.estimate}`, '-F', `number=${story.estimate}`]);
   for (const f of [fields.priority, fields.status]) {
@@ -171,16 +186,18 @@ export function main(args: string[]): number {
     gh(['api', '-X', 'POST', `repos/${story.repo}/issues/${story.parent}/sub_issues`, '-F', `sub_issue_id=${issue.id}`]);
   }
 
-  const back = (gh(['api', 'graphql', '-f', `query=${READ_ITEM}`, '-f', `item=${item}`]) as {
-    data: {
-      node: {
-        project: { title: string };
-        estimate: { number: number } | null;
-        priority: { name: string } | null;
-        status: { name: string } | null;
+  const back = (
+    gh(['api', 'graphql', '-f', `query=${READ_ITEM}`, '-f', `item=${item}`]) as {
+      data: {
+        node: {
+          project: { title: string };
+          estimate: { number: number } | null;
+          priority: { name: string } | null;
+          status: { name: string } | null;
+        };
       };
-    };
-  }).data.node;
+    }
+  ).data.node;
   const blockers = (gh(['api', `repos/${story.repo}/issues/${issue.number}/dependencies/blocked_by`]) as { number: number }[])
     .map((b) => b.number)
     .sort((a, b) => a - b);

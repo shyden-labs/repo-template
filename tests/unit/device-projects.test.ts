@@ -39,7 +39,13 @@ describe('projectFiles', () => {
   let root: string;
   beforeEach(() => {
     root = mkdtempSync(join(tmpdir(), 'device-projects-'));
-    for (const f of ['tests/devices/a.spec.ts', 'tests/devices/deep/b.test.js', 'tests/devices/helper.ts', 'tests/devices/skip.spec.ts', 'other/c.spec.ts']) {
+    for (const f of [
+      'tests/devices/a.spec.ts',
+      'tests/devices/deep/b.test.js',
+      'tests/devices/helper.ts',
+      'tests/devices/skip.spec.ts',
+      'other/c.spec.ts',
+    ]) {
       mkdirSync(join(root, f, '..'), { recursive: true });
       writeFileSync(join(root, f), '');
     }
@@ -85,14 +91,25 @@ describe('projectFiles', () => {
 
 describe('unequalSets', () => {
   it('passes phones that run exactly the same files', () => {
-    expect(unequalSets(new Map([['android-chrome', ['a', 'b']], ['ios-safari', ['b', 'a']]]))).toEqual([]);
+    expect(
+      unequalSets(
+        new Map([
+          ['android-chrome', ['a', 'b']],
+          ['ios-safari', ['b', 'a']],
+        ]),
+      ),
+    ).toEqual([]);
   });
 
   it('names each file a phone does not run, both ways', () => {
-    expect(unequalSets(new Map([['android-chrome', ['a', 'b']], ['ios-safari', ['b', 'c']]]))).toEqual([
-      'android-chrome does not run c, which another phone runs',
-      'ios-safari does not run a, which another phone runs',
-    ]);
+    expect(
+      unequalSets(
+        new Map([
+          ['android-chrome', ['a', 'b']],
+          ['ios-safari', ['b', 'c']],
+        ]),
+      ),
+    ).toEqual(['android-chrome does not run c, which another phone runs', 'ios-safari does not run a, which another phone runs']);
   });
 });
 
@@ -115,7 +132,11 @@ describe('platformNamed', () => {
 
   it.each([
     ['words that only contain a platform name', 'tests/devices/radios.spec.ts', "test('scenarios and radios', () => {});"],
-    ['a platform-named title only in a comment', 'tests/devices/a.spec.ts', "// test('android only') was retired\ntest('signs in', () => {});"],
+    [
+      'a platform-named title only in a comment',
+      'tests/devices/a.spec.ts',
+      "// test('android only') was retired\ntest('signs in', () => {});",
+    ],
     ['a platform named in a step, not a title', 'tests/devices/a.spec.ts', "test('signs in', () => { expect('ios').toBe('ios'); });"],
   ])('passes %s', (_kind, path, text) => {
     expect(platformNamed(new Map([[path, text]]))).toEqual([]);
@@ -125,7 +146,13 @@ describe('platformNamed', () => {
 describe('unexempted', () => {
   it('keeps each finding no exemption covers, matching the exempt file by its whole path', () => {
     expect(
-      unexempted(['tests/devices/a.ios.spec.ts: its path is named for one platform', 'tests/devices/b.spec.ts: the test "iOS" is named for one platform'], ['tests/devices/a.ios.spec.ts', 'tests/devices/b']),
+      unexempted(
+        [
+          'tests/devices/a.ios.spec.ts: its path is named for one platform',
+          'tests/devices/b.spec.ts: the test "iOS" is named for one platform',
+        ],
+        ['tests/devices/a.ios.spec.ts', 'tests/devices/b'],
+      ),
     ).toEqual(['tests/devices/b.spec.ts: the test "iOS" is named for one platform']);
   });
 });
@@ -163,7 +190,11 @@ describe('parseExemptions', () => {
 
   it.each([
     ['not a list', '{}', 'the exemptions file must be a JSON list'],
-    ['an entry not granted by Shyden', JSON.stringify([{ ...ok, grantedBy: 'a session' }]), 'entry 1 must be granted by Shyden, with the date and his words'],
+    [
+      'an entry not granted by Shyden',
+      JSON.stringify([{ ...ok, grantedBy: 'a session' }]),
+      'entry 1 must be granted by Shyden, with the date and his words',
+    ],
     ['an entry with no date', JSON.stringify([{ ...ok, on: 'today' }]), 'entry 1 must be granted by Shyden, with the date and his words'],
     ['an entry with no words', JSON.stringify([{ ...ok, words: '' }]), 'entry 1 must be granted by Shyden, with the date and his words'],
     ['an entry with no path', JSON.stringify([{ ...ok, path: '' }]), 'entry 1 must be granted by Shyden, with the date and his words'],

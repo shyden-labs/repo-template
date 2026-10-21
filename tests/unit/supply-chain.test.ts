@@ -151,9 +151,7 @@ describe('the CI supply chain is pinned', () => {
   });
 
   it('names an action pinned to a tag', () => {
-    expect(unpinned([{ where: 'ci.yml:3', text: 'uses: actions/checkout@v4' }])).toEqual([
-      'ci.yml:3 uses: actions/checkout@v4',
-    ]);
+    expect(unpinned([{ where: 'ci.yml:3', text: 'uses: actions/checkout@v4' }])).toEqual(['ci.yml:3 uses: actions/checkout@v4']);
   });
 
   it('every pinned action names the version its SHA resolves to', () => {
@@ -161,9 +159,7 @@ describe('the CI supply chain is pinned', () => {
   });
 
   it('names a SHA with no version comment', () => {
-    expect(unlabelled([{ where: 'ci.yml:3', text: `uses: actions/checkout@${SHA}` }])).toEqual([
-      `ci.yml:3 uses: actions/checkout@${SHA}`,
-    ]);
+    expect(unlabelled([{ where: 'ci.yml:3', text: `uses: actions/checkout@${SHA}` }])).toEqual([`ci.yml:3 uses: actions/checkout@${SHA}`]);
   });
 });
 
@@ -190,9 +186,7 @@ describe('Dependabot keeps the pins from rotting', () => {
   ];
 
   it('names an action repo used at two sub-paths with no group', () => {
-    expect(ungroupedSubPaths(cacheUses, 'groups:\n  patch-updates:\n')).toEqual([
-      'actions/cache used at 2 sub-paths, ungrouped',
-    ]);
+    expect(ungroupedSubPaths(cacheUses, 'groups:\n  patch-updates:\n')).toEqual(['actions/cache used at 2 sub-paths, ungrouped']);
   });
 
   it('accepts that repo once a group names it', () => {

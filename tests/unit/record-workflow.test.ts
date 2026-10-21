@@ -10,8 +10,7 @@ import { withoutPinnedShas, withoutYamlComments, withoutYamlQuotes, yamlBlock } 
  * comment-stripped, quote-free text.
  */
 
-const workflow = () =>
-  withoutPinnedShas(withoutYamlQuotes(withoutYamlComments(readFileSync('.github/workflows/record.yml', 'utf8'))));
+const workflow = () => withoutPinnedShas(withoutYamlQuotes(withoutYamlComments(readFileSync('.github/workflows/record.yml', 'utf8'))));
 const steps = () => yamlBlock(workflow(), 'steps', '    ');
 
 describe('record.yml', () => {
@@ -34,7 +33,11 @@ describe('record.yml', () => {
   });
 
   it('refuses any ref but a scratch ref before checking anything out, then measures, records and uploads', () => {
-    expect(steps().split('\n').filter((line) => /^ {6}- /.test(line))).toEqual([
+    expect(
+      steps()
+        .split('\n')
+        .filter((line) => /^ {6}- /.test(line)),
+    ).toEqual([
       '      - name: Refuse any ref but a scratch ref',
       '      - uses: actions/checkout@<sha>',
       '      - uses: actions/setup-node@<sha>',
@@ -59,12 +62,7 @@ describe('record.yml', () => {
 
   it('sets up node with no cache, so a run of an unreviewed commit cannot poison what develop restores', () => {
     expect(steps()).toContain(
-      [
-        '      - uses: actions/setup-node@<sha>',
-        '        with:',
-        '          node-version-file: .nvmrc',
-        '      - run: npm ci',
-      ].join('\n'),
+      ['      - uses: actions/setup-node@<sha>', '        with:', '          node-version-file: .nvmrc', '      - run: npm ci'].join('\n'),
     );
   });
 
@@ -74,7 +72,12 @@ describe('record.yml', () => {
 
   it('tells the recorder which scratch ref it records', () => {
     expect(steps()).toContain(
-      ['      - name: Record coverage', '        env:', '          RECORD_RUN: ${{ inputs.ref }}', '        run: npm run coverage:record'].join('\n'),
+      [
+        '      - name: Record coverage',
+        '        env:',
+        '          RECORD_RUN: ${{ inputs.ref }}',
+        '        run: npm run coverage:record',
+      ].join('\n'),
     );
   });
 
@@ -90,6 +93,8 @@ describe('record.yml', () => {
   });
 
   it('uploads it as the record artifact, failing when there is nothing to upload', () => {
-    expect(steps()).toContain(['        with:', '          name: record', '          path: record/', '          if-no-files-found: error'].join('\n'));
+    expect(steps()).toContain(
+      ['        with:', '          name: record', '          path: record/', '          if-no-files-found: error'].join('\n'),
+    );
   });
 });

@@ -18,7 +18,15 @@ const spec = (title: string, ...tests: [string, string][]) => ({
 const report = (projects: ReturnType<typeof project>[], specs: ReturnType<typeof spec>[]) => ({
   config: { projects: [...projects, { name: 'desktop-chrome', metadata: {} }] },
   // A file's suite holds only nested suites; each group holds only specs: both shapes Playwright writes.
-  suites: [{ title: 'a.spec.ts', suites: [{ title: 'first', specs: specs.slice(0, 1) }, { title: 'group', specs: specs.slice(1) }] }],
+  suites: [
+    {
+      title: 'a.spec.ts',
+      suites: [
+        { title: 'first', specs: specs.slice(0, 1) },
+        { title: 'group', specs: specs.slice(1) },
+      ],
+    },
+  ],
 });
 const PHONES = [project('android-chrome'), project('ios-safari')];
 
@@ -67,24 +75,48 @@ describe('main', () => {
 
   it('passes when every phone ran the same tests, all passing, and prints each phone', () => {
     expect(run(report(PHONES, [spec('x', ['android-chrome', 'expected'], ['ios-safari', 'expected'])]))).toBe(0);
-    expect(out).toEqual(['devices-report: android-chrome (real taps): 1 test(s), 0 failed, 0 skipped\n', 'devices-report: ios-safari (real taps): 1 test(s), 0 failed, 0 skipped\n']);
+    expect(out).toEqual([
+      'devices-report: android-chrome (real taps): 1 test(s), 0 failed, 0 skipped\n',
+      'devices-report: ios-safari (real taps): 1 test(s), 0 failed, 0 skipped\n',
+    ]);
     expect(err).toEqual([]);
   });
 
   it('reads a phone that does not say its input mode as a stand-in', () => {
-    run({ ...report([], []), config: { projects: [{ name: 'android-chrome', metadata: { phone: 'android' } }] }, suites: [{ specs: [spec('x', ['android-chrome', 'expected'])] }] });
+    run({
+      ...report([], []),
+      config: { projects: [{ name: 'android-chrome', metadata: { phone: 'android' } }] },
+      suites: [{ specs: [spec('x', ['android-chrome', 'expected'])] }],
+    });
     expect(out).toEqual(['devices-report: android-chrome (STAND-IN, weaker than real taps): 1 test(s), 0 failed, 0 skipped\n']);
   });
 
   it('marks a stand-in phone in every line, never as equal to real taps', () => {
-    run(report([project('android-chrome'), project('ios-safari', 'stand-in')], [spec('x', ['android-chrome', 'expected'], ['ios-safari', 'expected'])]));
+    run(
+      report(
+        [project('android-chrome'), project('ios-safari', 'stand-in')],
+        [spec('x', ['android-chrome', 'expected'], ['ios-safari', 'expected'])],
+      ),
+    );
     expect(out[1]).toBe('devices-report: ios-safari (STAND-IN, weaker than real taps): 1 test(s), 0 failed, 0 skipped\n');
   });
 
   it.each([
-    ['a phone that ran fewer tests', [spec('x', ['android-chrome', 'expected'], ['ios-safari', 'expected']), spec('y', ['android-chrome', 'expected'])], 'ios-safari ran 1 test(s), not the 2 another phone ran'],
-    ['a phone that skipped a test', [spec('x', ['android-chrome', 'expected'], ['ios-safari', 'skipped'])], 'ios-safari skipped 1 test(s): a step a phone cannot take is raised, never skipped'],
-    ['a phone with a failure', [spec('x', ['android-chrome', 'unexpected'], ['ios-safari', 'expected'])], 'android-chrome failed 1 test(s)'],
+    [
+      'a phone that ran fewer tests',
+      [spec('x', ['android-chrome', 'expected'], ['ios-safari', 'expected']), spec('y', ['android-chrome', 'expected'])],
+      'ios-safari ran 1 test(s), not the 2 another phone ran',
+    ],
+    [
+      'a phone that skipped a test',
+      [spec('x', ['android-chrome', 'expected'], ['ios-safari', 'skipped'])],
+      'ios-safari skipped 1 test(s): a step a phone cannot take is raised, never skipped',
+    ],
+    [
+      'a phone with a failure',
+      [spec('x', ['android-chrome', 'unexpected'], ['ios-safari', 'expected'])],
+      'android-chrome failed 1 test(s)',
+    ],
     ['a phone that ran nothing', [spec('x', ['ios-safari', 'expected'])], 'android-chrome ran no tests'],
   ])('fails, naming it, on %s', (_kind, specs, problem) => {
     expect(run(report(PHONES, specs))).toBe(1);

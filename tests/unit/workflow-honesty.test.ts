@@ -11,7 +11,9 @@ import { scanWithoutVerdict, swallowed, tokenGated } from './workflow-honesty.ts
  */
 
 const WORKFLOWS = '.github/workflows';
-const files = readdirSync(WORKFLOWS).filter((f) => /\.ya?ml$/.test(f)).sort();
+const files = readdirSync(WORKFLOWS)
+  .filter((f) => /\.ya?ml$/.test(f))
+  .sort();
 const read = (f: string) => readFileSync(`${WORKFLOWS}/${f}`, 'utf8');
 
 describe('every workflow', () => {
@@ -86,7 +88,10 @@ describe('the checks', () => {
 
   it('names a verdict step that comes before the scan', () => {
     expect(
-      scanWithoutVerdict('w.yml', 'steps:\n      - run: node scripts/sonar-verdict.ts x\n      - uses: SonarSource/sonarqube-scan-action@abc\n'),
+      scanWithoutVerdict(
+        'w.yml',
+        'steps:\n      - run: node scripts/sonar-verdict.ts x\n      - uses: SonarSource/sonarqube-scan-action@abc\n',
+      ),
     ).toEqual(['w.yml scans, but no step after it runs scripts/sonar-verdict.ts']);
   });
 

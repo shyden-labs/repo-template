@@ -16,7 +16,12 @@ import { main, parseReportTask, verdict } from '../../scripts/sonar-verdict.ts';
 vi.mock('node:timers/promises', () => ({ setTimeout: vi.fn(() => Promise.resolve()) }));
 const waited = vi.mocked(sleep);
 
-const REPORT = ['projectKey=shyden-labs_app', 'serverUrl=https://sonarcloud.io', 'dashboardUrl=https://sonarcloud.io/dashboard?id=x&pullRequest=7', 'ceTaskId=AX1'].join('\n');
+const REPORT = [
+  'projectKey=shyden-labs_app',
+  'serverUrl=https://sonarcloud.io',
+  'dashboardUrl=https://sonarcloud.io/dashboard?id=x&pullRequest=7',
+  'ceTaskId=AX1',
+].join('\n');
 
 describe('parseReportTask', () => {
   it("reads the scan's task id, server and dashboard", () => {
@@ -28,7 +33,9 @@ describe('parseReportTask', () => {
   });
 
   it.each([['ceTaskId'], ['serverUrl'], ['dashboardUrl']])('refuses a report with no %s', (key) => {
-    const text = REPORT.split('\n').filter((l) => !l.startsWith(`${key}=`)).join('\n');
+    const text = REPORT.split('\n')
+      .filter((l) => !l.startsWith(`${key}=`))
+      .join('\n');
     expect(() => parseReportTask(text)).toThrow(`sonar-verdict: the scan's report-task.txt has no ${key}; the scan did not finish`);
   });
 });
@@ -59,7 +66,10 @@ describe('verdict', () => {
   });
 
   it.each([['WARN'], ['NONE'], [undefined]])('fails the status %s, which is not a pass', (status) => {
-    expect(verdict(status === undefined ? { conditions: [] } : { status, conditions: [] })).toEqual({ ok: false, lines: [`quality gate: ${String(status)}, not OK`] });
+    expect(verdict(status === undefined ? { conditions: [] } : { status, conditions: [] })).toEqual({
+      ok: false,
+      lines: [`quality gate: ${String(status)}, not OK`],
+    });
   });
 });
 
@@ -102,7 +112,8 @@ describe('main', () => {
       }),
     );
   };
-  const task = (status: string, over: object = {}) => [200, { task: { id: 'AX1', status, analysisId: 'AN1', pullRequest: '7', ...over } }] as [number, unknown];
+  const task = (status: string, over: object = {}) =>
+    [200, { task: { id: 'AX1', status, analysisId: 'AN1', pullRequest: '7', ...over } }] as [number, unknown];
   const gate = (status: string, conditions: object[] = []) => [200, { projectStatus: { status, conditions } }] as [number, unknown];
   const run = () => main([join(dir, 'report-task.txt')]);
 
@@ -164,7 +175,10 @@ describe('main', () => {
   });
 
   it('fails ERROR, naming each failed condition', async () => {
-    answer(task('SUCCESS'), gate('ERROR', [{ status: 'ERROR', metricKey: 'new_coverage', comparator: 'LT', errorThreshold: '85', actualValue: '82.5' }]));
+    answer(
+      task('SUCCESS'),
+      gate('ERROR', [{ status: 'ERROR', metricKey: 'new_coverage', comparator: 'LT', errorThreshold: '85', actualValue: '82.5' }]),
+    );
     expect(await run()).toBe(1);
     expect(err).toEqual(['sonar-verdict: quality gate: ERROR\n', 'sonar-verdict: new_coverage is 82.5, which fails LT 85\n']);
   });
@@ -197,7 +211,11 @@ describe('main', () => {
 
   it.each([
     ['the task', [[401, {}]], 'sonar-verdict: GET https://sonarcloud.io/api/ce/task?id=AX1 answered 401; no verdict to read'],
-    ['the gate', [task('SUCCESS'), [404, {}]], 'sonar-verdict: GET https://sonarcloud.io/api/qualitygates/project_status?analysisId=AN1 answered 404; no verdict to read'],
+    [
+      'the gate',
+      [task('SUCCESS'), [404, {}]],
+      'sonar-verdict: GET https://sonarcloud.io/api/qualitygates/project_status?analysisId=AN1 answered 404; no verdict to read',
+    ],
   ])('fails closed on an API error reading %s', async (_what, replies, message) => {
     answer(...(replies as [number, unknown][]));
     await expect(run()).rejects.toThrow(message);

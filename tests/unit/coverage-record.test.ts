@@ -263,9 +263,7 @@ describe('formatTotals', () => {
           ['b.ts', { statements: 0, branches: 0, statementsTotal: 2, branchesTotal: 0 }],
         ]),
       ),
-    ).toBe(
-      'coverage-record: 2 file(s) measured; 1 of 10 statements untested (90.00% run), 2 of 4 branch arms untested (50.00% run)',
-    );
+    ).toBe('coverage-record: 2 file(s) measured; 1 of 10 statements untested (90.00% run), 2 of 4 branch arms untested (50.00% run)');
   });
 
   it('reads an empty population as fully run rather than dividing by zero', () => {
@@ -337,9 +335,7 @@ describe('main', () => {
     record(1);
     writeFileSync(join(root, 'scripts/a.ts'), `export const a = 1;\n${block(' v8 ignore next ')}\n`);
     expect(main(['check'])).toBe(1);
-    expect(err.join('')).toBe(
-      'coverage-record: scripts/a.ts:2 tells coverage to skip a line; a skipped line counts as unrun\n',
-    );
+    expect(err.join('')).toBe('coverage-record: scripts/a.ts:2 tells coverage to skip a line; a skipped line counts as unrun\n');
   });
 
   it('check fails closed when the report is missing', () => {
@@ -351,18 +347,14 @@ describe('main', () => {
 
   it('check fails closed when the record is missing', () => {
     summary(3);
-    expect(() => main(['check'])).toThrow(
-      'coverage-record: no record at coverage-record.json; run npm run coverage:record on the laptop',
-    );
+    expect(() => main(['check'])).toThrow('coverage-record: no record at coverage-record.json; run npm run coverage:record on the laptop');
   });
 
   it('record writes the measured counts and prints each change', () => {
     summary(4);
     record(1);
     expect(main(['record'])).toBe(0);
-    expect(readFileSync(join(root, 'coverage-record.json'), 'utf8')).toBe(
-      '{\n  "scripts/a.ts": { "statements": 0, "branches": 0 }\n}\n',
-    );
+    expect(readFileSync(join(root, 'coverage-record.json'), 'utf8')).toBe('{\n  "scripts/a.ts": { "statements": 0, "branches": 0 }\n}\n');
     expect(out.join('')).toContain('coverage-record: scripts/a.ts: untested statements 1 -> 0\n');
   });
 

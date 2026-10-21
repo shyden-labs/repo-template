@@ -144,14 +144,28 @@ describe('main', () => {
       ['gh', ['api', 'graphql', '--paginate', '--slurp', '-f', '-f', 'id=PVT_1']],
       [
         'gh',
-        ['pr', 'list', '-R', 'shyden-labs/repo', '--state', 'open', '--limit', '500', '--json', 'title,body,headRefName,closingIssuesReferences'],
+        [
+          'pr',
+          'list',
+          '-R',
+          'shyden-labs/repo',
+          '--state',
+          'open',
+          '--limit',
+          '500',
+          '--json',
+          'title,body,headRefName,closingIssuesReferences',
+        ],
       ],
       ['gh', ['api', '--paginate', '--slurp', 'repos/shyden-labs/repo/branches?per_page=100']],
     ]);
   });
 
   it('fails when the pull request list may be cut short', () => {
-    reply([board], Array.from({ length: 500 }, () => openPr({})));
+    reply(
+      [board],
+      Array.from({ length: 500 }, () => openPr({})),
+    );
     expect(() => main(ARGS)).toThrow('gh pr list hit its limit of 500; the list may be cut short');
   });
 
@@ -182,7 +196,18 @@ describe('main', () => {
     reply([board], [], [[{ name: '7-work' }]], []);
     expect(main(ARGS)).toBe(0);
     expect(gh.mock.calls[3]?.[1]).toEqual([
-      'pr', 'list', '-R', 'shyden-labs/repo', '--state', 'closed', '--head', '7-work', '--limit', '1', '--json', 'number',
+      'pr',
+      'list',
+      '-R',
+      'shyden-labs/repo',
+      '--state',
+      'closed',
+      '--head',
+      '7-work',
+      '--limit',
+      '1',
+      '--json',
+      'number',
     ]);
   });
 

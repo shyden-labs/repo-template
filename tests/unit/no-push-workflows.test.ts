@@ -32,7 +32,9 @@ function writes(file: string, text: string): string[] {
     .flatMap((line, i) => (WRITES.some((w) => w.test(line)) ? [`${file}:${i + 1} ${line.trim()}`] : []));
 }
 
-const workflows = readdirSync(WORKFLOWS).filter((f) => /\.ya?ml$/.test(f)).sort();
+const workflows = readdirSync(WORKFLOWS)
+  .filter((f) => /\.ya?ml$/.test(f))
+  .sort();
 const judged = workflows.filter((f) => !MAY_WRITE.test(f));
 
 describe('no workflow writes to the repository', () => {

@@ -88,7 +88,13 @@ export function parseGroups(config: string): Ecosystem[] {
 
 /** A Dependabot pattern as a regex: `*` is any run, case is ignored, every other character is literal. */
 const glob = (pattern: string): RegExp =>
-  new RegExp(`^${pattern.split('*').map((part) => part.replace(/[.+?^${}()|[\]\\/]/g, '\\$&')).join('.*')}$`, 'i');
+  new RegExp(
+    `^${pattern
+      .split('*')
+      .map((part) => part.replace(/[.+?^${}()|[\]\\/]/g, '\\$&'))
+      .join('.*')}$`,
+    'i',
+  );
 
 /** dependabot-core's `DependencyGroup#contains?` for the rules modelled here. */
 export function contains(group: Group, name: string): boolean {

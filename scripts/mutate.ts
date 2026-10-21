@@ -46,8 +46,7 @@ function fail(message: string): never {
 }
 
 /** A test file in one of the non-unit suites. */
-export const nonUnitTest = (path: string): boolean =>
-  TEST_FILE.test(path) && Object.values(SUITES).some((s) => path.startsWith(s.dir));
+export const nonUnitTest = (path: string): boolean => TEST_FILE.test(path) && Object.values(SUITES).some((s) => path.startsWith(s.dir));
 
 const isText = (value: unknown): value is string => typeof value === 'string' && value !== '';
 
@@ -70,11 +69,17 @@ export function parseMutationFile(text: string, path: string): MutationFile {
   for (const target of f.targets as string[]) {
     if (!nonUnitTest(target)) refuse(`${target} is not a non-unit test file`);
   }
-  if (!(typeof f.suite === 'string' && f.suite in SUITES)) refuse(`suite ${String(f.suite)} is not one of ${Object.keys(SUITES).join(', ')}`);
+  if (!(typeof f.suite === 'string' && f.suite in SUITES))
+    refuse(`suite ${String(f.suite)} is not one of ${Object.keys(SUITES).join(', ')}`);
   if (!Array.isArray(f.mutations) || f.mutations.length === 0) refuse('mutations must hold at least one row');
   const rows = (f.mutations as Record<string, unknown>[]).map((r, i) => {
     const where = `row ${i + 1}`;
-    if (![r.name, r.path, r.anchor, r.replacement].every((v) => typeof v === 'string') || !isText(r.name) || !isText(r.path) || !isText(r.anchor)) {
+    if (
+      ![r.name, r.path, r.anchor, r.replacement].every((v) => typeof v === 'string') ||
+      !isText(r.name) ||
+      !isText(r.path) ||
+      !isText(r.anchor)
+    ) {
       refuse(`${where} needs a name, a path, an anchor and a replacement`);
     }
     if (r.anchor === r.replacement) refuse(`${where} (${r.name as string}) replaces its anchor with itself`);
@@ -119,7 +124,15 @@ function runSuite(file: MutationFile): { failed: string[]; total: number } {
   try {
     const result = spawnSync(
       'npx',
-      ['vitest', 'run', '--config', (SUITES[file.suite] as { config: string }).config, ...file.targets, '--reporter=json', `--outputFile=${report}`],
+      [
+        'vitest',
+        'run',
+        '--config',
+        (SUITES[file.suite] as { config: string }).config,
+        ...file.targets,
+        '--reporter=json',
+        `--outputFile=${report}`,
+      ],
       { encoding: 'utf8' },
     );
     if (!existsSync(report)) fail(`the ${file.suite} suite wrote no report (exit ${String(result.status)}); it did not run`);

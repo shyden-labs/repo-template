@@ -109,16 +109,17 @@ describe('contains', () => {
 
 describe('leaks', () => {
   it('passes when the catch-all excludes every pattern group pattern, judging both groups', () => {
-    expect(parseGroups(CONFIG).slice(0, 1).map((npm) => ({ groups: npm.groups.length, leaks: leaks(npm) }))).toEqual([{ groups: 2, leaks: [] }]);
+    expect(
+      parseGroups(CONFIG)
+        .slice(0, 1)
+        .map((npm) => ({ groups: npm.groups.length, leaks: leaks(npm) })),
+    ).toEqual([{ groups: 2, leaks: [] }]);
   });
 
   it('names a pattern group whose packages the catch-all can also take', () => {
     const npm = {
       ecosystem: 'npm',
-      groups: [
-        group({ name: 'vitest', patterns: ['vitest', '@vitest/*'] }),
-        group({ name: 'patch-updates', excludePatterns: ['vitest'] }),
-      ],
+      groups: [group({ name: 'vitest', patterns: ['vitest', '@vitest/*'] }), group({ name: 'patch-updates', excludePatterns: ['vitest'] })],
     };
     expect(leaks(npm)).toEqual([
       'npm: @vitest/ (vitest group, @vitest/*) can also land in patch-updates',

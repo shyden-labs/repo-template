@@ -1,11 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import {
-  main,
-  planEstimateField,
-  planPriorityField,
-  PRIORITY_OPTIONS,
-} from '../../scripts/board-setup.ts';
+import { main, planEstimateField, planPriorityField, PRIORITY_OPTIONS } from '../../scripts/board-setup.ts';
 
 // `gh` is stood in: a unit test starts no process. Each test queues gh's replies in call order.
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
@@ -27,15 +22,11 @@ describe('planEstimateField', () => {
   });
 
   it('keeps a Number field already named Estimate', () => {
-    expect(planEstimateField([{ name: 'Estimate', dataType: 'NUMBER' }])).toBe(
-      'exists',
-    );
+    expect(planEstimateField([{ name: 'Estimate', dataType: 'NUMBER' }])).toBe('exists');
   });
 
   it('refuses an Estimate field of another type by name', () => {
-    expect(() =>
-      planEstimateField([{ name: 'Estimate', dataType: 'TEXT' }]),
-    ).toThrow(
+    expect(() => planEstimateField([{ name: 'Estimate', dataType: 'TEXT' }])).toThrow(
       'the board has an "Estimate" field of type TEXT; it must be NUMBER: rename or delete it first',
     );
   });
@@ -51,9 +42,7 @@ const SIX = ['P0', 'P1', 'P2', 'P3', 'P4', 'P5'];
 describe('PRIORITY_OPTIONS', () => {
   it('holds the six levels in order, each with its definition', () => {
     expect(PRIORITY_OPTIONS.map((o) => o.name)).toEqual(SIX);
-    expect(PRIORITY_OPTIONS[0].description).toBe(
-      'Now: a live defect, a vulnerability, broken CI or deploy, or a release blocker.',
-    );
+    expect(PRIORITY_OPTIONS[0].description).toBe('Now: a live defect, a vulnerability, broken CI or deploy, or a release blocker.');
     expect(PRIORITY_OPTIONS[1].description).toBe(
       'Next: something the operator asked for directly, or work already in flight. A blocker is not P1 by being one: it is raised to the level of what waits on it.',
     );
@@ -68,9 +57,7 @@ describe('PRIORITY_OPTIONS', () => {
 
 describe('planPriorityField', () => {
   it('creates the field on a board that has none', () => {
-    expect(
-      planPriorityField([{ name: 'Status', dataType: 'SINGLE_SELECT' }]),
-    ).toBe('create');
+    expect(planPriorityField([{ name: 'Status', dataType: 'SINGLE_SELECT' }])).toBe('create');
   });
 
   it('keeps a single-select Priority holding the six levels in order', () => {
@@ -86,9 +73,7 @@ describe('planPriorityField', () => {
   });
 
   it('refuses a Priority field of another type by name', () => {
-    expect(() =>
-      planPriorityField([{ name: 'Priority', dataType: 'NUMBER' }]),
-    ).toThrow(
+    expect(() => planPriorityField([{ name: 'Priority', dataType: 'NUMBER' }])).toThrow(
       'the board has a "Priority" field of type NUMBER; it must be SINGLE_SELECT: rename or delete it first',
     );
   });
