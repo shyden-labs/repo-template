@@ -111,6 +111,11 @@ interface ChecksParameters {
 /** Every way a branch's rules (as `rules/branches/<branch>` reports them) fall short; empty when none. */
 export function auditBranchRules(branch: string, rules: Rule[]): string[] {
   const problems: string[] = [];
+  // The repository deletes merged head branches (#28), so a deletable
+  // develop would go the first time a develop -> main pull request merges.
+  if (!rules.some((r) => r.type === 'deletion')) {
+    problems.push(`${branch}: no rule forbids deleting it`);
+  }
   if (!rules.some((r) => r.type === 'pull_request')) {
     problems.push(`${branch}: no rule requires a pull request`);
   }
@@ -121,6 +126,13 @@ export function auditBranchRules(branch: string, rules: Rule[]): string[] {
     problems.push(`${branch}: a required-checks rule is not strict`);
   }
   return problems;
+}
+
+/** Every way the repository's own settings (as `repos/<owner>/<repo>` reports them) fall short; empty when none. */
+export function auditRepoSettings(repo: { delete_branch_on_merge?: boolean }): string[] {
+  return repo.delete_branch_on_merge === true
+    ? []
+    : [`merged head branches are not deleted (delete_branch_on_merge is ${String(repo.delete_branch_on_merge)})`];
 }
 
 function gh(args: string[], input?: string): unknown {
@@ -146,7 +158,16 @@ export function main(args: string[]): number {
   if (problems.length > 0) {
     throw new Error(`read back, the rules still fall short:\n  ${problems.join('\n  ')}`);
   }
-  process.stdout.write(`${repo}: develop and main each require pull requests and strict checks.\n`);
+  // Only now that neither branch can be deleted: a merged pull request's head
+  // branch is deleted with it (#28). A template copies files, not settings.
+  gh(['api', '-X', 'PATCH', `repos/${repo}`, '-F', 'delete_branch_on_merge=true']);
+  const settings = auditRepoSettings(gh(['api', `repos/${repo}`]) as { delete_branch_on_merge?: boolean });
+  if (settings.length > 0) {
+    throw new Error(`read back, the repository still falls short:\n  ${settings.join('\n  ')}`);
+  }
+  process.stdout.write(
+    `${repo}: develop and main each forbid deletion and require pull requests and strict checks; merged head branches are deleted.\n`,
+  );
   return 0;
 }
 
