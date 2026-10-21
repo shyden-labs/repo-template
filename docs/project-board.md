@@ -34,6 +34,31 @@ effort, each with a % complete and an ETA. The board carries what both need.
    it is missing (and refuses a same-named field of another type, or a
    `Priority` with other options), and reads both back.
 
+## Filing a ticket
+
+Every project files a ticket the same way (Shyden, 2026-10-16: "the whole
+procedure"; issue #20). The story form (`.github/ISSUE_TEMPLATE/story.yml`)
+asks for the Story, Context, Acceptance criteria, Announce and Definition of
+done, all required. Then:
+
+1. **Search the open board first.** On a duplicate, add what is new to the
+   original instead.
+2. **Add the issue to the board**, checking the board's title before you write.
+3. **Set its Estimate** (1, 2, 3, 5, 8 or 13), scored from the acceptance
+   criteria against similar closed stories. Anything larger is an epic: split it.
+4. **Set its Priority**, P0 to P5 as defined below. A blocker takes at least the
+   level of what waits on it.
+5. **Add a Blocked-by link** for each issue it waits on. A "Depends on" section
+   is context, not the record.
+6. **Set its epic as its parent.**
+7. **Close it by hand.** Commits and pull requests write `Refs` before the
+   number, never a closing keyword. Close it once every criterion is verified.
+
+`node scripts/file-story.ts <board-node-id> "<board title>" <story.json>` does
+steps 1 to 6 and prints every field it reads back. A ticket is In Progress only
+while a branch or open pull request names it (see below), and the next ticket
+comes from `scripts/board-next.ts`, never a handover file.
+
 ## Priorities and the next ticket
 
 Every open story carries a `Priority`, set when it is filed, like its

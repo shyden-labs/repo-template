@@ -15,7 +15,7 @@ rotting.
 | `.npmrc` | `engine-strict=true` turns the `engines` floor from a warning into a hard install failure. |
 | `package-lock.json` | `npm ci` refuses to run without it, so CI installs exactly what was tested. |
 | `LICENSE` | Apache-2.0, the default for new Shyden Labs code. |
-| `.github/ISSUE_TEMPLATE/story.yml` | A story is fully defined at filing: story line, context, complete acceptance criteria, and an Estimate on the board. |
+| `.github/ISSUE_TEMPLATE/story.yml`, `scripts/file-story.ts` | Every project files a ticket the same way (issue #20): story line, context, complete acceptance criteria, what it lets us announce, and a definition of done, all required; then on the board an Estimate, a Priority, a Blocked-by link for each blocker and its parent. `file-story.ts` does it and reads every field back. |
 | `scripts/board-setup.ts`, `scripts/board-progress.ts`, `docs/project-board.md` | Every board has a Number field `Estimate`. Every close-out reports progress by tickets and by effort, measured from the board. |
 | `scripts/branch-rules-setup.ts` | `develop` and `main` each carry a ruleset naming the branch, with strict required checks, so two pull requests that pass alone can never land untested together (issue #8). |
 | `scripts/coverage-provider.ts`, `scripts/coverage-record.ts`, `coverage-record.json`, `docs/coverage.md` | Coverage measures every code file, tests included, and the record holds each file's untested statements and branch arms: no count may rise, and the record must equal what was measured (issue #32). |
