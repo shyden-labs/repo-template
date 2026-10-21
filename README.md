@@ -26,6 +26,7 @@ rotting.
 | `docs/api-docs.md` | Every API a repository builds has a fully capable Swagger interface; a private API's docs are private (operator ruling 2026-10-15). The standard, its four decisions, and what a project does. |
 | `docs/logs-suite.md`, `vitest.logs.config.ts`, `vitest.unit.config.ts`, `.github/workflows/logs.yml` | Logging and auditing have a test suite of their own, run in CI as a prerequisite to a release, never on a pull request (issue #16). Unit is limited to `tests/unit/`, and an empty logs suite fails. |
 | `tsconfig.json`, `eslint.config.js`, `.prettierrc.json`, `.githooks/pre-push`, `docs/static-checks.md` | Every code file is typechecked under strict settings, linted with typescript-eslint's strict rules and format-checked, in CI and before every push (issue #61). |
+| `scripts/workflow-lines.ts`, `scripts/workflow-trace.ts`, `docs/workflow-lines.md` | Workflow lines are code: every `run:` step runs under a tracing shell that records the lines bash ran, and each job uploads the traces (issue #35). |
 
 ## The four rules
 

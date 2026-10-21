@@ -11,6 +11,11 @@ on:
 permissions:
   contents: read
 
+# Every run step writes a trace of the lines bash ran (issue #35, scripts/workflow-trace.ts).
+defaults:
+  run:
+    shell: bash --noprofile --norc -eo pipefail -c "__workflow_trace=$RUNNER_TEMP/workflow-trace/$GITHUB_JOB; mkdir -p $__workflow_trace; __workflow_trace=$__workflow_trace/$GITHUB_ACTION; sha256sum $0 > $__workflow_trace; grep -c '' $0 >> $__workflow_trace; set -T; trap 'if [[ $BASH_SOURCE == $0 ]]; then echo $LINENO >> $__workflow_trace; fi' DEBUG; source $0" {0}
+
 jobs:
   logs:
     runs-on: ubuntu-latest
@@ -27,3 +32,11 @@ jobs:
       # One measured limit belongs on this step: set timeout-minutes from the
       # suite's first CI runs once it holds the project's checks.
       - run: npm run test:logs
+      # Each run step's line trace, for the workflow-line record (issue #35); kept after a failure too.
+      - if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: workflow-trace-${{ github.job }}
+          path: ${{ runner.temp }}/workflow-trace/
+          if-no-files-found: error
+          retention-days: 7
