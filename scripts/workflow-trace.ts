@@ -5,7 +5,7 @@
  * `workflow-trace-<job>`.
  *
  * A trace file is `$RUNNER_TEMP/workflow-trace/$GITHUB_JOB/$GITHUB_ACTION`:
- * the script's `sha256sum` line, its line count (`wc -l`), then each line
+ * the script's `sha256sum` line, its line count (`grep -c ''`, which counts a last line with no newline; the runner writes a one-line script without one, so `wc -l` read 0), then each line
  * number bash was about to run, from a DEBUG trap that skips every line but
  * the step's own script. The hash and count let a reader see whether the
  * script that ran is the one in the workflow file (a `${{ }}` expression can
@@ -27,7 +27,7 @@ export const TRACE_SHELL =
     'mkdir -p $__workflow_trace',
     '__workflow_trace=$__workflow_trace/$GITHUB_ACTION',
     'sha256sum $0 > $__workflow_trace',
-    'wc -l < $0 >> $__workflow_trace',
+    "grep -c '' $0 >> $__workflow_trace",
     'set -T',
     "trap 'if [[ $BASH_SOURCE == $0 ]]",
     'then echo $LINENO >> $__workflow_trace',

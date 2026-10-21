@@ -84,7 +84,7 @@ describe('TRACE_SHELL', () => {
       'mkdir -p $__workflow_trace',
       '__workflow_trace=$__workflow_trace/$GITHUB_ACTION',
       'sha256sum $0 > $__workflow_trace',
-      'wc -l < $0 >> $__workflow_trace',
+      "grep -c '' $0 >> $__workflow_trace",
       'set -T',
       "trap 'if [[ $BASH_SOURCE == $0 ]]",
       'then echo $LINENO >> $__workflow_trace',

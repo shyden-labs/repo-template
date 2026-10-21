@@ -24,7 +24,7 @@ own `shell:`. The shell runs each step's script under bash with a DEBUG trap.
 Each step writes `$RUNNER_TEMP/workflow-trace/<job>/<GITHUB_ACTION>`, holding:
 
 1. the script's `sha256sum` line,
-2. its line count,
+2. its line count (`grep -c ''`: the runner writes a one-line script with no final newline, which `wc -l` counted as 0),
 3. each line number bash was about to run in that script, and no other file's.
 
 The hash and count show whether the script that ran is the one in the workflow

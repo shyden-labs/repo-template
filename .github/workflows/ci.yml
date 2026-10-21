@@ -12,7 +12,7 @@ on:
 # Every run step writes a trace of the lines bash ran (issue #35, scripts/workflow-trace.ts).
 defaults:
   run:
-    shell: bash --noprofile --norc -eo pipefail -c "__workflow_trace=$RUNNER_TEMP/workflow-trace/$GITHUB_JOB; mkdir -p $__workflow_trace; __workflow_trace=$__workflow_trace/$GITHUB_ACTION; sha256sum $0 > $__workflow_trace; wc -l < $0 >> $__workflow_trace; set -T; trap 'if [[ $BASH_SOURCE == $0 ]]; then echo $LINENO >> $__workflow_trace; fi' DEBUG; source $0" {0}
+    shell: bash --noprofile --norc -eo pipefail -c "__workflow_trace=$RUNNER_TEMP/workflow-trace/$GITHUB_JOB; mkdir -p $__workflow_trace; __workflow_trace=$__workflow_trace/$GITHUB_ACTION; sha256sum $0 > $__workflow_trace; grep -c '' $0 >> $__workflow_trace; set -T; trap 'if [[ $BASH_SOURCE == $0 ]]; then echo $LINENO >> $__workflow_trace; fi' DEBUG; source $0" {0}
 
 jobs:
   build-and-test:
