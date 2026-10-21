@@ -43,6 +43,7 @@
   "tests/unit/sonar-verdict.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/source-text.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/source-text.ts": { "statements": 0, "branches": 0 },
+  "tests/unit/static-checks.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/story-form.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/supply-chain.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/workflow-honesty.test.ts": { "statements": 0, "branches": 0 },
