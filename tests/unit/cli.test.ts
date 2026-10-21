@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { pathToFileURL } from 'node:url';
-import { runIfEntry } from '../../scripts/cli';
+import { runIfEntry } from '../../scripts/cli.ts';
 
 /**
  * Every script's command-line entry goes through `runIfEntry`, so the branch

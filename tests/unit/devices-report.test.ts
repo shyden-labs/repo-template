@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { main, phoneTotals } from '../../scripts/devices-report';
+import { main, phoneTotals } from '../../scripts/devices-report.ts';
 
 /**
  * The per-phone report of a device run (issue #26): every phone ran the same
@@ -10,12 +10,12 @@ import { main, phoneTotals } from '../../scripts/devices-report';
  * stand-in is marked as one, never reported as equal to real taps.
  */
 
-const project = (name: string, input = 'real') => ({ name, metadata: { phone: name.split('-')[0], input } });
+const project = (name: string, input = 'real') => ({ name, metadata: { phone: name.replace(/-.*/, ''), input } });
 const spec = (title: string, ...tests: [string, string][]) => ({
   title,
   tests: tests.map(([projectName, status]) => ({ projectName, status })),
 });
-const report = (projects: object[], specs: object[]) => ({
+const report = (projects: ReturnType<typeof project>[], specs: ReturnType<typeof spec>[]) => ({
   config: { projects: [...projects, { name: 'desktop-chrome', metadata: {} }] },
   // A file's suite holds only nested suites; each group holds only specs: both shapes Playwright writes.
   suites: [{ title: 'a.spec.ts', suites: [{ title: 'first', specs: specs.slice(0, 1) }, { title: 'group', specs: specs.slice(1) }] }],

@@ -7,7 +7,8 @@ import {
   auditBranchRules,
   auditRepoSettings,
   type ExistingRuleset,
-} from '../../scripts/branch-rules-setup';
+  type Rule,
+} from '../../scripts/branch-rules-setup.ts';
 
 // `gh` is stood in: a unit test starts no process. Each test queues gh's replies in call order.
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
@@ -133,7 +134,7 @@ describe('planRulesets', () => {
 });
 
 describe('auditBranchRules', () => {
-  const good = [
+  const good: [Rule, Rule, Rule] = [
     { type: 'deletion' },
     { type: 'pull_request' },
     { type: 'required_status_checks', parameters: { strict_required_status_checks_policy: true } },

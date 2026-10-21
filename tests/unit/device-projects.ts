@@ -10,7 +10,7 @@
  */
 import { existsSync, globSync, readFileSync } from 'node:fs';
 import { join, matchesGlob, relative, sep } from 'node:path';
-import { withoutTsComments } from './source-text';
+import { withoutTsComments } from './source-text.ts';
 
 export interface DeviceProject {
   name: string;

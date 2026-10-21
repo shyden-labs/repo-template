@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
-import { withoutYamlComments } from './source-text';
+import { withoutYamlComments } from './source-text.ts';
 
 /**
  * No workflow writes to the repository except the deploy and release ones

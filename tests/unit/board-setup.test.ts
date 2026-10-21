@@ -5,7 +5,7 @@ import {
   planEstimateField,
   planPriorityField,
   PRIORITY_OPTIONS,
-} from '../../scripts/board-setup';
+} from '../../scripts/board-setup.ts';
 
 // `gh` is stood in: a unit test starts no process. Each test queues gh's replies in call order.
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));

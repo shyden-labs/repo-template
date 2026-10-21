@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { withoutPinnedShas, withoutYamlComments, withoutYamlQuotes, yamlBlock } from './source-text';
+import { withoutPinnedShas, withoutYamlComments, withoutYamlQuotes, yamlBlock } from './source-text.ts';
 
 /**
  * The measure-then-commit workflow (issue #30): it runs only by hand, only on

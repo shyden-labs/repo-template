@@ -3,7 +3,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { apply, judge, main, nonUnitTest, parseMutationFile, SUITES, verdict, type MutationFile } from '../../scripts/mutate';
+import { apply, judge, main, nonUnitTest, parseMutationFile, SUITES, verdict, type MutationFile } from '../../scripts/mutate.ts';
 
 /**
  * The mutations check (issue #21; Shyden 2026-10-16: "mutation testing is

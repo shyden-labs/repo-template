@@ -12,7 +12,7 @@ import {
   skipHints,
   untestedCounts,
   type Counts,
-} from '../../scripts/coverage-record';
+} from '../../scripts/coverage-record.ts';
 
 /**
  * The coverage record (issue #32; Shyden 2026-10-22, "Untested count" and

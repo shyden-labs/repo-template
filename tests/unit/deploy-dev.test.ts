@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { withoutYamlComments, withoutYamlQuotes, yamlBlock as topLevel } from './source-text';
+import { withoutYamlComments, withoutYamlQuotes, yamlBlock as topLevel } from './source-text.ts';
 
 /**
  * A merge into `develop` deploys to dev by a workflow trigger (#12; operator

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { withoutYamlComments } from './source-text';
+import { withoutYamlComments } from './source-text.ts';
 
 /**
  * Every project files a ticket the same way (issue #20; Shyden 2026-10-16:

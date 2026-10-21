@@ -3,7 +3,7 @@
  * if it doesn't run"; issue #27). These read a workflow's comment-stripped
  * text and name each way it could pass without doing its job.
  */
-import { withoutYamlComments } from './source-text';
+import { withoutYamlComments } from './source-text.ts';
 
 /** What swallows a failure: `|| true`, `|| exit 0`, `|| :`, or `continue-on-error: true`. */
 const SWALLOW = /\|\|\s*(?:true|exit\s+0|:)(?:\s|$)|\bcontinue-on-error:\s*true\b/;

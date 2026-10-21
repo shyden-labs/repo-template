@@ -113,9 +113,11 @@ export function nextTicket(items: NextItem[]): NextItem | null {
     i.number,
   ];
   const sorted = [...workable].sort((a, b) => {
-    const [ra, rb] = [rank(a), rank(b)];
-    for (let k = 0; k < ra.length; k++) {
-      if (ra[k] !== rb[k]) return ra[k] - rb[k];
+    const rb = rank(b);
+    // Both ranks hold the same five entries, so rb[k] is always there.
+    for (const [k, value] of rank(a).entries()) {
+      const other = rb[k] as number;
+      if (value !== other) return value - other;
     }
     return 0;
   });
@@ -178,7 +180,7 @@ interface RawNode {
   } | null;
 }
 
-interface RawPage {
+export interface RawPage {
   data: { node: { title: string; items: { nodes: RawNode[] } } };
 }
 

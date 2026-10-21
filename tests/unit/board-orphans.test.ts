@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { inProgressIssues, findOrphanIssues, main, type OpenPullRequest } from '../../scripts/board-orphans';
+import { inProgressIssues, findOrphanIssues, main, type OpenPullRequest } from '../../scripts/board-orphans.ts';
 
 // `gh` is stood in: a unit test starts no process. Each test queues gh's replies in call order.
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));

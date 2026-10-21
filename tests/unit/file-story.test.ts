@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { boardFields, main, parseStory, type Story } from '../../scripts/file-story';
+import { boardFields, main, parseStory, type Story } from '../../scripts/file-story.ts';
 
 /**
  * Filing a story the way every project does (issue #20): the story is checked

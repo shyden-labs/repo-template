@@ -10,7 +10,7 @@ import {
   progress,
   QUERY,
   type BoardItem,
-} from '../../scripts/board-progress';
+} from '../../scripts/board-progress.ts';
 
 // `gh` is stood in: a unit test starts no process.
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));

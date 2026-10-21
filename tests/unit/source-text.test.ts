@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { withoutCommentLines, withoutPinnedShas, withoutTsComments, withoutYamlComments, yamlBlock } from './source-text';
+import { withoutCommentLines, withoutPinnedShas, withoutTsComments, withoutYamlComments, yamlBlock } from './source-text.ts';
 
 describe('withoutYamlComments', () => {
   const y = (...lines: string[]) => lines.join('\n');

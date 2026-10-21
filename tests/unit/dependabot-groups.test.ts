@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { contains, leaks, parseGroups, type Group } from './dependabot-groups';
+import { contains, leaks, parseGroups, type Group } from './dependabot-groups.ts';
 
 /**
  * Dependabot's group assignment, as dependabot-core does it rather than as

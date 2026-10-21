@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { withoutYamlComments, withoutYamlQuotes } from './source-text';
-import { leaks, parseGroups } from './dependabot-groups';
+import { withoutYamlComments, withoutYamlQuotes } from './source-text.ts';
+import { leaks, parseGroups } from './dependabot-groups.ts';
 
 /**
  * The CI supply chain is pinned, and something keeps it current.

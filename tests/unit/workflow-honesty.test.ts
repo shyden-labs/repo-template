@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
-import { withoutPinnedShas, withoutYamlComments } from './source-text';
-import { scanWithoutVerdict, swallowed, tokenGated } from './workflow-honesty';
+import { withoutPinnedShas, withoutYamlComments } from './source-text.ts';
+import { scanWithoutVerdict, swallowed, tokenGated } from './workflow-honesty.ts';
 
 /**
  * A check is green only if it ran and passed (Shyden 2026-10-18: "don't pass

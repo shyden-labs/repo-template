@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { withoutYamlComments, withoutYamlQuotes, yamlBlock } from './source-text';
-import unitConfig from '../../vitest.unit.config';
-import logsConfig from '../../vitest.logs.config';
+import { withoutYamlComments, withoutYamlQuotes, yamlBlock } from './source-text.ts';
+import unitConfig from '../../vitest.unit.config.ts';
+import logsConfig from '../../vitest.logs.config.ts';
 
 /**
  * Logging and auditing have a test suite of their own, run in CI as a

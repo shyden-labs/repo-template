@@ -8,7 +8,8 @@ import {
   PARKED,
   QUERY,
   type NextItem,
-} from "../../scripts/board-next";
+  type RawPage,
+} from "../../scripts/board-next.ts";
 
 // `gh` is stood in: a unit test starts no process.
 vi.mock("node:child_process", () => ({ execFileSync: vi.fn() }));
@@ -226,8 +227,11 @@ describe("nextTicket", () => {
   });
 });
 
-/** One board page as `gh api graphql` returns it. */
-const page = (content: Record<string, unknown>) => [
+/**
+ * One board page as `gh api graphql` returns it. The card's content is raw JSON
+ * the parser must check for itself, so it is built untyped and cast here once.
+ */
+const page = (content: unknown): RawPage[] => [
   {
     data: {
       node: {
@@ -240,7 +244,7 @@ const page = (content: Record<string, unknown>) => [
       },
     },
   },
-];
+] as RawPage[];
 const issue = (over: Record<string, unknown> = {}) => ({
   __typename: "Issue",
   number: 4,
@@ -311,7 +315,7 @@ describe("parseNextItems", () => {
   });
 
   it("refuses a card whose content it cannot read", () => {
-    expect(() => parseNextItems(page(null as never))).toThrow(
+    expect(() => parseNextItems(page(null))).toThrow(
       '"(no content)" is not an issue with a number, title, state, creation time, repository, blockers and sub-issues: convert it, or remove it from the board',
     );
   });

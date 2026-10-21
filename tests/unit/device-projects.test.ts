@@ -12,7 +12,7 @@ import {
   unequalSets,
   unexempted,
   type DeviceConfig,
-} from './device-projects';
+} from './device-projects.ts';
 
 /**
  * Every mobile test is one test, run on Android AND iOS (issue #26; Shyden

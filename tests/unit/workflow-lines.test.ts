@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { executableUnits, lcov, loadBash, ranLines, runSteps, type Bash } from '../../scripts/workflow-lines';
+import { executableUnits, lcov, loadBash, ranLines, runSteps, type Bash } from '../../scripts/workflow-lines.ts';
 
 /**
  * Workflow lines are code (issue #35; Shyden 2026-10-22: a changed workflow

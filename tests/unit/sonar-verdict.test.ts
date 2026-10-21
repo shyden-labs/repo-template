@@ -3,7 +3,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { main, parseReportTask, verdict } from '../../scripts/sonar-verdict';
+import { main, parseReportTask, verdict } from '../../scripts/sonar-verdict.ts';
 
 /**
  * SonarCloud's quality gate, read for the analysis this run's scan made
@@ -59,7 +59,7 @@ describe('verdict', () => {
   });
 
   it.each([['WARN'], ['NONE'], [undefined]])('fails the status %s, which is not a pass', (status) => {
-    expect(verdict({ status, conditions: [] })).toEqual({ ok: false, lines: [`quality gate: ${String(status)}, not OK`] });
+    expect(verdict(status === undefined ? { conditions: [] } : { status, conditions: [] })).toEqual({ ok: false, lines: [`quality gate: ${String(status)}, not OK`] });
   });
 });
 
