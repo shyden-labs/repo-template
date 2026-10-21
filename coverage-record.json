@@ -13,6 +13,7 @@
   "scripts/fold-record.ts": { "statements": 0, "branches": 0 },
   "scripts/mutate.ts": { "statements": 0, "branches": 0 },
   "scripts/sonar-verdict.ts": { "statements": 0, "branches": 0 },
+  "scripts/workflow-lines.ts": { "statements": 0, "branches": 0 },
   "tests/unit/board-next.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/board-orphans.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/board-progress.test.ts": { "statements": 0, "branches": 0 },
@@ -44,6 +45,7 @@
   "tests/unit/supply-chain.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/workflow-honesty.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/workflow-honesty.ts": { "statements": 0, "branches": 0 },
+  "tests/unit/workflow-lines.test.ts": { "statements": 0, "branches": 0 },
   "vitest.logs.config.ts": { "statements": 0, "branches": 0 },
   "vitest.unit.config.ts": { "statements": 0, "branches": 0 }
 }
