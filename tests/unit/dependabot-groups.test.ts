@@ -108,8 +108,9 @@ describe('contains', () => {
 });
 
 describe('leaks', () => {
-  it('passes when the catch-all excludes every pattern group pattern', () => {
-    expect(leaks(parseGroups(CONFIG)[0]!)).toEqual([]);
+  it('passes when the catch-all excludes every pattern group pattern, judging both groups', () => {
+    const npm = parseGroups(CONFIG)[0]!;
+    expect({ groups: npm.groups.length, leaks: leaks(npm) }).toEqual({ groups: 2, leaks: [] });
   });
 
   it('names a pattern group whose packages the catch-all can also take', () => {

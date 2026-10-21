@@ -150,6 +150,7 @@ describe('Dependabot keeps the pins from rotting', () => {
     { where: 'ci.yml:1', text: `uses: actions/cache/restore@${SHA} # v4.0.0` },
     { where: 'ci.yml:2', text: `uses: actions/cache/save@${SHA} # v4.0.0` },
     { where: 'ci.yml:3', text: 'uses: docker://alpine:3' },
+    { where: 'ci.yml:4', text: `uses: actions/checkout@${SHA} # v7.0.1` },
   ];
 
   it('names an action repo used at two sub-paths with no group', () => {
@@ -169,19 +170,18 @@ describe('Dependabot keeps the pins from rotting', () => {
    * pattern group's patterns (Shyden 2026-10-20; issue #39). Order decides
    * nothing. The model and its planted cases are in dependabot-groups.test.ts.
    */
-  it("each pattern group's packages can land in that group alone", () => {
-    expect(parseGroups(withoutYamlQuotes(configBody())).flatMap(leaks)).toEqual([]);
-  });
-
-  it('reads both ecosystems and every pattern group the config declares', () => {
-    const groups = parseGroups(withoutYamlQuotes(configBody())).map(({ ecosystem, groups: g }) => [
-      ecosystem,
-      g.map(({ name }) => name),
-    ]);
-    expect(groups).toEqual([
-      ['npm', ['vitest', 'patch-updates']],
-      ['github-actions', ['actions-subpaths', 'patch-updates']],
-    ]);
+  it("each pattern group's packages can land in that group alone, judged over every group read", () => {
+    const ecosystems = parseGroups(withoutYamlQuotes(configBody()));
+    expect({
+      judged: ecosystems.map(({ ecosystem, groups }) => [ecosystem, groups.map(({ name }) => name)]),
+      leaks: ecosystems.flatMap(leaks),
+    }).toEqual({
+      judged: [
+        ['npm', ['vitest', 'patch-updates']],
+        ['github-actions', ['actions-subpaths', 'patch-updates']],
+      ],
+      leaks: [],
+    });
   });
 
   it('a Dependabot config exists', () => {
