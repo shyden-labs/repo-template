@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { withoutYamlComments } from './source-text';
+import { withoutYamlComments } from './source-text.ts';
 
 /**
  * Every project files a ticket the same way (issue #20; Shyden 2026-10-16:
@@ -55,7 +55,10 @@ describe('the story form', () => {
     ['link each blocker', '5. Add a **Blocked by** link for each issue it waits on: a “Depends on” section is context, not the record.'],
     ['set the parent', '6. Set its epic as its **parent**.'],
     // The note is a block scalar, so its "#N" is text, not a comment (#54).
-    ['never close by keyword', '7. Write `Refs #N` in commits and pull requests, never a closing keyword; close it by hand once every criterion is verified.'],
+    [
+      'never close by keyword',
+      '7. Write `Refs #N` in commits and pull requests, never a closing keyword; close it by hand once every criterion is verified.',
+    ],
     ['name the filer', '`node scripts/file-story.ts` does steps 1 to 6.'],
   ])('tells the filer to %s', (_step, text) => {
     expect(block('filing-steps')).toContain(text);

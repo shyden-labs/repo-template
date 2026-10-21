@@ -10,7 +10,7 @@
  */
 import { existsSync, globSync, readFileSync } from 'node:fs';
 import { join, matchesGlob, relative, sep } from 'node:path';
-import { withoutTsComments } from './source-text';
+import { withoutTsComments } from './source-text.ts';
 
 export interface DeviceProject {
   name: string;
@@ -57,7 +57,10 @@ export function projectFiles(config: DeviceConfig, project: DeviceProject, root:
 export function unequalSets(sets: Map<string, string[]>): string[] {
   const all = new Set([...sets.values()].flat());
   return [...sets.entries()].flatMap(([name, files]) =>
-    [...all].filter((f) => !files.includes(f)).sort().map((f) => `${name} does not run ${f}, which another phone runs`),
+    [...all]
+      .filter((f) => !files.includes(f))
+      .sort()
+      .map((f) => `${name} does not run ${f}, which another phone runs`),
   );
 }
 

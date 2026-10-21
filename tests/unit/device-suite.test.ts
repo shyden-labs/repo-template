@@ -1,7 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import config from '../../playwright.config';
-import { inputProblems, parseExemptions, phoneProjects, platformNamed, projectFiles, readAll, unequalSets, unexempted } from './device-projects';
+import config from '../../playwright.config.ts';
+import {
+  inputProblems,
+  parseExemptions,
+  phoneProjects,
+  platformNamed,
+  projectFiles,
+  readAll,
+  unequalSets,
+  unexempted,
+} from './device-projects.ts';
 
 /**
  * This repository's device suite (issue #26; Shyden 2026-10-16: "if it's

@@ -42,9 +42,9 @@ export interface RunStep {
   script: string[];
 }
 
-const fail = (message: string): never => {
+function fail(message: string): never {
   throw new Error(`workflow-lines: ${message}`);
-};
+}
 
 /** A parser for bash, from the WASM grammar: nothing native is built. */
 export async function loadBash(): Promise<Bash> {
@@ -103,8 +103,9 @@ export function runSteps(workflow: string): RunStep[] {
     const keyIndent = (dash[1] as string).length + 2;
     const stepLines: [number, string][] = [[i, `${' '.repeat(keyIndent)}${line.slice(keyIndent)}`]];
     let j = i + 1;
-    while (j < lines.length && (lines[j]!.trim() === '' || indentOf(lines[j]!) >= keyIndent)) {
-      stepLines.push([j, lines[j]!]);
+    for (const next of lines.slice(j)) {
+      if (next.trim() !== '' && indentOf(next) < keyIndent) break;
+      stepLines.push([j, next]);
       j += 1;
     }
     i = j - 1;
@@ -116,7 +117,10 @@ export function runSteps(workflow: string): RunStep[] {
     const value = runText.slice(runText.indexOf('run:') + 4).trim();
     // The run value's own lines end at the step's next key.
     let end = runAt + 1;
-    while (end < stepLines.length && (stepLines[end]![1].trim() === '' || indentOf(stepLines[end]![1]) > keyIndent)) end += 1;
+    for (const [, next] of stepLines.slice(end)) {
+      if (next.trim() !== '' && indentOf(next) <= keyIndent) break;
+      end += 1;
+    }
     const body = stepLines.slice(runAt + 1, end);
     while (body.length > 0 && (body.at(-1) as [number, string])[1].trim() === '') body.pop();
     read.add(runLine);

@@ -35,10 +35,7 @@ export interface PhoneTotal {
   skipped: number;
 }
 
-const testsIn = (suite: Suite): Test[] => [
-  ...(suite.specs ?? []).flatMap((s) => s.tests),
-  ...(suite.suites ?? []).flatMap(testsIn),
-];
+const testsIn = (suite: Suite): Test[] => [...(suite.specs ?? []).flatMap((s) => s.tests), ...(suite.suites ?? []).flatMap(testsIn)];
 
 /** Each phone project's totals; a flaky test counts as failed, since it did not pass first time. */
 export function phoneTotals(report: Report): PhoneTotal[] {
@@ -76,4 +73,4 @@ export function main(args: string[]): number {
   return problems.length === 0 ? 0 : 1;
 }
 
-runIfEntry(import.meta.url, main);
+await runIfEntry(import.meta.url, main);

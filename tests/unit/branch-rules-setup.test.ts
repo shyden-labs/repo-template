@@ -7,7 +7,8 @@ import {
   auditBranchRules,
   auditRepoSettings,
   type ExistingRuleset,
-} from '../../scripts/branch-rules-setup';
+  type Rule,
+} from '../../scripts/branch-rules-setup.ts';
 
 // `gh` is stood in: a unit test starts no process. Each test queues gh's replies in call order.
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
@@ -29,8 +30,7 @@ function ruleTypes(body: { rules: { type: string }[] }): string[] {
 
 function checksRule(body: { rules: { type: string; parameters?: unknown }[] }) {
   return body.rules.find((r) => r.type === 'required_status_checks')?.parameters as
-    | { strict_required_status_checks_policy: boolean; required_status_checks: { context: string }[] }
-    | undefined;
+    { strict_required_status_checks_policy: boolean; required_status_checks: { context: string }[] } | undefined;
 }
 
 describe('desiredRuleset', () => {
@@ -51,10 +51,7 @@ describe('desiredRuleset', () => {
   });
 
   it('requires exactly the named checks, in order', () => {
-    expect(checksRule(desiredRuleset('main', CHECKS))?.required_status_checks).toEqual([
-      { context: 'unit' },
-      { context: 'PR Gate' },
-    ]);
+    expect(checksRule(desiredRuleset('main', CHECKS))?.required_status_checks).toEqual([{ context: 'unit' }, { context: 'PR Gate' }]);
   });
 
   it('also forbids deletion and force pushes and requires pull requests and signed commits', () => {
@@ -73,9 +70,7 @@ describe('desiredRuleset', () => {
   });
 
   it('refuses an empty check list by name', () => {
-    expect(() => desiredRuleset('develop', [])).toThrow(
-      'name at least one required check: a strict rule with no checks tests nothing',
-    );
+    expect(() => desiredRuleset('develop', [])).toThrow('name at least one required check: a strict rule with no checks tests nothing');
   });
 });
 
@@ -99,17 +94,14 @@ describe('planRulesets', () => {
 
   it('updates a same-named ruleset that is not strict, by its id', () => {
     const plan = planRulesets([existing(11, 'develop', ['refs/heads/develop'], false)], CHECKS);
-    expect(plan.map((p) => [p.action, p.body.name, p.id])).toEqual([
+    expect(plan.map((p) => [p.action, p.body.name, 'id' in p ? p.id : undefined])).toEqual([
       ['update', 'develop', 11],
       ['create', 'main', undefined],
     ]);
   });
 
   it('keeps a ruleset that already matches', () => {
-    const plan = planRulesets(
-      [existing(11, 'develop', ['refs/heads/develop']), existing(12, 'main', ['refs/heads/main'])],
-      CHECKS,
-    );
+    const plan = planRulesets([existing(11, 'develop', ['refs/heads/develop']), existing(12, 'main', ['refs/heads/main'])], CHECKS);
     expect(plan.map((p) => p.action)).toEqual(['keep', 'keep']);
   });
 
@@ -133,7 +125,7 @@ describe('planRulesets', () => {
 });
 
 describe('auditBranchRules', () => {
-  const good = [
+  const good: [Rule, Rule, Rule] = [
     { type: 'deletion' },
     { type: 'pull_request' },
     { type: 'required_status_checks', parameters: { strict_required_status_checks_policy: true } },
@@ -182,9 +174,7 @@ describe('auditRepoSettings', () => {
   });
 
   it('names a repository whose answer leaves the setting out', () => {
-    expect(auditRepoSettings({})).toEqual([
-      'merged head branches are not deleted (delete_branch_on_merge is undefined)',
-    ]);
+    expect(auditRepoSettings({})).toEqual(['merged head branches are not deleted (delete_branch_on_merge is undefined)']);
   });
 });
 

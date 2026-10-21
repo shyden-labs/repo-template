@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { withoutYamlComments, withoutYamlQuotes } from './source-text';
-import { leaks, parseGroups } from './dependabot-groups';
+import { withoutYamlComments, withoutYamlQuotes } from './source-text.ts';
+import { leaks, parseGroups } from './dependabot-groups.ts';
 
 /**
  * The CI supply chain is pinned, and something keeps it current.
@@ -82,8 +82,8 @@ const subPathRepos = (uses: Use[]): [string, Set<string>][] => {
   for (const { text } of uses) {
     const ref = /uses:\s*([^@\s]+)@/.exec(text)?.[1];
     if (ref === undefined) continue;
-    const [owner, repo] = ref.split('/');
-    const key = `${owner}/${repo}`;
+    // The repository is the first two segments of an action's path.
+    const key = ref.split('/').slice(0, 2).join('/');
     refs.set(key, (refs.get(key) ?? new Set()).add(ref));
   }
   return [...refs.entries()].filter(([, seen]) => seen.size > 1);
@@ -151,9 +151,7 @@ describe('the CI supply chain is pinned', () => {
   });
 
   it('names an action pinned to a tag', () => {
-    expect(unpinned([{ where: 'ci.yml:3', text: 'uses: actions/checkout@v4' }])).toEqual([
-      'ci.yml:3 uses: actions/checkout@v4',
-    ]);
+    expect(unpinned([{ where: 'ci.yml:3', text: 'uses: actions/checkout@v4' }])).toEqual(['ci.yml:3 uses: actions/checkout@v4']);
   });
 
   it('every pinned action names the version its SHA resolves to', () => {
@@ -161,9 +159,7 @@ describe('the CI supply chain is pinned', () => {
   });
 
   it('names a SHA with no version comment', () => {
-    expect(unlabelled([{ where: 'ci.yml:3', text: `uses: actions/checkout@${SHA}` }])).toEqual([
-      `ci.yml:3 uses: actions/checkout@${SHA}`,
-    ]);
+    expect(unlabelled([{ where: 'ci.yml:3', text: `uses: actions/checkout@${SHA}` }])).toEqual([`ci.yml:3 uses: actions/checkout@${SHA}`]);
   });
 });
 
@@ -190,9 +186,7 @@ describe('Dependabot keeps the pins from rotting', () => {
   ];
 
   it('names an action repo used at two sub-paths with no group', () => {
-    expect(ungroupedSubPaths(cacheUses, 'groups:\n  patch-updates:\n')).toEqual([
-      'actions/cache used at 2 sub-paths, ungrouped',
-    ]);
+    expect(ungroupedSubPaths(cacheUses, 'groups:\n  patch-updates:\n')).toEqual(['actions/cache used at 2 sub-paths, ungrouped']);
   });
 
   it('accepts that repo once a group names it', () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
-import { withoutYamlComments } from './source-text';
+import { withoutYamlComments } from './source-text.ts';
 
 /**
  * No workflow writes to the repository except the deploy and release ones
@@ -32,7 +32,9 @@ function writes(file: string, text: string): string[] {
     .flatMap((line, i) => (WRITES.some((w) => w.test(line)) ? [`${file}:${i + 1} ${line.trim()}`] : []));
 }
 
-const workflows = readdirSync(WORKFLOWS).filter((f) => /\.ya?ml$/.test(f)).sort();
+const workflows = readdirSync(WORKFLOWS)
+  .filter((f) => /\.ya?ml$/.test(f))
+  .sort();
 const judged = workflows.filter((f) => !MAY_WRITE.test(f));
 
 describe('no workflow writes to the repository', () => {

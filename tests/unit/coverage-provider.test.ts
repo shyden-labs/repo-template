@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import v8 from '@vitest/coverage-v8';
 import { V8CoverageProvider } from '@vitest/coverage-v8/dist/provider.js';
-import provider, { AllCodeProvider, EXCLUDE } from '../../scripts/coverage-provider';
+import provider, { AllCodeProvider, EXCLUDE } from '../../scripts/coverage-provider.ts';
 
 /**
  * Tests are code too (Shyden 2026-10-22), but Vitest always adds the test

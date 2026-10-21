@@ -24,9 +24,7 @@ export function planEstimateField(fields: Field[]): 'create' | 'exists' {
   const found = fields.find((f) => f.name === 'Estimate');
   if (found === undefined) return 'create';
   if (found.dataType !== 'NUMBER') {
-    throw new Error(
-      `the board has an "Estimate" field of type ${found.dataType}; it must be NUMBER: rename or delete it first`,
-    );
+    throw new Error(`the board has an "Estimate" field of type ${found.dataType}; it must be NUMBER: rename or delete it first`);
   }
   return 'exists';
 }
@@ -40,8 +38,7 @@ export const PRIORITY_OPTIONS = [
   {
     name: 'P0',
     color: 'RED',
-    description:
-      'Now: a live defect, a vulnerability, broken CI or deploy, or a release blocker.',
+    description: 'Now: a live defect, a vulnerability, broken CI or deploy, or a release blocker.',
   },
   {
     name: 'P1',
@@ -65,9 +62,7 @@ export function planPriorityField(fields: Field[]): 'create' | 'exists' {
   const found = fields.find((f) => f.name === 'Priority');
   if (found === undefined) return 'create';
   if (found.dataType !== 'SINGLE_SELECT') {
-    throw new Error(
-      `the board has a "Priority" field of type ${found.dataType}; it must be SINGLE_SELECT: rename or delete it first`,
-    );
+    throw new Error(`the board has a "Priority" field of type ${found.dataType}; it must be SINGLE_SELECT: rename or delete it first`);
   }
   const have = (found.options ?? []).map((o) => o.name);
   const want = PRIORITY_OPTIONS.map((o) => o.name);
@@ -95,9 +90,9 @@ const READ = `query($id: ID!) { node(id: $id) { ... on ProjectV2 { title
 
 const CREATE_PRIORITY = `mutation($id: ID!) { createProjectV2Field(input: {
   projectId: $id, dataType: SINGLE_SELECT, name: "Priority",
-  singleSelectOptions: [${PRIORITY_OPTIONS.map(
-    (o) => `{ name: "${o.name}", color: ${o.color}, description: "${o.description}" }`,
-  ).join(', ')}] }) { clientMutationId } }`;
+  singleSelectOptions: [${PRIORITY_OPTIONS.map((o) => `{ name: "${o.name}", color: ${o.color}, description: "${o.description}" }`).join(
+    ', ',
+  )}] }) { clientMutationId } }`;
 
 export function main(args: string[]): number {
   const [id, title] = args;
@@ -108,10 +103,9 @@ export function main(args: string[]): number {
   const before = read().data.node;
   assertTitle(before.title, title);
   if (planEstimateField(before.fields.nodes) === 'create') {
-    gql(
-      `mutation($id: ID!) { createProjectV2Field(input: { projectId: $id, dataType: NUMBER, name: "Estimate" }) { clientMutationId } }`,
-      { id },
-    );
+    gql(`mutation($id: ID!) { createProjectV2Field(input: { projectId: $id, dataType: NUMBER, name: "Estimate" }) { clientMutationId } }`, {
+      id,
+    });
   }
   if (planPriorityField(before.fields.nodes) === 'create') {
     gql(CREATE_PRIORITY, { id });
@@ -123,10 +117,8 @@ export function main(args: string[]): number {
   if (planPriorityField(after.fields.nodes) !== 'exists') {
     throw new Error('the Priority field was not there on reading back');
   }
-  process.stdout.write(
-    `"${after.title}" has a Number field "Estimate" and a single-select field "Priority" (P0-P5).\n`,
-  );
+  process.stdout.write(`"${after.title}" has a Number field "Estimate" and a single-select field "Priority" (P0-P5).\n`);
   return 0;
 }
 
-runIfEntry(import.meta.url, main);
+await runIfEntry(import.meta.url, main);

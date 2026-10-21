@@ -9,11 +9,22 @@
     "test:unit": "vitest run --config vitest.unit.config.ts",
     "test:logs": "vitest run --config vitest.logs.config.ts",
     "test:coverage": "vitest run --config vitest.unit.config.ts --coverage.enabled --coverage.provider=custom --coverage.customProviderModule=./scripts/coverage-provider.ts --coverage.include='**/*.{ts,mts,cts,tsx,js,mjs,cjs,jsx}' --coverage.reporter=json-summary --coverage.reporter=lcov --coverage.reporter=text-summary",
-    "coverage:record": "node scripts/coverage-record.ts record"
+    "coverage:record": "node scripts/coverage-record.ts record",
+    "typecheck": "tsc --noEmit -p .",
+    "lint": "eslint --max-warnings 0 .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "26.6.5",
     "@vitest/coverage-v8": "5.0.5",
     "@vscode/tree-sitter-wasm": "0.3.1",
+    "eslint": "10.13.0",
+    "prettier": "3.9.10",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.2",
     "vitest": "5.0.5"
   }
 }

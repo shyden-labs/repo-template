@@ -40,12 +40,11 @@ const CODE = /\.(?:[cm]?[jt]s|[jt]sx)$/;
 /** Dependencies, git's own files, and what tools write: never the repo's code. */
 const NOT_SOURCE = new Set(['node_modules', '.git', 'coverage', '.vite']);
 
-const fail = (message: string): never => {
+function fail(message: string): never {
   throw new Error(`coverage-record: ${message}`);
-};
+}
 
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
+const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const isCount = (value: unknown): value is number => Number.isInteger(value) && (value as number) >= 0;
 
@@ -79,10 +78,7 @@ export function untestedCounts(summary: unknown, root: string): Map<string, Meas
     const branches = metric(entry, 'branches', file);
     const skipped = statements.skipped + branches.skipped;
     if (skipped > 0) {
-      fail(
-        `${file} has ${skipped} skipped statement(s); ` +
-          'a skipped line counts as unrun, so remove what skips it',
-      );
+      fail(`${file} has ${skipped} skipped statement(s); ` + 'a skipped line counts as unrun, so remove what skips it');
     }
     out.set(file, {
       statements: statements.total - statements.covered,
@@ -132,9 +128,7 @@ export function compare(record: Map<string, Counts>, measured: Map<string, Measu
     if (was === undefined) {
       problems.push(`${file}: measured but not in the record; record it (${RECORD_COMMAND})`);
     } else if (now === undefined) {
-      problems.push(
-        `${file}: in the record but not measured; a deleted file is dropped by recording, an unmeasured one fails`,
-      );
+      problems.push(`${file}: in the record but not measured; a deleted file is dropped by recording, an unmeasured one fails`);
     } else {
       for (const [key, label] of KINDS) {
         if (now[key] > was[key]) problems.push(`${file}: ${label} rose from ${was[key]} to ${now[key]}`);
@@ -148,10 +142,7 @@ export function compare(record: Map<string, Counts>, measured: Map<string, Measu
 }
 
 /** The new record text and each change it makes; refuses any count that rose. */
-export function recordFrom(
-  record: Map<string, Counts>,
-  measured: Map<string, Measured>,
-): { record: string; changes: string[] } {
+export function recordFrom(record: Map<string, Counts>, measured: Map<string, Measured>): { record: string; changes: string[] } {
   const rises = compare(record, measured).filter((p) => p.includes(' rose from '));
   if (rises.length > 0) fail(`refusing to record a rise: ${rises.join('; ')}`);
   const files = [...measured.keys()].sort();
@@ -199,8 +190,7 @@ export function codeFiles(root: string, dir = ''): string[] {
   return found.sort();
 }
 
-const percent = (untested: number, total: number): string =>
-  `${(total === 0 ? 100 : (100 * (total - untested)) / total).toFixed(2)}% run`;
+const percent = (untested: number, total: number): string => `${(total === 0 ? 100 : (100 * (total - untested)) / total).toFixed(2)}% run`;
 
 /** One line with the whole repo's untested counts and the percentages they leave. */
 export function formatTotals(measured: Map<string, Measured>): string {
@@ -243,7 +233,7 @@ export function main(args: string[]): number {
   );
   process.stdout.write(`${formatTotals(measured)}\n`);
   if (mode === 'record') {
-    const old = existsSync(join(root, RECORD)) ? parseRecord(readFileSync(join(root, RECORD), 'utf8')) : new Map();
+    const old = existsSync(join(root, RECORD)) ? parseRecord(readFileSync(join(root, RECORD), 'utf8')) : new Map<string, Counts>();
     const { record, changes } = recordFrom(old, measured);
     writeFileSync(join(root, RECORD), record);
     if (changes.length === 0) process.stdout.write('coverage-record: no change; the record already equals the report\n');
@@ -265,4 +255,4 @@ export function main(args: string[]): number {
   return 0;
 }
 
-runIfEntry(import.meta.url, main);
+await runIfEntry(import.meta.url, main);

@@ -38,9 +38,9 @@ interface ProjectStatus {
 
 const STEP_MS = 5000;
 
-const fail = (message: string): never => {
+function fail(message: string): never {
   throw new Error(`sonar-verdict: ${message}`);
-};
+}
 
 /** The scan's task id, server and dashboard, from report-task.txt (`key=value` lines). */
 export function parseReportTask(text: string): { serverUrl: string; ceTaskId: string; dashboardUrl: string } {
@@ -59,7 +59,8 @@ export function verdict(status: ProjectStatus): { ok: boolean; lines: string[] }
     lines: [
       'quality gate: ERROR',
       ...failed.map(
-        (c) => `${c.metricKey} is ${String(c.actualValue)}, which fails ${String(c.comparator)} ${c.errorThreshold ?? '(no threshold given)'}`,
+        (c) =>
+          `${c.metricKey} is ${String(c.actualValue)}, which fails ${String(c.comparator)} ${c.errorThreshold ?? '(no threshold given)'}`,
       ),
     ],
   };
@@ -96,7 +97,9 @@ export async function main(args: string[]): Promise<number> {
 async function judge(path: string): Promise<{ ok: boolean; lines: string[]; dashboardUrl: string }> {
   const token = process.env.SONAR_TOKEN;
   if (!token) {
-    return fail('SONAR_TOKEN is empty; set it as an Actions secret, and as a Dependabot secret for Dependabot pull requests (docs/sonarcloud.md)');
+    return fail(
+      'SONAR_TOKEN is empty; set it as an Actions secret, and as a Dependabot secret for Dependabot pull requests (docs/sonarcloud.md)',
+    );
   }
   if (!existsSync(path)) fail(`no report-task.txt at ${path}: the scan did not run`);
   const report = parseReportTask(readFileSync(path, 'utf8'));
@@ -124,4 +127,4 @@ async function judge(path: string): Promise<{ ok: boolean; lines: string[]; dash
   return { ...verdict(status), dashboardUrl: report.dashboardUrl };
 }
 
-runIfEntry(import.meta.url, main);
+await runIfEntry(import.meta.url, main);

@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { main } from '../../scripts/fold-record';
+import { main } from '../../scripts/fold-record.ts';
 
 /**
  * Folding a record run's artifact into the session's still-unpushed commit

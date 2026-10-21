@@ -19,4 +19,4 @@ export class AllCodeProvider extends V8CoverageProvider {
   }
 }
 
-export default { ...v8, getProvider: async (): Promise<AllCodeProvider> => new AllCodeProvider() };
+export default { ...v8, getProvider: (): Promise<AllCodeProvider> => Promise.resolve(new AllCodeProvider()) };

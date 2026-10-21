@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { withoutCommentLines, withoutPinnedShas, withoutTsComments, withoutYamlComments, yamlBlock } from './source-text';
+import { withoutCommentLines, withoutPinnedShas, withoutTsComments, withoutYamlComments, yamlBlock } from './source-text.ts';
 
 describe('withoutYamlComments', () => {
   const y = (...lines: string[]) => lines.join('\n');
@@ -7,18 +7,34 @@ describe('withoutYamlComments', () => {
   it.each([
     ['a whole-line comment, and the blank lines', y('a: 1', '# gone', '', '  # gone', 'b: 2'), y('a: 1', 'b: 2')],
     ['a trailing comment after a space', y('a: 1 # gone', 'b: 2\t# gone'), y('a: 1', 'b: 2')],
-    ['nothing in a value where # follows no space', y('url: https://x.example/#top', 'tag: v1#2'), y('url: https://x.example/#top', 'tag: v1#2')],
+    [
+      'nothing in a value where # follows no space',
+      y('url: https://x.example/#top', 'tag: v1#2'),
+      y('url: https://x.example/#top', 'tag: v1#2'),
+    ],
   ])('drops %s', (_kind, text, stripped) => {
     expect(withoutYamlComments(text)).toBe(stripped);
   });
 
   // Block scalars and quoted values hold text, not comments (#54).
   it.each([
-    ['a literal block scalar', y('run: |', '  echo "step #2"', '  x # stays', 'next: 1 # gone'), y('run: |', '  echo "step #2"', '  x # stays', 'next: 1')],
+    [
+      'a literal block scalar',
+      y('run: |', '  echo "step #2"', '  x # stays', 'next: 1 # gone'),
+      y('run: |', '  echo "step #2"', '  x # stays', 'next: 1'),
+    ],
     ['a folded block scalar', y('note: >', '  Write `Refs #N`.', 'next: 1'), y('note: >', '  Write `Refs #N`.', 'next: 1')],
-    ['a block scalar with chomping and indent indicators', y('a: |-', '  # kept', 'b: >+2', '    # kept', 'c: |2-', '    # kept'), y('a: |-', '  # kept', 'b: >+2', '    # kept', 'c: |2-', '    # kept')],
+    [
+      'a block scalar with chomping and indent indicators',
+      y('a: |-', '  # kept', 'b: >+2', '    # kept', 'c: |2-', '    # kept'),
+      y('a: |-', '  # kept', 'b: >+2', '    # kept', 'c: |2-', '    # kept'),
+    ],
     ['a block scalar whose indicator carries a comment', y('run: | # gone', '  echo #1'), y('run: |', '  echo #1')],
-    ['a block scalar in a list item, ending at its next key', y('  - run: |', '      echo #1', '    env: x # gone'), y('  - run: |', '      echo #1', '    env: x')],
+    [
+      'a block scalar in a list item, ending at its next key',
+      y('  - run: |', '      echo #1', '    env: x # gone'),
+      y('  - run: |', '      echo #1', '    env: x'),
+    ],
     ['a block scalar that ends the file', y('a: 1', 'run: |', '  echo #1'), y('a: 1', 'run: |', '  echo #1')],
     ['a double-quoted value', y('name: "a #b" # gone'), y('name: "a #b"')],
     ['an escaped quote in a double-quoted value', y('x: "a \\" #b" # gone'), y('x: "a \\" #b"')],
@@ -54,16 +70,28 @@ describe('withoutPinnedShas', () => {
     );
   });
 
-  it.each([['a tag', '@v7'], ['a short SHA', `@${SHA.slice(0, 39)}`], ['a longer hex run', `@${SHA}0`], ['upper-case hex', `@${SHA.toUpperCase()}`]])(
-    'leaves %s as it is, so it never passes as a pin',
-    (_kind, ref) => {
-      expect(withoutPinnedShas(`uses: actions/checkout${ref}`)).toBe(`uses: actions/checkout${ref}`);
-    },
-  );
+  it.each([
+    ['a tag', '@v7'],
+    ['a short SHA', `@${SHA.slice(0, 39)}`],
+    ['a longer hex run', `@${SHA}0`],
+    ['upper-case hex', `@${SHA.toUpperCase()}`],
+  ])('leaves %s as it is, so it never passes as a pin', (_kind, ref) => {
+    expect(withoutPinnedShas(`uses: actions/checkout${ref}`)).toBe(`uses: actions/checkout${ref}`);
+  });
 });
 
 describe('yamlBlock', () => {
-  const YAML = ['on:', '  push:', '    branches: [develop]', 'jobs:', '  build:', '    steps:', '      - run: x', '  test:', '    runs-on: y'].join('\n');
+  const YAML = [
+    'on:',
+    '  push:',
+    '    branches: [develop]',
+    'jobs:',
+    '  build:',
+    '    steps:',
+    '      - run: x',
+    '  test:',
+    '    runs-on: y',
+  ].join('\n');
 
   it('reads a top-level block up to the next top-level key', () => {
     expect(yamlBlock(YAML, 'on')).toBe('on:\n  push:\n    branches: [develop]');
@@ -109,8 +137,8 @@ describe('withoutTsComments', () => {
     expect(withoutTsComments('a /* note')).toBe('a ');
   });
 
-  it("keeps comment-like text inside ' \" and ` strings", () => {
-    const source = "f('// a', \"/* b */\", `// c`);";
+  it('keeps comment-like text inside \' " and ` strings', () => {
+    const source = 'f(\'// a\', "/* b */", `// c`);';
     expect(withoutTsComments(source)).toBe(source);
   });
 
@@ -141,7 +169,7 @@ describe('withoutTsComments', () => {
     ['ends in an escaped slash before a slash (measured 2026-10-22)', 'const b = /x\\/\\//; f(); // c', 'const b = /x\\/\\//; f(); \n'],
     ['holds a slash and quotes in a character class', 'const c = /[/\'"]/g; // c', 'const c = /[/\'"]/g; \n'],
     ['holds quotes in a character class', 'const q = /[\'"`]/g; // c', 'const q = /[\'"`]/g; \n'],
-    ['holds an escaped bracket and a quote in a class', 'const e = /[\\]/\']/; // c', 'const e = /[\\]/\']/; \n'],
+    ['holds an escaped bracket and a quote in a class', "const e = /[\\]/']/; // c", "const e = /[\\]/']/; \n"],
     ['follows return', 'return /x\\/\\//; f(); // c', 'return /x\\/\\//; f(); \n'],
     ['follows an opening bracket', 'f(/\\/\\//); // c', 'f(/\\/\\//); \n'],
     ['starts a line', '/\\/\\//.test(x); // c', '/\\/\\//.test(x); \n'],
@@ -169,7 +197,11 @@ describe('withoutTsComments', () => {
     ['a comment inside ${} (measured 2026-10-22)', 'const t = `${ g() /* note */ }`; // c', 'const t = `${ g()  }`; \n'],
     ['a backtick in a string inside ${} (measured 2026-10-22)', 'const d = `${ "`" }`; // c\nkeep();', 'const d = `${ "`" }`; \nkeep();'],
     ['braces inside ${}, then a comment', 'const o = `${ { a: 1 }.a /* x */ }`; // c', 'const o = `${ { a: 1 }.a  }`; \n'],
-    ['a template nested inside ${}, then a comment', 'const n = `a ${ `b ${ c }` /* x */ } d`; // e', 'const n = `a ${ `b ${ c }`  } d`; \n'],
+    [
+      'a template nested inside ${}, then a comment',
+      'const n = `a ${ `b ${ c }` /* x */ } d`; // e',
+      'const n = `a ${ `b ${ c }`  } d`; \n',
+    ],
     ['a regex inside ${}, then a comment', 'const r = `${ /\\/\\//.source /* x */ }`; // c', 'const r = `${ /\\/\\//.source  }`; \n'],
     ['a dollar with no brace', 'const m = `$5 // not a comment`; // c', 'const m = `$5 // not a comment`; \n'],
     ['an escaped ${', 'const s = `\\${ /* text */ }`; // c', 'const s = `\\${ /* text */ }`; \n'],

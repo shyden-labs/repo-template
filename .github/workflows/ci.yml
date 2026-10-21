@@ -19,6 +19,13 @@ jobs:
           node-version-file: '.nvmrc'
           cache: 'npm'
       - run: npm ci
+      # The static checks (issue #61); .githooks/pre-push runs the same three before every push.
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Format
+        run: npm run format:check
       - run: npm run test:unit
 
   # Coverage runs apart from the 1 s unit step, measuring every code file, and

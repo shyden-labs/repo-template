@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { boardFields, main, parseStory, type Story } from '../../scripts/file-story';
+import { boardFields, main, parseStory, type Story } from '../../scripts/file-story.ts';
 
 /**
  * Filing a story the way every project does (issue #20): the story is checked
@@ -15,7 +15,9 @@ import { boardFields, main, parseStory, type Story } from '../../scripts/file-st
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
 const gh = vi.mocked(execFileSync);
 
-const BODY = ['## Story', 'x', '## Context', 'x', '## Acceptance criteria', '1. x', '## Announce', 'x', '## Definition of done', 'x'].join('\n\n');
+const BODY = ['## Story', 'x', '## Context', 'x', '## Acceptance criteria', '1. x', '## Announce', 'x', '## Definition of done', 'x'].join(
+  '\n\n',
+);
 const STORY: Story = {
   repo: 'shyden-labs/app',
   title: 'A new story',
@@ -42,14 +44,31 @@ describe('parseStory', () => {
     ['not an object', '[]', 'file-story: the story is not a JSON object'],
     ['no repository', JSON.stringify({ ...STORY, repo: 'app' }), 'file-story: repo must be <owner>/<name>'],
     ['an empty title', JSON.stringify({ ...STORY, title: ' ' }), 'file-story: the title is empty'],
-    ['an estimate off the scale', JSON.stringify({ ...STORY, estimate: 4 }), 'file-story: estimate 4 is not 1, 2, 3, 5, 8 or 13 (larger is an epic: split it)'],
+    [
+      'an estimate off the scale',
+      JSON.stringify({ ...STORY, estimate: 4 }),
+      'file-story: estimate 4 is not 1, 2, 3, 5, 8 or 13 (larger is an epic: split it)',
+    ],
     ['an unknown priority', JSON.stringify({ ...STORY, priority: 'P9' }), 'file-story: priority P9 is not P0 to P5'],
-    ['a blocker that is not an issue number', JSON.stringify({ ...STORY, blockedBy: ['12'] }), 'file-story: blockedBy must list issue numbers'],
+    [
+      'a blocker that is not an issue number',
+      JSON.stringify({ ...STORY, blockedBy: ['12'] }),
+      'file-story: blockedBy must list issue numbers',
+    ],
     ['a parent that is not an issue number', JSON.stringify({ ...STORY, parent: 0 }), 'file-story: parent must be an issue number'],
     ['a status that is not text', JSON.stringify({ ...STORY, status: 3 }), 'file-story: status must be the name of a Status option'],
-    ['a body with no Announce', JSON.stringify({ ...STORY, body: BODY.replace('## Announce', '## Notes') }), 'file-story: the body has no "## Announce" section'],
+    ['a body that is not text', JSON.stringify({ ...STORY, body: { text: 'x' } }), 'file-story: body must be text'],
+    [
+      'a body with no Announce',
+      JSON.stringify({ ...STORY, body: BODY.replace('## Announce', '## Notes') }),
+      'file-story: the body has no "## Announce" section',
+    ],
     ['a story with no body', JSON.stringify({ ...STORY, body: undefined }), 'file-story: the body has no "## Story" section'],
-    ['a closing keyword', JSON.stringify({ ...STORY, body: `${BODY}\n\nFixes #4` }), 'file-story: the body would close #4 on merge ("Fixes #4"); write "Refs #4"'],
+    [
+      'a closing keyword',
+      JSON.stringify({ ...STORY, body: `${BODY}\n\nFixes #4` }),
+      'file-story: the body would close #4 on merge ("Fixes #4"); write "Refs #4"',
+    ],
   ])('refuses %s', (_kind, text, message) => {
     expect(() => parseStory(text)).toThrow(message);
   });
@@ -78,8 +97,16 @@ describe('boardFields', () => {
   });
 
   it.each([
-    ['Estimate', FIELDS.filter((f) => f.name !== 'Estimate'), 'file-story: the board has no Number field "Estimate"; run scripts/board-setup.ts'],
-    ['Priority', FIELDS.filter((f) => f.name !== 'Priority'), 'file-story: the board has no single-select field "Priority"; run scripts/board-setup.ts'],
+    [
+      'Estimate',
+      FIELDS.filter((f) => f.name !== 'Estimate'),
+      'file-story: the board has no Number field "Estimate"; run scripts/board-setup.ts',
+    ],
+    [
+      'Priority',
+      FIELDS.filter((f) => f.name !== 'Priority'),
+      'file-story: the board has no single-select field "Priority"; run scripts/board-setup.ts',
+    ],
     ['Status', FIELDS.filter((f) => f.name !== 'Status'), 'file-story: the board has no single-select field "Status"'],
   ])('refuses a board with no %s field', (_name, fields, message) => {
     expect(() => boardFields(fields, STORY)).toThrow(message);
@@ -177,7 +204,20 @@ describe('main', () => {
     const args = gh.mock.calls.map((c) => (c[1] as string[]).filter((a) => !a.startsWith('query=')));
     expect(args).toEqual([
       ['api', 'graphql', '-f', '-f', 'id=PVT_1'],
-      ['issue', 'list', '-R', 'shyden-labs/app', '--state', 'open', '--search', 'A new story in:title', '--limit', '100', '--json', 'number,title'],
+      [
+        'issue',
+        'list',
+        '-R',
+        'shyden-labs/app',
+        '--state',
+        'open',
+        '--search',
+        'A new story in:title',
+        '--limit',
+        '100',
+        '--json',
+        'number,title',
+      ],
       ['api', '-X', 'POST', 'repos/shyden-labs/app/issues', '-f', 'title=A new story', '-f', `body=${BODY}`],
       ['api', 'graphql', '-f', '-f', 'project=PVT_1', '-f', 'content=I_40'],
       ['api', 'graphql', '-f', '-f', 'project=PVT_1', '-f', 'item=PVTI_40', '-f', 'field=F_est', '-F', 'number=3'],
@@ -215,13 +255,27 @@ describe('main', () => {
       { number: 7 },
     );
     expect(main(['PVT_1', 'App Stories', write({ ...STORY, blockedBy: [13, 12] })])).toBe(0);
-    expect(out.at(-1)).toBe('file-story: read back: board App Stories, Estimate 3, Priority P2, Status Todo, blocked by #12, #13, parent #7\n');
+    expect(out.at(-1)).toBe(
+      'file-story: read back: board App Stories, Estimate 3, Priority P2, Status Todo, blocked by #12, #13, parent #7\n',
+    );
   });
 
   it('files a story with no blockers and no parent, linking nothing', () => {
-    reply(board(), [], { number: 41, id: 4100, node_id: 'I_41' }, { data: { addProjectV2ItemById: { item: { id: 'PVTI_41' } } } }, {}, {}, {}, readBack(), []);
+    reply(
+      board(),
+      [],
+      { number: 41, id: 4100, node_id: 'I_41' },
+      { data: { addProjectV2ItemById: { item: { id: 'PVTI_41' } } } },
+      {},
+      {},
+      {},
+      readBack(),
+      [],
+    );
     expect(main(['PVT_1', 'App Stories', write({ ...STORY, blockedBy: [], parent: null })])).toBe(0);
-    expect(out.at(-1)).toBe('file-story: read back: board App Stories, Estimate 3, Priority P2, Status Todo, blocked by nothing, parent none\n');
+    expect(out.at(-1)).toBe(
+      'file-story: read back: board App Stories, Estimate 3, Priority P2, Status Todo, blocked by nothing, parent none\n',
+    );
   });
 
   it.each([

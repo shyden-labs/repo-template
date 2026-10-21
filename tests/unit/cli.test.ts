@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { pathToFileURL } from 'node:url';
-import { runIfEntry } from '../../scripts/cli';
+import { runIfEntry } from '../../scripts/cli.ts';
 
 /**
  * Every script's command-line entry goes through `runIfEntry`, so the branch
@@ -34,7 +34,7 @@ describe('runIfEntry', () => {
 
   it('waits for an async main, then exits with the code it resolves to', async () => {
     const h = harness(['node', SCRIPT]);
-    await runIfEntry(URL_OF_SCRIPT, async () => 4, h.proc);
+    await runIfEntry(URL_OF_SCRIPT, () => Promise.resolve(4), h.proc);
     expect(h.exits).toEqual([4]);
   });
 

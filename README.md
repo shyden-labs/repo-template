@@ -25,6 +25,7 @@ rotting.
 | `.github/workflows/record.yml`, `scripts/fold-record.ts`, `docs/measure-then-commit.md` | Files that only measuring can write (a coverage record, floors, baselines) are measured on a scratch ref and handed back as an artifact; the session folds them into its unpushed commit and pushes once. No workflow but deploy and release writes to the repository (issue #30). |
 | `docs/api-docs.md` | Every API a repository builds has a fully capable Swagger interface; a private API's docs are private (operator ruling 2026-10-15). The standard, its four decisions, and what a project does. |
 | `docs/logs-suite.md`, `vitest.logs.config.ts`, `vitest.unit.config.ts`, `.github/workflows/logs.yml` | Logging and auditing have a test suite of their own, run in CI as a prerequisite to a release, never on a pull request (issue #16). Unit is limited to `tests/unit/`, and an empty logs suite fails. |
+| `tsconfig.json`, `eslint.config.js`, `.prettierrc.json`, `.githooks/pre-push`, `docs/static-checks.md` | Every code file is typechecked under strict settings, linted with typescript-eslint's strict rules and format-checked, in CI and before every push (issue #61). |
 
 ## The four rules
 
@@ -67,3 +68,4 @@ whole lesson.
 11. **Before the first release, put the log and audit checks in `tests/logs/`** and make `.github/workflows/logs.yml` a required step of the release (`docs/logs-suite.md`).
 12. **Every mobile test is one test, run on Android AND iOS.** Write each device test once in `tests/devices/`; the phone projects in `playwright.config.ts` run exactly the same files in parallel, each saying whether its input is real taps or a marked stand-in, and no test is named for one platform. `tests/unit/device-suite.test.ts` holds the repository to it, and `node scripts/devices-report.ts` checks each run (`docs/devices.md`).
 13. **Turn on SonarCloud before the first pull request.** Follow `docs/sonarcloud.md`: create the project, turn Automatic Analysis off, add `SONAR_TOKEN` as an Actions secret and a Dependabot secret, then call `.github/workflows/sonarcloud.yml` from the pull-request workflow and make its job a required check.
+14. **Keep the static checks clean.** `npm ci` installs `.githooks/pre-push`, which runs `npm run format:check`, `npm run lint` and `npm run typecheck` before every push; CI runs the same three as named steps of `build-and-test`. Fix each finding in the code, never with a disable comment. See `docs/static-checks.md`.

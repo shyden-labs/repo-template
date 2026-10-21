@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { withoutYamlComments, withoutYamlQuotes, yamlBlock as topLevel } from './source-text';
+import { withoutYamlComments, withoutYamlQuotes, yamlBlock as topLevel } from './source-text.ts';
 
 /**
  * A merge into `develop` deploys to dev by a workflow trigger (#12; operator
@@ -10,20 +10,15 @@ import { withoutYamlComments, withoutYamlQuotes, yamlBlock as topLevel } from '.
  */
 
 const WORKFLOW = '.github/workflows/deploy-dev.yml';
-const workflow = () =>
-  withoutYamlQuotes(withoutYamlComments(readFileSync(WORKFLOW, 'utf8')));
+const workflow = () => withoutYamlQuotes(withoutYamlComments(readFileSync(WORKFLOW, 'utf8')));
 
 describe('deploy-dev', () => {
   it('runs on every push to develop, and otherwise only by hand', () => {
-    expect(topLevel(workflow(), 'on')).toBe(
-      ['on:', '  push:', '    branches: [develop]', '  workflow_dispatch:'].join('\n'),
-    );
+    expect(topLevel(workflow(), 'on')).toBe(['on:', '  push:', '    branches: [develop]', '  workflow_dispatch:'].join('\n'));
   });
 
   it('queues a deploy behind the running one rather than cancelling it', () => {
-    expect(topLevel(workflow(), 'concurrency')).toBe(
-      ['concurrency:', '  group: deploy-dev', '  cancel-in-progress: false'].join('\n'),
-    );
+    expect(topLevel(workflow(), 'concurrency')).toBe(['concurrency:', '  group: deploy-dev', '  cancel-in-progress: false'].join('\n'));
   });
 
   it('deploys from the dev environment, where the dev credential lives', () => {

@@ -71,8 +71,7 @@ const WINDOW_DAYS = 7;
 const DAY_MS = 86_400_000;
 const isEpic = (item: BoardItem): boolean => /^Epic\b/.test(item.title);
 const isDraft = (item: BoardItem): boolean => item.number === null;
-const isPostLaunch = (item: BoardItem): boolean =>
-  item.labels.includes('post-launch');
+const isPostLaunch = (item: BoardItem): boolean => item.labels.includes('post-launch');
 
 /** Whether a board item counts towards release-ready. */
 export function inScope(item: BoardItem): boolean {
@@ -82,39 +81,26 @@ export function inScope(item: BoardItem): boolean {
 /** The UTC days of the window ending `today`, oldest first, none before `since`. */
 function windowDays(today: string, since: string): string[] {
   const end = Date.parse(`${today}T00:00:00Z`);
-  const days = Array.from({ length: WINDOW_DAYS }, (_, i) =>
-    new Date(end - (WINDOW_DAYS - 1 - i) * DAY_MS).toISOString().slice(0, 10),
-  );
+  const days = Array.from({ length: WINDOW_DAYS }, (_, i) => new Date(end - (WINDOW_DAYS - 1 - i) * DAY_MS).toISOString().slice(0, 10));
   // `since` is never after `today` (progress seeds it with today), so today is always kept.
   return days.filter((day) => day >= since);
 }
 
-function perDay(
-  closed: BoardItem[],
-  days: string[],
-  weight: (item: BoardItem) => number,
-): number[] {
-  return days.map((day) =>
-    closed
-      .filter((item) => item.closedAt?.slice(0, 10) === day)
-      .reduce((sum, item) => sum + weight(item), 0),
-  );
+function perDay(closed: BoardItem[], days: string[], weight: (item: BoardItem) => number): number[] {
+  return days.map((day) => closed.filter((item) => item.closedAt?.slice(0, 10) === day).reduce((sum, item) => sum + weight(item), 0));
 }
 
 export function progress(items: BoardItem[], today: string): Progress {
   const scope = items.filter(inScope);
   const closed = scope.filter((item) => item.state === 'CLOSED');
   const open = scope.filter((item) => item.state === 'OPEN');
-  const since = items
-    .map((item) => item.createdAt.slice(0, 10))
-    .reduce((a, b) => (b < a ? b : a), today);
+  const since = items.map((item) => item.createdAt.slice(0, 10)).reduce((a, b) => (b < a ? b : a), today);
   const days = windowDays(today, since);
   const tickets: TicketProgress = {
     closed: closed.length,
     total: scope.length,
     epics: items.filter(isEpic).length,
-    postLaunch: items.filter((item) => !isEpic(item) && isPostLaunch(item))
-      .length,
+    postLaunch: items.filter((item) => !isEpic(item) && isPostLaunch(item)).length,
     drafts: scope.filter(isDraft).length,
     pace: perDay(closed, days, () => 1),
   };
@@ -125,14 +111,8 @@ export function progress(items: BoardItem[], today: string): Progress {
       effort: { available: false, scored: scoredOpen.length, open: open.length },
     };
   }
-  const scoredClosed = closed.filter(
-    (item): item is BoardItem & { estimate: number } => item.estimate !== null,
-  );
-  const scoredMean =
-    scoredClosed.length === 0
-      ? 0
-      : scoredClosed.reduce((sum, item) => sum + item.estimate, 0) /
-        scoredClosed.length;
+  const scoredClosed = closed.filter((item): item is BoardItem & { estimate: number } => item.estimate !== null);
+  const scoredMean = scoredClosed.length === 0 ? 0 : scoredClosed.reduce((sum, item) => sum + item.estimate, 0) / scoredClosed.length;
   const points = (item: BoardItem): number => item.estimate ?? scoredMean;
   return {
     tickets,
@@ -147,11 +127,9 @@ export function progress(items: BoardItem[], today: string): Progress {
   };
 }
 
-const plural = (n: number, word: string, words = `${word}s`): string =>
-  `${String(n)} ${n === 1 ? word : words}`;
+const plural = (n: number, word: string, words = `${word}s`): string => `${String(n)} ${n === 1 ? word : words}`;
 
-const meanOf = (pace: number[]): number =>
-  pace.reduce((a, b) => a + b, 0) / pace.length;
+const meanOf = (pace: number[]): number => pace.reduce((a, b) => a + b, 0) / pace.length;
 
 /** The ETA at the window's mean daily pace, or why there is none. */
 function eta(remaining: number, pace: number[], today: string): string {
@@ -177,10 +155,7 @@ export function formatLines(p: Progress, today: string): [string, string] {
     eta(t.total - t.closed, t.pace, today);
   const e = p.effort;
   if (!e.available) {
-    return [
-      tickets,
-      `By effort: unavailable, ${String(e.scored)} of ${String(e.open)} open tickets scored`,
-    ];
+    return [tickets, `By effort: unavailable, ${String(e.scored)} of ${String(e.open)} open tickets scored`];
   }
   const total = e.closedPoints + e.openPoints;
   const assumed =
@@ -235,18 +210,13 @@ export function parseItems(pages: unknown[]): BoardRead {
     } else if (c.__typename === 'Issue') {
       read.items.push(parseIssue(node.estimate, c));
     } else {
-      throw new Error(
-        `a "${c.__typename}" card is not one this script knows how to count: nothing read`,
-      );
+      throw new Error(`a "${c.__typename}" card is not one this script knows how to count: nothing read`);
     }
   }
   return read;
 }
 
-function parseDraft(
-  estimate: RawNode['estimate'],
-  c: NonNullable<RawNode['content']>,
-): BoardItem {
+function parseDraft(estimate: RawNode['estimate'], c: NonNullable<RawNode['content']>): BoardItem {
   if (c.title === undefined || c.createdAt === undefined) {
     throw new Error('a draft card on the board came back without its title or creation time');
   }
@@ -261,19 +231,9 @@ function parseDraft(
   };
 }
 
-function parseIssue(
-  estimate: RawNode['estimate'],
-  c: NonNullable<RawNode['content']>,
-): BoardItem {
-  if (
-    c.number === undefined ||
-    c.title === undefined ||
-    c.state === undefined ||
-    c.createdAt === undefined
-  ) {
-    throw new Error(
-      'an issue on the board came back without its number, title, state or creation time',
-    );
+function parseIssue(estimate: RawNode['estimate'], c: NonNullable<RawNode['content']>): BoardItem {
+  if (c.number === undefined || c.title === undefined || c.state === undefined || c.createdAt === undefined) {
+    throw new Error('an issue on the board came back without its number, title, state or creation time');
   }
   return {
     number: c.number,
@@ -314,26 +274,19 @@ export const QUERY = `query($id: ID!, $endCursor: String) {
 export function main(args: string[]): number {
   const [id, title] = args;
   if (id === undefined || title === undefined) {
-    throw new Error(
-      'usage: node scripts/board-progress.ts <board-node-id> "<board title>"',
-    );
+    throw new Error('usage: node scripts/board-progress.ts <board-node-id> "<board title>"');
   }
-  const out = execFileSync(
-    'gh',
-    ['api', 'graphql', '--paginate', '--slurp', '-f', `query=${QUERY}`, '-f', `id=${id}`],
-    { encoding: 'utf8' },
-  );
+  const out = execFileSync('gh', ['api', 'graphql', '--paginate', '--slurp', '-f', `query=${QUERY}`, '-f', `id=${id}`], {
+    encoding: 'utf8',
+  });
   const pages = JSON.parse(out) as RawPage[];
   for (const page of pages) assertTitle(page.data.node.title, title);
   const today = new Date().toISOString().slice(0, 10);
   const { items, pullRequests } = parseItems(pages);
   const leftOutLine = formatLeftOut(pullRequests);
-  const lines = [
-    ...formatLines(progress(items, today), today),
-    ...(leftOutLine === null ? [] : [leftOutLine]),
-  ];
+  const lines = [...formatLines(progress(items, today), today), ...(leftOutLine === null ? [] : [leftOutLine])];
   for (const line of lines) process.stdout.write(`${line}\n`);
   return 0;
 }
 
-runIfEntry(import.meta.url, main);
+await runIfEntry(import.meta.url, main);

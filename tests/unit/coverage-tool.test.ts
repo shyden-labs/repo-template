@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { withoutPinnedShas, withoutYamlComments, withoutYamlQuotes } from './source-text';
+import { withoutPinnedShas, withoutYamlComments, withoutYamlQuotes } from './source-text.ts';
 
 /**
  * One coverage tool, wired the same way in every repo made from the template

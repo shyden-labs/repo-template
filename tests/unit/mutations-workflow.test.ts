@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { withoutPinnedShas, withoutYamlComments, withoutYamlQuotes, yamlBlock } from './source-text';
+import { withoutPinnedShas, withoutYamlComments, withoutYamlQuotes, yamlBlock } from './source-text.ts';
 
 /**
  * The mutations check runs on every pull request, with no label to opt in
@@ -8,8 +8,7 @@ import { withoutPinnedShas, withoutYamlComments, withoutYamlQuotes, yamlBlock } 
  * `mutations` so branch rules can require it, and with a timeout.
  */
 
-const workflow = () =>
-  withoutPinnedShas(withoutYamlQuotes(withoutYamlComments(readFileSync('.github/workflows/mutations.yml', 'utf8'))));
+const workflow = () => withoutPinnedShas(withoutYamlQuotes(withoutYamlComments(readFileSync('.github/workflows/mutations.yml', 'utf8'))));
 
 describe('mutations.yml', () => {
   it('runs on every pull request, with no label or type filter', () => {

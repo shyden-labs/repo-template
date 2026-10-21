@@ -18,9 +18,9 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { runIfEntry } from './cli.ts';
 
-const fail = (message: string): never => {
+function fail(message: string): never {
   throw new Error(`fold-record: ${message}`);
-};
+}
 
 const run = (command: string, args: string[]): string => execFileSync(command, args, { encoding: 'utf8' });
 
@@ -78,4 +78,4 @@ export function main(args: string[]): number {
   return 0;
 }
 
-runIfEntry(import.meta.url, main);
+await runIfEntry(import.meta.url, main);

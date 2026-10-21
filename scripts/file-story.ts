@@ -43,9 +43,9 @@ const SECTIONS = ['Story', 'Context', 'Acceptance criteria', 'Announce', 'Defini
 /** GitHub closes an issue when one of these stands right before its number, even negated. */
 const CLOSING = /\b((?:close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)\s+#(\d+))/i;
 
-const fail = (message: string): never => {
+function fail(message: string): never {
   throw new Error(`file-story: ${message}`);
-};
+}
 
 const isNumber = (value: unknown): value is number => Number.isInteger(value) && (value as number) > 0;
 
@@ -71,21 +71,26 @@ export function parseStory(text: string): Story {
   if (!Array.isArray(blockedBy) || !blockedBy.every(isNumber)) fail('blockedBy must list issue numbers');
   const parent = s.parent ?? null;
   if (parent !== null && !isNumber(parent)) fail('parent must be an issue number');
-  const body = String(s.body ?? '');
+  const body = s.body ?? '';
+  if (typeof body !== 'string') fail('body must be text');
   for (const section of SECTIONS) {
     if (!body.includes(`## ${section}`)) fail(`the body has no "## ${section}" section`);
   }
   const closing = CLOSING.exec(body);
-  if (closing !== null) fail(`the body would close #${closing[2]} on merge ("${closing[1]}"); write "Refs #${closing[2]}"`);
+  if (closing !== null) {
+    // CLOSING's two groups are not optional: a match holds both.
+    const [, words, number] = closing as RegExpExecArray & [string, string, string];
+    fail(`the body would close #${number} on merge ("${words}"); write "Refs #${number}"`);
+  }
   return {
-    repo: s.repo as string,
-    title: s.title as string,
+    repo: s.repo,
+    title: s.title,
     body,
     estimate: s.estimate as number,
     priority: s.priority as string,
-    status: status as string,
-    blockedBy: blockedBy as number[],
-    parent: parent as number | null,
+    status,
+    blockedBy,
+    parent,
   };
 }
 
@@ -132,13 +137,26 @@ export function main(args: string[]): number {
     throw new Error('usage: node scripts/file-story.ts <board-node-id> "<board title>" <story.json>');
   }
   const story = parseStory(readFileSync(file, 'utf8'));
-  const board = (gh(['api', 'graphql', '-f', `query=${READ_BOARD}`, '-f', `id=${id}`]) as {
-    data: { node: { title: string; fields: { nodes: Field[] } } };
-  }).data.node;
+  const board = (
+    gh(['api', 'graphql', '-f', `query=${READ_BOARD}`, '-f', `id=${id}`]) as {
+      data: { node: { title: string; fields: { nodes: Field[] } } };
+    }
+  ).data.node;
   assertTitle(board.title, title);
   const fields = boardFields(board.fields.nodes, story);
   const open = gh([
-    'issue', 'list', '-R', story.repo, '--state', 'open', '--search', `${story.title} in:title`, '--limit', '100', '--json', 'number,title',
+    'issue',
+    'list',
+    '-R',
+    story.repo,
+    '--state',
+    'open',
+    '--search',
+    `${story.title} in:title`,
+    '--limit',
+    '100',
+    '--json',
+    'number,title',
   ]) as { number: number; title: string }[];
   const same = open.find((i) => i.title.trim().toLowerCase() === story.title.trim().toLowerCase());
   if (same !== undefined) fail(`#${same.number} "${same.title}" is already open; add to it instead`);
@@ -150,9 +168,11 @@ export function main(args: string[]): number {
   };
   const ref = `${story.repo}#${issue.number}`;
   process.stdout.write(`file-story: filed ${ref} "${story.title}"\n`);
-  const item = (gh(['api', 'graphql', '-f', `query=${ADD}`, '-f', `project=${id}`, '-f', `content=${issue.node_id}`]) as {
-    data: { addProjectV2ItemById: { item: { id: string } } };
-  }).data.addProjectV2ItemById.item.id;
+  const item = (
+    gh(['api', 'graphql', '-f', `query=${ADD}`, '-f', `project=${id}`, '-f', `content=${issue.node_id}`]) as {
+      data: { addProjectV2ItemById: { item: { id: string } } };
+    }
+  ).data.addProjectV2ItemById.item.id;
   const on = ['-f', `project=${id}`, '-f', `item=${item}`];
   gh(['api', 'graphql', '-f', `query=${SET_NUMBER}`, ...on, '-f', `field=${fields.estimate}`, '-F', `number=${story.estimate}`]);
   for (const f of [fields.priority, fields.status]) {
@@ -166,21 +186,27 @@ export function main(args: string[]): number {
     gh(['api', '-X', 'POST', `repos/${story.repo}/issues/${story.parent}/sub_issues`, '-F', `sub_issue_id=${issue.id}`]);
   }
 
-  const back = (gh(['api', 'graphql', '-f', `query=${READ_ITEM}`, '-f', `item=${item}`]) as {
-    data: {
-      node: {
-        project: { title: string };
-        estimate: { number: number } | null;
-        priority: { name: string } | null;
-        status: { name: string } | null;
+  const back = (
+    gh(['api', 'graphql', '-f', `query=${READ_ITEM}`, '-f', `item=${item}`]) as {
+      data: {
+        node: {
+          project: { title: string };
+          estimate: { number: number } | null;
+          priority: { name: string } | null;
+          status: { name: string } | null;
+        };
       };
-    };
-  }).data.node;
+    }
+  ).data.node;
   const blockers = (gh(['api', `repos/${story.repo}/issues/${issue.number}/dependencies/blocked_by`]) as { number: number }[])
     .map((b) => b.number)
     .sort((a, b) => a - b);
-  const parent =
-    story.parent === null ? null : (gh(['api', `repos/${story.repo}/issues/${issue.number}/parent`]) as { number: number }).number;
+  // The parent is read back only when the story set one.
+  const readParent = (wanted: number) => {
+    const got = (gh(['api', `repos/${story.repo}/issues/${issue.number}/parent`]) as { number: number }).number;
+    return { parent: got, problem: got === wanted ? '' : `parent read back as #${got}, not #${wanted}` };
+  };
+  const { parent, problem: parentProblem } = story.parent === null ? { parent: null, problem: '' } : readParent(story.parent);
   const problems = [
     back.project.title === title ? '' : `the item read back on ${back.project.title}, not ${title}`,
     back.estimate?.number === story.estimate ? '' : `Estimate read back as ${back.estimate?.number ?? 'none'}, not ${story.estimate}`,
@@ -189,7 +215,7 @@ export function main(args: string[]): number {
     list(blockers) === list([...story.blockedBy].sort((a, b) => a - b))
       ? ''
       : `blocked by read back as ${list(blockers)}, not ${list(story.blockedBy)}`,
-    parent === story.parent ? '' : `parent read back as #${parent}, not #${story.parent}`,
+    parentProblem,
   ].filter((p) => p !== '');
   if (problems.length > 0) fail(`${ref} was filed, but ${problems.join('; ')}`);
   process.stdout.write(
@@ -199,4 +225,4 @@ export function main(args: string[]): number {
   return 0;
 }
 
-runIfEntry(import.meta.url, main);
+await runIfEntry(import.meta.url, main);
