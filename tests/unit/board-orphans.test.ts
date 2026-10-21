@@ -1,5 +1,13 @@
-import { describe, it, expect } from 'vitest';
-import { inProgressIssues, findOrphanIssues, type OpenPullRequest } from '../../scripts/board-orphans';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { inProgressIssues, findOrphanIssues, main, type OpenPullRequest } from '../../scripts/board-orphans';
+
+// `gh` is stood in: a unit test starts no process. Each test queues gh's replies in call order.
+vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
+const gh = vi.mocked(execFileSync);
+const reply = (...values: unknown[]) => {
+  for (const value of values) gh.mockReturnValueOnce(JSON.stringify(value));
+};
 
 /**
  * A ticket is In Progress only while a branch or an open pull request is working
@@ -94,5 +102,95 @@ describe('findOrphanIssues', () => {
 
   it('branches 17-x and 70-x do not claim issue 7', () => {
     expect(findOrphanIssues([7], [pr({ headRefName: '17-x' })], ['70-x'], [])).toEqual([7]);
+  });
+});
+
+describe('main', () => {
+  let out: string[];
+  let err: string[];
+  beforeEach(() => {
+    gh.mockReset();
+    out = [];
+    err = [];
+    vi.spyOn(process.stdout, 'write').mockImplementation((t) => (out.push(String(t)), true));
+    vi.spyOn(process.stderr, 'write').mockImplementation((t) => (err.push(String(t)), true));
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  const ARGS = ['PVT_1', 'Board', 'shyden-labs/repo'];
+  const board = page([{ number: 7, state: 'OPEN', status: 'In Progress' }]);
+  const openPr = (over: object) => ({ title: 'x', body: '', headRefName: 'feature', closingIssuesReferences: [], ...over });
+
+  it.each([[[]], [['PVT_1', 'Board']], [['PVT_1', 'Board', 'not-a-repo']]])('refuses the arguments %j', (args) => {
+    expect(() => main(args)).toThrow('usage: node scripts/board-orphans.ts <board-node-id> "<board title>" <owner/repo>');
+  });
+
+  it('refuses a board whose title differs', () => {
+    reply([board]);
+    expect(() => main(['PVT_1', 'Other', 'shyden-labs/repo'])).toThrow('the board is "Board", not "Other": nothing read');
+  });
+
+  it('passes when nothing is In Progress, reading nothing else', () => {
+    reply([page([{ number: 7, state: 'OPEN', status: 'Todo' }])]);
+    expect(main(ARGS)).toBe(0);
+    expect(out).toEqual(['board-orphans: 0 open issue(s) In Progress on "Board"\n']);
+    expect(gh).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads the board by its node id, the open pull requests and the branches', () => {
+    reply([board], [], [[{ name: 'main' }]]);
+    main(ARGS);
+    expect(gh.mock.calls.map((c) => [c[0], (c[1] as string[]).filter((a) => !a.startsWith('query='))])).toEqual([
+      ['gh', ['api', 'graphql', '--paginate', '--slurp', '-f', '-f', 'id=PVT_1']],
+      [
+        'gh',
+        ['pr', 'list', '-R', 'shyden-labs/repo', '--state', 'open', '--limit', '500', '--json', 'title,body,headRefName,closingIssuesReferences'],
+      ],
+      ['gh', ['api', '--paginate', '--slurp', 'repos/shyden-labs/repo/branches?per_page=100']],
+    ]);
+  });
+
+  it('fails when the pull request list may be cut short', () => {
+    reply([board], Array.from({ length: 500 }, () => openPr({})));
+    expect(() => main(ARGS)).toThrow('gh pr list hit its limit of 500; the list may be cut short');
+  });
+
+  it('fails closed when the repository lists no branches', () => {
+    reply([board], [], [[]]);
+    expect(() => main(ARGS)).toThrow('the repository listed no branches; refusing to judge orphans blind');
+  });
+
+  it('names an orphan and fails', () => {
+    reply([board], [], [[{ name: 'main' }]]);
+    expect(main(ARGS)).toBe(1);
+    expect(err).toEqual([
+      'board-orphans: #7 is In Progress, but no open pull request and no branch is working it. ' +
+        'Set its Status back to the backlog, or push its branch (named <issue>-<slug>).\n',
+    ]);
+  });
+
+  it('passes when an open pull request closes it', () => {
+    reply([board], [openPr({ closingIssuesReferences: [{ number: 7 }] })], [[{ name: 'main' }]]);
+    expect(main(ARGS)).toBe(0);
+    expect(out).toContain(
+      'board-orphans: 1 open pull request(s), 1 branch(es) searched; 0 of 0 candidate branch(es) have a closed pull request\n',
+    );
+    expect(err).toEqual([]);
+  });
+
+  it('passes while a branch named for it has no closed pull request', () => {
+    reply([board], [], [[{ name: '7-work' }]], []);
+    expect(main(ARGS)).toBe(0);
+    expect(gh.mock.calls[3]?.[1]).toEqual([
+      'pr', 'list', '-R', 'shyden-labs/repo', '--state', 'closed', '--head', '7-work', '--limit', '1', '--json', 'number',
+    ]);
+  });
+
+  it('fails once that branch has a closed pull request', () => {
+    reply([board], [], [[{ name: '7-work' }]], [{ number: 3 }]);
+    expect(main(ARGS)).toBe(1);
+    expect(out).toContain(
+      'board-orphans: 0 open pull request(s), 1 branch(es) searched; 1 of 1 candidate branch(es) have a closed pull request\n',
+    );
   });
 });

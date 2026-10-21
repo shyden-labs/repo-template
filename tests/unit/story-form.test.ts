@@ -19,6 +19,10 @@ function block(id: string): string {
 }
 
 describe('the story form', () => {
+  it('fails closed on a block the form does not have', () => {
+    expect(() => block('no-such-block')).toThrow('no block with id no-such-block');
+  });
+
   it.each(['story', 'context', 'acceptance-criteria'])(
     'requires %s',
     (id) => {

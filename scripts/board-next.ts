@@ -20,9 +20,9 @@
  * scored and still counts as a blocker.
  */
 import { execFileSync } from "node:child_process";
-import { pathToFileURL } from "node:url";
 import { assertTitle } from "./board-progress.ts";
 import { PRIORITY_OPTIONS } from "./board-setup.ts";
+import { runIfEntry } from "./cli.ts";
 
 /** An issue, by repository, so another repository's #3 is not this one's. */
 export interface IssueRef {
@@ -140,7 +140,7 @@ export function offBoardBlockers(items: NextItem[]): string[] {
   );
 }
 
-const QUERY = `query($id: ID!, $endCursor: String) {
+export const QUERY = `query($id: ID!, $endCursor: String) {
   node(id: $id) { ... on ProjectV2 { title
     items(first: 100, after: $endCursor) { pageInfo { hasNextPage endCursor }
       nodes {
@@ -230,8 +230,8 @@ export function parseNextItems(pages: RawPage[]): NextItem[] {
   );
 }
 
-function main(): void {
-  const [id, title] = process.argv.slice(2);
+export function main(args: string[]): number {
+  const [id, title] = args;
   if (id === undefined || title === undefined) {
     throw new Error(
       'usage: node scripts/board-next.ts <board-node-id> "<board title>"',
@@ -269,11 +269,7 @@ function main(): void {
             : ""
         }).\n`,
   );
+  return 0;
 }
 
-if (
-  process.argv[1] !== undefined &&
-  import.meta.url === pathToFileURL(process.argv[1]).href
-) {
-  main();
-}
+runIfEntry(import.meta.url, main);

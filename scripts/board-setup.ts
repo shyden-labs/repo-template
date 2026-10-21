@@ -10,8 +10,8 @@
  * each field only if it is missing, and reads both back.
  */
 import { execFileSync } from 'node:child_process';
-import { pathToFileURL } from 'node:url';
 import { assertTitle } from './board-progress.ts';
+import { runIfEntry } from './cli.ts';
 
 interface Field {
   name: string;
@@ -99,8 +99,8 @@ const CREATE_PRIORITY = `mutation($id: ID!) { createProjectV2Field(input: {
     (o) => `{ name: "${o.name}", color: ${o.color}, description: "${o.description}" }`,
   ).join(', ')}] }) { clientMutationId } }`;
 
-function main(): void {
-  const [id, title] = process.argv.slice(2);
+export function main(args: string[]): number {
+  const [id, title] = args;
   if (id === undefined || title === undefined) {
     throw new Error('usage: node scripts/board-setup.ts <board-node-id> "<board title>"');
   }
@@ -126,11 +126,7 @@ function main(): void {
   process.stdout.write(
     `"${after.title}" has a Number field "Estimate" and a single-select field "Priority" (P0-P5).\n`,
   );
+  return 0;
 }
 
-if (
-  process.argv[1] !== undefined &&
-  import.meta.url === pathToFileURL(process.argv[1]).href
-) {
-  main();
-}
+runIfEntry(import.meta.url, main);
