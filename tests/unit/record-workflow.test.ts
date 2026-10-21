@@ -56,6 +56,17 @@ describe('record.yml', () => {
     );
   });
 
+  it('sets up node with no cache, so a run of an unreviewed commit cannot poison what develop restores', () => {
+    expect(steps()).toContain(
+      [
+        '      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020',
+        '        with:',
+        '          node-version-file: .nvmrc',
+        '      - run: npm ci',
+      ].join('\n'),
+    );
+  });
+
   it('checks out the scratch ref without keeping a credential', () => {
     expect(steps()).toContain(['        with:', '          ref: ${{ inputs.ref }}', '          persist-credentials: false'].join('\n'));
   });
