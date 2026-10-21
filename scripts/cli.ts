@@ -27,5 +27,5 @@ export async function runIfEntry(
   proc.exit(await main(proc.argv.slice(2)));
 }
 
-// TEST ONLY (#61 AC4): a planted lint error, to watch CI's Lint step fail.
-export const plantedLintError = (value: unknown) => value!;
+// TEST ONLY (#61 AC4): a planted formatting error, to watch CI's Format step fail.
+export const plantedFormatError   =   1;
