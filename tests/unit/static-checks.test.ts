@@ -87,6 +87,14 @@ describe('tsconfig.json', () => {
   });
 });
 
+describe('README.md', () => {
+  it('names the static checks and their doc in the file table', () => {
+    expect(readFileSync('README.md', 'utf8')).toContain(
+      '| `tsconfig.json`, `eslint.config.js`, `.prettierrc.json`, `.githooks/pre-push`, `docs/static-checks.md` |',
+    );
+  });
+});
+
 describe('.prettierrc.json', () => {
   it('formats at the measured width, 140, with single quotes', () => {
     expect(json('.prettierrc.json')).toEqual({ printWidth: 140, singleQuote: true });
