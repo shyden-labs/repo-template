@@ -39,12 +39,12 @@ describe('the coverage tool is pinned to the exact Vitest version', () => {
 
 describe('the commands', () => {
   it('runs the unit step without coverage', () => {
-    expect(pkg.scripts['test:unit']).toBe('vitest run');
+    expect(pkg.scripts['test:unit']).toBe('vitest run --config vitest.unit.config.ts');
   });
 
   it('measures every TypeScript and JavaScript file, tests included, with the V8-based provider, writing lcov and a summary', () => {
     expect(pkg.scripts['test:coverage']).toBe(
-      "vitest run --coverage.enabled --coverage.provider=custom --coverage.customProviderModule=./scripts/coverage-provider.ts --coverage.include='**/*.{ts,mts,cts,tsx,js,mjs,cjs,jsx}' --coverage.reporter=json-summary --coverage.reporter=lcov --coverage.reporter=text-summary",
+      "vitest run --config vitest.unit.config.ts --coverage.enabled --coverage.provider=custom --coverage.customProviderModule=./scripts/coverage-provider.ts --coverage.include='**/*.{ts,mts,cts,tsx,js,mjs,cjs,jsx}' --coverage.reporter=json-summary --coverage.reporter=lcov --coverage.reporter=text-summary",
     );
   });
 

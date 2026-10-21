@@ -1,0 +1,29 @@
+# The logs suite (docs/logs-suite.md): the checks of the code that writes,
+# keeps or replays logs and audit trails. It runs in CI as a prerequisite to a
+# release, never on a pull request: a person starts it on the release ref, or
+# the release pipeline calls it, and production waits for it to pass.
+# Every third-party `uses:` is pinned to a full commit SHA, as in ci.yml.
+name: logs
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  logs:
+    runs-on: ubuntu-latest
+    # GitHub's default is 360 minutes: a hung step must stop well before.
+    # Set it from the suite's measured runs, at most 30.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+      - run: npm ci
+      # One measured limit belongs on this step: set timeout-minutes from the
+      # suite's first CI runs once it holds the project's checks.
+      - run: npm run test:logs

@@ -43,6 +43,11 @@ be blocked even though nothing got worse.
   (`docs/measure-then-commit.md`); no check run can record.
 - The check fails on a code file on disk that no suite measured. It fails
   closed on a missing or malformed report or record.
+- The coverage command runs the unit suite (`vitest.unit.config.ts`). Files a
+  project adds under `tests/logs/` run only in the logs suite
+  (`docs/logs-suite.md`), so the check names each as unmeasured until that
+  suite's coverage is joined into the record. That is a gap to close, never a
+  file to exclude.
 
 Before a repository's first record, run the coverage command more than once
 and compare the summaries. A line whose coverage changes from run to run gets
