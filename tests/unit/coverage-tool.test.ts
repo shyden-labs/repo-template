@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { withoutYamlComments, withoutYamlQuotes } from './source-text';
+import { withoutPinnedShas, withoutYamlComments, withoutYamlQuotes } from './source-text';
 
 /**
  * One coverage tool, wired the same way in every repo made from the template
@@ -17,7 +17,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
 const lock = JSON.parse(readFileSync('package-lock.json', 'utf8')) as {
   packages: Record<string, { version?: string }>;
 };
-const yaml = (file: string) => withoutYamlQuotes(withoutYamlComments(readFileSync(file, 'utf8')));
+const yaml = (file: string) => withoutPinnedShas(withoutYamlQuotes(withoutYamlComments(readFileSync(file, 'utf8'))));
 
 describe('the coverage tool is pinned to the exact Vitest version', () => {
   it('names an exact Vitest version', () => {
@@ -60,8 +60,8 @@ describe('CI', () => {
         '  coverage:',
         '    runs-on: ubuntu-latest',
         '    steps:',
-        '      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1',
-        '      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020',
+        '      - uses: actions/checkout@<sha>',
+        '      - uses: actions/setup-node@<sha>',
         '        with:',
         '          node-version-file: .nvmrc',
         '          cache: npm',

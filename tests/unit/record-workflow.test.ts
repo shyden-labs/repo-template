@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { withoutYamlComments, withoutYamlQuotes, yamlBlock } from './source-text';
+import { withoutPinnedShas, withoutYamlComments, withoutYamlQuotes, yamlBlock } from './source-text';
 
 /**
  * The measure-then-commit workflow (issue #30): it runs only by hand, only on
@@ -10,7 +10,8 @@ import { withoutYamlComments, withoutYamlQuotes, yamlBlock } from './source-text
  * comment-stripped, quote-free text.
  */
 
-const workflow = () => withoutYamlQuotes(withoutYamlComments(readFileSync('.github/workflows/record.yml', 'utf8')));
+const workflow = () =>
+  withoutPinnedShas(withoutYamlQuotes(withoutYamlComments(readFileSync('.github/workflows/record.yml', 'utf8'))));
 const steps = () => yamlBlock(workflow(), 'steps', '    ');
 
 describe('record.yml', () => {
@@ -35,13 +36,13 @@ describe('record.yml', () => {
   it('refuses any ref but a scratch ref before checking anything out, then measures, records and uploads', () => {
     expect(steps().split('\n').filter((line) => /^ {6}- /.test(line))).toEqual([
       '      - name: Refuse any ref but a scratch ref',
-      '      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1',
-      '      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020',
+      '      - uses: actions/checkout@<sha>',
+      '      - uses: actions/setup-node@<sha>',
       '      - run: npm ci',
       '      - run: npm run test:coverage',
       '      - name: Record coverage',
       '      - name: Gather what to commit',
-      '      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9',
+      '      - uses: actions/upload-artifact@<sha>',
     ]);
   });
 
@@ -59,7 +60,7 @@ describe('record.yml', () => {
   it('sets up node with no cache, so a run of an unreviewed commit cannot poison what develop restores', () => {
     expect(steps()).toContain(
       [
-        '      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020',
+        '      - uses: actions/setup-node@<sha>',
         '        with:',
         '          node-version-file: .nvmrc',
         '      - run: npm ci',
