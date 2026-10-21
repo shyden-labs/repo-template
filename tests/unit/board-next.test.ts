@@ -1,11 +1,18 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { execFileSync } from "node:child_process";
 import {
+  main,
   nextTicket,
   offBoardBlockers,
   parseNextItems,
   PARKED,
+  QUERY,
   type NextItem,
 } from "../../scripts/board-next";
+
+// `gh` is stood in: a unit test starts no process.
+vi.mock("node:child_process", () => ({ execFileSync: vi.fn() }));
+const gh = vi.mocked(execFileSync);
 
 /**
  * The board, not a handover file, names the next ticket (operator
@@ -69,6 +76,14 @@ describe("nextTicket", () => {
       item({ number: 5, createdAt: "2026-10-09T00:00:00Z" }),
     ]);
     expect(next?.number).toBe(3);
+  });
+
+  it("keeps board order between two repositories' issues of one number, made at one moment", () => {
+    const next = nextTicket([
+      item({ number: 4, repo: "shyden-labs/other" }),
+      item({ number: 4 }),
+    ]);
+    expect(next?.repo).toBe("shyden-labs/other");
   });
 
   it("never names a closed ticket", () => {
@@ -280,5 +295,112 @@ describe("parseNextItems", () => {
         page(issue({ subIssues: { totalCount: 101, nodes: [] } })),
       ),
     ).toThrow("#4 has 101 sub-issues and one page read 0");
+  });
+
+  it.each([
+    ["a pull request", { __typename: "PullRequest" }, "ticket 4"],
+    ["no number", { number: undefined }, "ticket 4"],
+    ["no title", { title: undefined }, "(no content)"],
+    ["no state", { state: undefined }, "ticket 4"],
+    ["no creation time", { createdAt: undefined }, "ticket 4"],
+    ["no repository", { repository: undefined }, "ticket 4"],
+    ["no blockers", { blockedBy: undefined }, "ticket 4"],
+    ["no sub-issues", { subIssues: undefined }, "ticket 4"],
+  ])("refuses a card with %s, naming it", (_name, over, named) => {
+    expect(() => parseNextItems(page(issue(over)))).toThrow(`"${named}" is not an issue with a number`);
+  });
+
+  it("refuses a card whose content it cannot read", () => {
+    expect(() => parseNextItems(page(null as never))).toThrow(
+      '"(no content)" is not an issue with a number, title, state, creation time, repository, blockers and sub-issues: convert it, or remove it from the board',
+    );
+  });
+
+  it("reads a card with no Status and no Priority as null for both", () => {
+    const items = parseNextItems([{ data: { node: { title: "Board", items: { nodes: [{ content: issue() }] } } } }] as never);
+    expect([items[0]?.status, items[0]?.priority]).toEqual([null, null]);
+  });
+});
+
+describe("main", () => {
+  const ARGS = ["PVT_1", "Board"];
+  const boardOf = (...nodes: unknown[]) => [{ data: { node: { title: "Board", items: { nodes } } } }];
+  const node = (status: string | null, over: Record<string, unknown> = {}) => ({
+    status: status === null ? null : { name: status },
+    priority: { name: "P2" },
+    content: issue({ blockedBy: { totalCount: 0, nodes: [] }, subIssues: { totalCount: 0, nodes: [] }, ...over }),
+  });
+  let out: string[];
+  let err: string[];
+  beforeEach(() => {
+    gh.mockReset();
+    out = [];
+    err = [];
+    vi.spyOn(process.stdout, "write").mockImplementation((t) => (out.push(String(t)), true));
+    vi.spyOn(process.stderr, "write").mockImplementation((t) => (err.push(String(t)), true));
+  });
+  afterEach(() => vi.restoreAllMocks());
+  const serve = (pages: unknown) => gh.mockReturnValueOnce(JSON.stringify(pages));
+
+  it.each([[[]], [["PVT_1"]]])("refuses the arguments %j", (args) => {
+    expect(() => main(args)).toThrow('usage: node scripts/board-next.ts <board-node-id> "<board title>"');
+  });
+
+  it("reads the board by its node id", () => {
+    serve(boardOf(node("Todo")));
+    main(ARGS);
+    expect(gh).toHaveBeenCalledWith(
+      "gh",
+      ["api", "graphql", "--paginate", "--slurp", "-f", `query=${QUERY}`, "-f", "id=PVT_1"],
+      { encoding: "utf8" },
+    );
+  });
+
+  it("refuses an answer with no pages, as a board with no title", () => {
+    serve([]);
+    expect(() => main(ARGS)).toThrow('the board is "", not "Board": nothing read');
+  });
+
+  it("names the next ticket with its priority and status, and exits 0", () => {
+    serve(boardOf(node("Todo")));
+    expect(main(ARGS)).toBe(0);
+    expect(out).toEqual(["Next: #4 ticket 4 (P2, Todo).\n"]);
+    expect(err).toEqual([]);
+  });
+
+  it("says a ticket with no status has none", () => {
+    serve(boardOf(node(null)));
+    main(ARGS);
+    expect(out).toEqual(["Next: #4 ticket 4 (P2, no status).\n"]);
+  });
+
+  it("names the blocker it picks past, with a note that it is off the board", () => {
+    serve(
+      boardOf(
+        node("Todo", {
+          blockedBy: {
+            totalCount: 1,
+            nodes: [{ number: 3, state: "OPEN", repository: { nameWithOwner: "shyden-labs/other" } }],
+          },
+        }),
+      ),
+    );
+    main(ARGS);
+    expect(out).toEqual(["Next: #4 ticket 4 (P2, Todo, blocked by shyden-labs/other#3).\n"]);
+    expect(err).toEqual([
+      "Note: shyden-labs/other#3 blocks #4 (P2) but is not on this board, so its Priority is not checked.\n",
+    ]);
+  });
+
+  it("says nothing is open on a board of closed tickets", () => {
+    serve(boardOf(node("Done", { state: "CLOSED" })));
+    main(ARGS);
+    expect(out).toEqual(["Next: nothing is open.\n"]);
+  });
+
+  it(`says the rest is in "${PARKED}" when only parked tickets are open`, () => {
+    serve(boardOf(node(PARKED)));
+    main(ARGS);
+    expect(out).toEqual([`Next: nothing before the release; the rest is in "${PARKED}".\n`]);
   });
 });

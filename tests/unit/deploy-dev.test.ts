@@ -23,6 +23,10 @@ const topLevel = (text: string, key: string): string => {
 };
 
 describe('deploy-dev', () => {
+  it('reads an absent top-level key as empty, so a missing block fails its test', () => {
+    expect(topLevel('on:\n  push:\n', 'jobs')).toBe('');
+  });
+
   it('runs on every push to develop, and otherwise only by hand', () => {
     expect(topLevel(workflow(), 'on')).toBe(
       ['on:', '  push:', '    branches: [develop]', '  workflow_dispatch:'].join('\n'),

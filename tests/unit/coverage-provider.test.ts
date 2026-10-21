@@ -14,7 +14,7 @@ import provider, { AllCodeProvider, EXCLUDE } from '../../scripts/coverage-provi
 const ROOT = '/repo';
 const INCLUDE = ['**/*.{ts,mts,cts,tsx,js,mjs,cjs,jsx}'];
 
-function vitestContext(version: string) {
+function vitestContext(version: string, warnings: string[] = []) {
   return {
     version,
     _coverageOptions: {
@@ -25,12 +25,14 @@ function vitestContext(version: string) {
     },
     config: { root: ROOT, project: [] },
     projects: [],
-    logger: { warn: (message: string) => expect.fail(`unexpected warning: ${message}`) },
+    logger: { warn: (message: string) => void warnings.push(message) },
   };
 }
 
 function initialized<T extends V8CoverageProvider>(p: T): T {
-  p.initialize(vitestContext(p.version) as never);
+  const warnings: string[] = [];
+  p.initialize(vitestContext(p.version, warnings) as never);
+  expect(warnings).toEqual([]);
   return p;
 }
 
@@ -43,6 +45,12 @@ describe('the coverage provider', () => {
     expect(provider.startCoverage).toBe(v8.startCoverage);
     expect(provider.takeCoverage).toBe(v8.takeCoverage);
     expect(provider.stopCoverage).toBe(v8.stopCoverage);
+  });
+
+  it("keeps V8's warning when Vitest and the provider are different versions", () => {
+    const warnings: string[] = [];
+    new AllCodeProvider().initialize(vitestContext('0.0.0', warnings) as never);
+    expect(warnings.join('')).toContain('Running mixed versions is not supported');
   });
 
   it('excludes only dependencies, what tools write, and virtual modules', () => {
