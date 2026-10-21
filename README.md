@@ -27,7 +27,7 @@ rotting.
 1. **Every repo gets Dependabot**, covering every ecosystem present and `github-actions`.
 2. **Pin actions to SHAs, never tags.** A tag is mutable and can be repointed by anyone who can push to that action's repo. Keep the trailing `# vX.Y.Z` comment: it is what makes a bump reviewable rather than an opaque hex swap.
 3. **Target `develop`, never `main`.** A PR against a protected default branch either cannot merge or bypasses the dev gate.
-4. **Group same-repo sub-path actions, above the catch-all.** Dependabot assigns to the **first** matching group and stops, so a group declared below `patch-updates` never runs.
+4. **Group same-repo sub-path actions and pinned pairs, and exclude them from every catch-all.** Dependabot offers a package to every group that can hold it, and a group with no patterns (`patch-updates`) outscores any wildcard, so order decides nothing (Shyden, 2026-10-20). Each group with no patterns lists every pattern group's patterns in `exclude-patterns`, and `tests/unit/supply-chain.test.ts` checks that each pattern group's packages can land in that group alone.
 
 ## The rule behind the rules
 
