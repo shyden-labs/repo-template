@@ -9,7 +9,21 @@ effort, each with a % complete and an ETA. The board carries what both need.
 1. Create the board under the `shyden-labs` organisation and record its node
    id and title in the repo's `CLAUDE.md`. Every script and every write
    resolves the board from that node id and checks the title first.
-2. Give it the Number field `Estimate` and the single-select field
+
+   **Never under a personal account.** The project's agent acts as its own
+   GitHub App, and no App can reach a board a user owns. GitHub's REST docs
+   say each user-board endpoint "does not work with GitHub App user access
+   tokens, GitHub App installation access tokens, or fine-grained personal
+   access tokens", and the only Projects permission an App can hold is an
+   organisation one. On a user-owned board every board read and write
+   (progress, closing a story, setting an Estimate) needs the operator's own
+   login (found on steadyhand, 2026-10-05).
+2. Give the project's App the organisation permission **Projects: Read and
+   write** (`organization_projects: write` in its manifest) and record the
+   board's node id and number on the App, so the agent's board calls run as
+   the App. Keep the repository in the same organisation, so one
+   installation covers both.
+3. Give it the Number field `Estimate` and the single-select field
    `Priority`:
 
    ```sh
