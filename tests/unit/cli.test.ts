@@ -25,30 +25,36 @@ function harness(argv: string[]) {
 }
 
 describe('runIfEntry', () => {
-  it('runs main with the arguments after the script, and exits with its code', () => {
+  it('runs main with the arguments after the script, and exits with its code', async () => {
     const h = harness(['node', SCRIPT, 'a', 'b']);
-    runIfEntry(URL_OF_SCRIPT, h.main, h.proc);
+    await runIfEntry(URL_OF_SCRIPT, h.main, h.proc);
     expect(h.ran).toEqual([['a', 'b']]);
     expect(h.exits).toEqual([3]);
   });
 
-  it('does nothing when another file is the program (the script was imported)', () => {
+  it('waits for an async main, then exits with the code it resolves to', async () => {
+    const h = harness(['node', SCRIPT]);
+    await runIfEntry(URL_OF_SCRIPT, async () => 4, h.proc);
+    expect(h.exits).toEqual([4]);
+  });
+
+  it('does nothing when another file is the program (the script was imported)', async () => {
     const h = harness(['node', '/repo/node_modules/vitest/vitest.mjs']);
-    runIfEntry(URL_OF_SCRIPT, h.main, h.proc);
+    await runIfEntry(URL_OF_SCRIPT, h.main, h.proc);
     expect(h.ran).toEqual([]);
     expect(h.exits).toEqual([]);
   });
 
-  it('does nothing when there is no program path at all', () => {
+  it('does nothing when there is no program path at all', async () => {
     const h = harness(['node']);
-    runIfEntry(URL_OF_SCRIPT, h.main, h.proc);
+    await runIfEntry(URL_OF_SCRIPT, h.main, h.proc);
     expect(h.ran).toEqual([]);
     expect(h.exits).toEqual([]);
   });
 
-  it('defaults to the real process, which a test file is never the entry of', () => {
+  it('defaults to the real process, which a test file is never the entry of', async () => {
     const h = harness([]);
-    runIfEntry(URL_OF_SCRIPT, h.main);
+    await runIfEntry(URL_OF_SCRIPT, h.main);
     expect(h.ran).toEqual([]);
   });
 });
