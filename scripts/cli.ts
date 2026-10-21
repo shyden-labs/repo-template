@@ -15,8 +15,13 @@ export interface Proc {
   exit(code: number): void;
 }
 
-export function runIfEntry(moduleUrl: string, main: (args: string[]) => number, proc: Proc = process): void {
+export async function runIfEntry(
+  moduleUrl: string,
+  main: (args: string[]) => number | Promise<number>,
+  proc: Proc = process,
+): Promise<void> {
   const program = proc.argv[1];
   if (program === undefined || moduleUrl !== pathToFileURL(program).href) return;
-  proc.exit(main(proc.argv.slice(2)));
+  // An async main (one that reads over HTTP) is waited for; its rejection is left to node, which prints it and exits 1.
+  proc.exit(await main(proc.argv.slice(2)));
 }
