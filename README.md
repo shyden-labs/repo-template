@@ -20,6 +20,7 @@ rotting.
 | `scripts/branch-rules-setup.ts` | `develop` and `main` each carry a ruleset naming the branch, with strict required checks, so two pull requests that pass alone can never land untested together (issue #8). |
 | `scripts/coverage-provider.ts`, `scripts/coverage-record.ts`, `coverage-record.json`, `docs/coverage.md` | Coverage measures every code file, tests included, and the record holds each file's untested statements and branch arms: no count may rise, and the record must equal what was measured (issue #32). |
 | `scripts/cli.ts` | Every script's command-line entry, in one place, so it is tested in-process like the rest. |
+| `.github/workflows/record.yml`, `scripts/fold-record.ts`, `docs/measure-then-commit.md` | Files that only measuring can write (a coverage record, floors, baselines) are measured on a scratch ref and handed back as an artifact; the session folds them into its unpushed commit and pushes once. No workflow but deploy and release writes to the repository (issue #30). |
 | `docs/api-docs.md` | Every API a repository builds has a fully capable Swagger interface; a private API's docs are private (operator ruling 2026-10-15). The standard, its four decisions, and what a project does. |
 
 ## The four rules

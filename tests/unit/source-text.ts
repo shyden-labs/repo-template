@@ -64,6 +64,19 @@ export const withoutYamlQuotes = (text: string): string =>
   text.replace(/['"]/g, '');
 
 /**
+ * The block a YAML key opens, its own line included, from comment-stripped
+ * text: the line `<indent><key>:` up to the next line indented no deeper
+ * than it. '' when the key is absent, so a test of a missing block fails.
+ */
+export function yamlBlock(text: string, key: string, indent = ''): string {
+  const lines = text.split('\n');
+  const start = lines.indexOf(`${indent}${key}:`);
+  if (start === -1) return '';
+  const end = lines.findIndex((line, i) => i > start && line.length - line.trimStart().length <= indent.length);
+  return lines.slice(start, end === -1 ? undefined : end).join('\n');
+}
+
+/**
  * Text with whole-line comments removed, for a given marker.
  *
  * Deliberately leaves trailing comments alone: a GitHub workflow's `run:`

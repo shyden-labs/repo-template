@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { withoutYamlComments, withoutYamlQuotes } from './source-text';
+import { withoutYamlComments, withoutYamlQuotes, yamlBlock as topLevel } from './source-text';
 
 /**
  * A merge into `develop` deploys to dev by a workflow trigger (#12; operator
@@ -13,20 +13,7 @@ const WORKFLOW = '.github/workflows/deploy-dev.yml';
 const workflow = () =>
   withoutYamlQuotes(withoutYamlComments(readFileSync(WORKFLOW, 'utf8')));
 
-/** A top-level key's block, its own line included; '' when absent (fails closed). */
-const topLevel = (text: string, key: string): string => {
-  const lines = text.split('\n');
-  const start = lines.findIndex((line) => line === `${key}:`);
-  if (start === -1) return '';
-  const end = lines.findIndex((line, i) => i > start && /^\S/.test(line));
-  return lines.slice(start, end === -1 ? undefined : end).join('\n');
-};
-
 describe('deploy-dev', () => {
-  it('reads an absent top-level key as empty, so a missing block fails its test', () => {
-    expect(topLevel('on:\n  push:\n', 'jobs')).toBe('');
-  });
-
   it('runs on every push to develop, and otherwise only by hand', () => {
     expect(topLevel(workflow(), 'on')).toBe(
       ['on:', '  push:', '    branches: [develop]', '  workflow_dispatch:'].join('\n'),

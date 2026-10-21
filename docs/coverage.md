@@ -23,7 +23,7 @@ replaces only that exclude list. Coverage is off in the 1 s unit step
 
 ```sh
 npm run test:coverage          # writes coverage/lcov.info and coverage/coverage-summary.json
-npm run coverage:record        # laptop only: writes coverage-record.json
+npm run coverage:record        # laptop, or the record workflow: writes coverage-record.json
 node scripts/coverage-record.ts check   # CI's coverage job
 ```
 
@@ -38,7 +38,9 @@ be blocked even though nothing got worse.
 - The record must **equal** what was measured, so a gain is recorded in the
   pull request that earns it. Run `npm run coverage:record` and commit the
   file with the change.
-- The recorder refuses any rise and never runs in CI.
+- The recorder refuses any rise. In CI it runs only in the record workflow,
+  on a scratch ref, and hands the file back as an artifact
+  (`docs/measure-then-commit.md`); no check run can record.
 - The check fails on a code file on disk that no suite measured. It fails
   closed on a missing or malformed report or record.
 

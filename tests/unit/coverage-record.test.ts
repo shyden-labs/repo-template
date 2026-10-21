@@ -379,9 +379,29 @@ describe('main', () => {
     summary(4);
     record(1);
     vi.stubEnv('CI', 'true');
+    vi.stubEnv('RECORD_RUN', undefined);
     expect(() => main(['record'])).toThrow(
-      'coverage-record: record never runs in CI; record on the laptop and commit the file',
+      'coverage-record: record never runs in CI but the record workflow on a scratch ref; record there or on the laptop',
     );
+  });
+
+  it.each([['refs/floors/32-x/abc1234'], ['refs/visual/32-x/abc1234']])(
+    'record runs in the record workflow on the scratch ref %s',
+    (ref) => {
+      summary(4);
+      record(1);
+      vi.stubEnv('CI', 'true');
+      vi.stubEnv('RECORD_RUN', ref);
+      expect(main(['record'])).toBe(0);
+    },
+  );
+
+  it.each([['refs/heads/develop'], ['refs/floors/'], ['']])('record still refuses in CI on %j', (ref) => {
+    summary(4);
+    record(1);
+    vi.stubEnv('CI', 'true');
+    vi.stubEnv('RECORD_RUN', ref);
+    expect(() => main(['record'])).toThrow('coverage-record: record never runs in CI but the record workflow');
   });
 
   it.each([[[]], [['raise']], [['check', 'extra']]])('refuses the arguments %j', (args) => {
