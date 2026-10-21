@@ -35,13 +35,55 @@
  * `# vX.Y.Z` beside a pinned action SHA is meaningful data, not prose, so
  * anything checking those version comments must read the RAW text — this is
  * for config bodies where a `#` is always commentary.
+ *
+ * A block scalar (`key: |` or `key: >`, with any chomping or indentation
+ * indicator) and a quoted value are text, not comments (#54): a workflow's
+ * `run: |` shell, or a form's note that writes `Refs #N`, is kept whole. A
+ * block scalar runs until a line indented no deeper than its key (for a list
+ * item, the key's column after the dash). A quote opens only at the start of a
+ * value, so an apostrophe in plain text (`don't`) hides no comment.
  */
-export const withoutYamlComments = (text: string): string =>
-  text
-    .split('\n')
-    .map((line) => line.replace(/(^|\s)#.*$/, ''))
-    .filter((line) => line.trim() !== '')
-    .join('\n');
+export function withoutYamlComments(text: string): string {
+  const out: string[] = [];
+  // The column of the key whose block scalar is being read, or null.
+  let blockKey: number | null = null;
+  for (const line of text.split('\n')) {
+    if (line.trim() === '') continue;
+    if (blockKey !== null && line.length - line.trimStart().length > blockKey) {
+      out.push(line);
+      continue;
+    }
+    blockKey = null;
+    const kept = yamlLineWithoutComment(line);
+    if (kept.trim() === '') continue;
+    out.push(kept);
+    if (/:\s+[|>][-+0-9]*$/.test(kept)) blockKey = (/^\s*(?:-\s+)*/.exec(kept) as RegExpExecArray)[0].length;
+  }
+  return out.join('\n');
+}
+
+/** One YAML line with its comment cut off: a `#` at the line's start or after whitespace, outside quotes. */
+function yamlLineWithoutComment(line: string): string {
+  let quote: string | null = null;
+  let valueStart = true;
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i] as string;
+    if (quote !== null) {
+      // A doubled '' in a single-quoted value closes and at once reopens the quote: still a value start.
+      if (quote === '"' && char === '\\') i += 1;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '#' && (i === 0 || /\s/.test(line[i - 1] as string))) return line.slice(0, i).trimEnd();
+    if ((char === '"' || char === "'") && valueStart) {
+      quote = char;
+      continue;
+    }
+    if (/\s/.test(char)) continue;
+    valueStart = ':-,[{'.includes(char);
+  }
+  return line;
+}
 
 /**
  * YAML with its scalar quote characters removed.

@@ -1,5 +1,43 @@
 import { describe, it, expect } from 'vitest';
-import { withoutCommentLines, withoutPinnedShas, withoutTsComments, yamlBlock } from './source-text';
+import { withoutCommentLines, withoutPinnedShas, withoutTsComments, withoutYamlComments, yamlBlock } from './source-text';
+
+describe('withoutYamlComments', () => {
+  const y = (...lines: string[]) => lines.join('\n');
+
+  it.each([
+    ['a whole-line comment, and the blank lines', y('a: 1', '# gone', '', '  # gone', 'b: 2'), y('a: 1', 'b: 2')],
+    ['a trailing comment after a space', y('a: 1 # gone', 'b: 2\t# gone'), y('a: 1', 'b: 2')],
+    ['nothing in a value where # follows no space', y('url: https://x.example/#top', 'tag: v1#2'), y('url: https://x.example/#top', 'tag: v1#2')],
+  ])('drops %s', (_kind, text, stripped) => {
+    expect(withoutYamlComments(text)).toBe(stripped);
+  });
+
+  // Block scalars and quoted values hold text, not comments (#54).
+  it.each([
+    ['a literal block scalar', y('run: |', '  echo "step #2"', '  x # stays', 'next: 1 # gone'), y('run: |', '  echo "step #2"', '  x # stays', 'next: 1')],
+    ['a folded block scalar', y('note: >', '  Write `Refs #N`.', 'next: 1'), y('note: >', '  Write `Refs #N`.', 'next: 1')],
+    ['a block scalar with chomping and indent indicators', y('a: |-', '  # kept', 'b: >+2', '    # kept', 'c: |2-', '    # kept'), y('a: |-', '  # kept', 'b: >+2', '    # kept', 'c: |2-', '    # kept')],
+    ['a block scalar whose indicator carries a comment', y('run: | # gone', '  echo #1'), y('run: |', '  echo #1')],
+    ['a block scalar in a list item, ending at its next key', y('  - run: |', '      echo #1', '    env: x # gone'), y('  - run: |', '      echo #1', '    env: x')],
+    ['a block scalar that ends the file', y('a: 1', 'run: |', '  echo #1'), y('a: 1', 'run: |', '  echo #1')],
+    ['a double-quoted value', y('name: "a #b" # gone'), y('name: "a #b"')],
+    ['an escaped quote in a double-quoted value', y('x: "a \\" #b" # gone'), y('x: "a \\" #b"')],
+    ['a single-quoted value', y("name: 'a #b' # gone"), y("name: 'a #b'")],
+    ['a doubled quote in a single-quoted value', y("x: 'it''s #b' # gone"), y("x: 'it''s #b'")],
+    ['a quoted list item', y("- 'a #b' # gone"), y("- 'a #b'")],
+    ['a quoted value in a flow list', y("on: [push, 'a #b'] # gone"), y("on: [push, 'a #b']")],
+  ])('keeps the text of %s', (_kind, text, stripped) => {
+    expect(withoutYamlComments(text)).toBe(stripped);
+  });
+
+  it('reads an apostrophe inside a plain value as text, so the comment after it still goes', () => {
+    expect(withoutYamlComments("x: don't # gone")).toBe("x: don't");
+  });
+
+  it('reads an unclosed quote to the end of its line, so the next line is read afresh', () => {
+    expect(withoutYamlComments(y('x: "a #b', 'y: 1 # gone'))).toBe(y('x: "a #b', 'y: 1'));
+  });
+});
 
 /**
  * The template's shared text strippers, for guards that read files as text.
