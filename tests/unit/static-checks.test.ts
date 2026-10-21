@@ -45,6 +45,7 @@ describe('ci.yml', () => {
       { name: 'Lint', run: 'npm run lint' },
       { name: 'Format', run: 'npm run format:check' },
       { name: '', run: 'npm run test:unit' },
+      { name: '', run: '' },
     ]);
   });
 });

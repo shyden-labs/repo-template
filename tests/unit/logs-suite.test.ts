@@ -76,7 +76,7 @@ describe('the logs workflow', () => {
 
   it('pins the same actions at the same SHAs as ci.yml', () => {
     const logs = usesLines(readFileSync('.github/workflows/logs.yml', 'utf8'));
-    expect(logs.length).toBe(2);
+    expect(logs.length).toBe(3);
     // ci.yml runs several jobs, each pinning the same actions: compare the distinct pins.
     expect(logs).toEqual([...new Set(usesLines(readFileSync('.github/workflows/ci.yml', 'utf8')))]);
   });

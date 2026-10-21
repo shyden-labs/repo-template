@@ -46,6 +46,8 @@ describe('record.yml', () => {
       '      - name: Record coverage',
       '      - name: Gather what to commit',
       '      - uses: actions/upload-artifact@<sha>',
+      // The workflow-line trace (issue #35), every job's last step.
+      '      - if: ${{ !cancelled() }}',
     ]);
   });
 
