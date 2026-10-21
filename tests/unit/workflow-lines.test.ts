@@ -129,6 +129,22 @@ describe('ranLines', () => {
     );
   });
 
+  it('reads a unit before every traced line as not run', () => {
+    expect(ranLines([[1, 1], [2, 2]], new Set([2]))).toEqual(
+      new Map([
+        [1, false],
+        [2, true],
+      ]),
+    );
+  });
+
+  it('reads a line as not run whichever order its units come in, and lists lines in order', () => {
+    expect([...ranLines([[2, 2], [1, 2]], new Set([1])).entries()]).toEqual([
+      [1, true],
+      [2, false],
+    ]);
+  });
+
   it('reads a line shared by a unit that ran and one that did not as not run', () => {
     expect(ranLines([[1, 2], [2, 2]], new Set([1]))).toEqual(
       new Map([
