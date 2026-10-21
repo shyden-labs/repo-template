@@ -22,6 +22,7 @@ rotting.
 | `scripts/cli.ts` | Every script's command-line entry, in one place, so it is tested in-process like the rest. |
 | `.github/workflows/record.yml`, `scripts/fold-record.ts`, `docs/measure-then-commit.md` | Files that only measuring can write (a coverage record, floors, baselines) are measured on a scratch ref and handed back as an artifact; the session folds them into its unpushed commit and pushes once. No workflow but deploy and release writes to the repository (issue #30). |
 | `docs/api-docs.md` | Every API a repository builds has a fully capable Swagger interface; a private API's docs are private (operator ruling 2026-10-15). The standard, its four decisions, and what a project does. |
+| `docs/logs-suite.md`, `vitest.logs.config.ts`, `vitest.unit.config.ts`, `.github/workflows/logs.yml` | Logging and auditing have a test suite of their own, run in CI as a prerequisite to a release, never on a pull request (issue #16). Unit is limited to `tests/unit/`, and an empty logs suite fails. |
 
 ## The four rules
 
@@ -61,3 +62,4 @@ whole lesson.
 8. **Fill in `.github/workflows/deploy-dev.yml`.** Every merge into `develop` deploys to dev by this trigger; replace its last step with your own deploy, acting only on the areas in `changed-files.txt`. Until then it fails, naming that step. A repository that hosts nothing deletes the workflow and `tests/unit/deploy-dev.test.ts`, and says why in its README.
 9. **Every API gets a Swagger interface.** If the repository serves any API (an HTTP route, a function, a webhook), follow `docs/api-docs.md` before its first route ships: a hand-written OpenAPI spec with contract tests, self-hosted Swagger UI, and private docs behind the operator's sign-in.
 10. **Keep coverage recorded.** `npm run test:coverage`, then `npm run coverage:record`, and commit `coverage-record.json` with the change that moved it. CI's `coverage` job fails when any file's untested count rose, when a gain was left unrecorded, when a code file went unmeasured, or when a comment tells coverage to skip a line. Make `coverage` a required check. `docs/coverage.md` explains why.
+11. **Before the first release, put the log and audit checks in `tests/logs/`** and make `.github/workflows/logs.yml` a required step of the release (`docs/logs-suite.md`).
