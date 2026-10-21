@@ -106,16 +106,27 @@ export const withoutCommentLines = (text: string, marker = '#'): string =>
  * whose content is the point. Since these guards exist to stop text in the
  * wrong place satisfying an assertion, a stripper that mangles the right place
  * is the same bug wearing the opposite coat — so this scans rather than
- * matches. Quotes, template literals and escapes are tracked; that is the
- * whole of the grammar this needs.
+ * matches. Quotes and escapes are tracked, and so are regex literals and
+ * `${…}` inside template literals (#40): a regex such as `/x\/\//` or a
+ * backtick in a string inside `${…}` otherwise reads as a comment or ends the
+ * template, and every comment after it survives.
+ *
+ * A `/` starts a regex literal when the text before it ends in an operator,
+ * an opening bracket, a keyword such as `return`, or nothing at all; after a
+ * name, a number, `)` or `]` it is division. A regex runs to its closing `/`
+ * outside a character class, or to the end of its line if it never closes.
  */
 export function withoutTsComments(source: string): string {
   let out = '';
   let quote: string | null = null;
+  // One entry per open template literal: 'text' while reading its text, or the
+  // brace depth of the `${…}` being read as code.
+  const templates: (number | 'text')[] = [];
 
   for (let i = 0; i < source.length; i += 1) {
-    const char = source[i];
+    const char = source[i] as string;
     const next = source[i + 1];
+    const top = templates.at(-1);
 
     if (quote) {
       out += char;
@@ -126,7 +137,35 @@ export function withoutTsComments(source: string): string {
       continue;
     }
 
-    if (char === "'" || char === '"' || char === '`') {
+    if (top === 'text') {
+      out += char;
+      if (char === '\\') {
+        out += next ?? '';
+        i += 1;
+      } else if (char === '`') templates.pop();
+      else if (char === '$' && next === '{') {
+        out += next;
+        i += 1;
+        templates.push(0);
+      }
+      continue;
+    }
+
+    if (char === '`') {
+      templates.push('text');
+      out += char;
+      continue;
+    }
+
+    if (typeof top === 'number') {
+      if (char === '{') templates[templates.length - 1] = top + 1;
+      if (char === '}') {
+        if (top === 0) templates.pop();
+        else templates[templates.length - 1] = top - 1;
+      }
+    }
+
+    if (char === "'" || char === '"') {
       quote = char;
       out += char;
       continue;
@@ -146,8 +185,32 @@ export function withoutTsComments(source: string): string {
       continue;
     }
 
+    if (char === '/' && regexMayStart(out)) {
+      let j = i + 1;
+      let inClass = false;
+      while (j < source.length && source[j] !== '\n' && (inClass || source[j] !== '/')) {
+        if (source[j] === '\\') j += 1;
+        else if (source[j] === '[') inClass = true;
+        else if (source[j] === ']') inClass = false;
+        j += 1;
+      }
+      const end = source[j] === '/' ? j + 1 : j;
+      out += source.slice(i, end);
+      i = end - 1;
+      continue;
+    }
+
     out += char;
   }
 
   return out;
+}
+
+/** What may stand right before a regex literal; before anything else, `/` is division. */
+const BEFORE_REGEX = /(?:[(,=:[!&|?{};+\-*%<>~^]|\b(?:return|typeof|instanceof|in|of|new|delete|void|throw|case|do|else|yield|await))$/;
+
+/** Whether a `/` after `out` starts a regex literal. Reads only the tail, so a long file costs no more per slash. */
+function regexMayStart(out: string): boolean {
+  const before = out.trimEnd();
+  return before === '' || BEFORE_REGEX.test(before.slice(-12));
 }

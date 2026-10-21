@@ -96,4 +96,47 @@ describe('withoutTsComments', () => {
   it('keeps a lone slash that starts no comment', () => {
     expect(withoutTsComments('a / b')).toBe('a / b');
   });
+
+  // Regex literals (#40). Each case puts a comment AFTER the construct: a
+  // stripper that misreads the construct shows it only where a comment sits.
+  it.each([
+    ['ends in an escaped slash before a slash (measured 2026-10-22)', 'const b = /x\\/\\//; f(); // c', 'const b = /x\\/\\//; f(); \n'],
+    ['holds a slash in a character class', 'const c = /[/]/g; // c', 'const c = /[/]/g; \n'],
+    ['holds quotes in a character class', 'const q = /[\'"`]/g; // c', 'const q = /[\'"`]/g; \n'],
+    ['holds an escaped bracket in a class', 'const e = /[\\]/]/; // c', 'const e = /[\\]/]/; \n'],
+    ['follows return', 'return /a\\/b/; // c', 'return /a\\/b/; \n'],
+    ['follows an opening bracket', 'f(/\\/\\//); // c', 'f(/\\/\\//); \n'],
+    ['starts a line', '/\\/\\//.test(x); // c', '/\\/\\//.test(x); \n'],
+    ['follows a ternary', 'a ? /x/ : /y\\/\\//; // c', 'a ? /x/ : /y\\/\\//; \n'],
+  ])('keeps a regex literal that %s', (_kind, source, stripped) => {
+    expect(withoutTsComments(source)).toBe(stripped);
+  });
+
+  it.each([
+    ['between names', 'a / b / c // c', 'a / b / c \n'],
+    ['after a closing bracket', '(a) / 2 / 3 // c', '(a) / 2 / 3 \n'],
+    ['after a closing square bracket', 'x[1] / 2 // c', 'x[1] / 2 \n'],
+    ['after a number', '10 / 2 / 5 // c', '10 / 2 / 5 \n'],
+    ['after a name ending in a keyword', 'areturn / 2 / 1 // c', 'areturn / 2 / 1 \n'],
+  ])('reads division %s as division', (_kind, source, stripped) => {
+    expect(withoutTsComments(source)).toBe(stripped);
+  });
+
+  it('stops a regex literal at the end of its line, so a stray slash cannot swallow the file', () => {
+    expect(withoutTsComments('x = /a\n// c\ny')).toBe('x = /a\n\ny');
+  });
+
+  // Template literals with ${} (#40).
+  it.each([
+    ['a comment inside ${} (measured 2026-10-22)', 'const t = `${ g() /* note */ }`; // c', 'const t = `${ g()  }`; \n'],
+    ['a backtick in a string inside ${} (measured 2026-10-22)', 'const d = `${ "`" }`; // c\nkeep();', 'const d = `${ "`" }`; \nkeep();'],
+    ['braces inside ${}', 'const o = `${ { a: 1 }.a }`; // c', 'const o = `${ { a: 1 }.a }`; \n'],
+    ['a template nested inside ${}', 'const n = `a ${ `b ${ c /* x */ }` } d`; // e', 'const n = `a ${ `b ${ c  }` } d`; \n'],
+    ['a regex inside ${}', 'const r = `${ /\\/\\//.source }`; // c', 'const r = `${ /\\/\\//.source }`; \n'],
+    ['a dollar with no brace', 'const m = `$5 // not a comment`; // c', 'const m = `$5 // not a comment`; \n'],
+    ['an escaped ${', 'const s = `\\${ /* text */ }`; // c', 'const s = `\\${ /* text */ }`; \n'],
+    ['an escape that ends the file inside a template', 'const u = `abc\\', 'const u = `abc\\'],
+  ])('reads %s', (_kind, source, stripped) => {
+    expect(withoutTsComments(source)).toBe(stripped);
+  });
 });
