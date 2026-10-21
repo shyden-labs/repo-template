@@ -64,6 +64,15 @@ export const withoutYamlQuotes = (text: string): string =>
   text.replace(/['"]/g, '');
 
 /**
+ * Text with every full commit SHA after `@` read as `@<sha>` (issue #51), so
+ * a test of a workflow's shape is not broken by a sound Dependabot bump. Only
+ * exactly 40 lower-case hex digits count: a tag or a short SHA stays as it is
+ * and never passes as a pin. Whether each action IS pinned, and at one SHA in
+ * every workflow, is `supply-chain.test.ts`'s job.
+ */
+export const withoutPinnedShas = (text: string): string => text.replace(/@[0-9a-f]{40}(?![0-9a-zA-Z])/g, '@<sha>');
+
+/**
  * The block a YAML key opens, its own line included, from comment-stripped
  * text: the line `<indent><key>:` up to the next line indented no deeper
  * than it. '' when the key is absent, so a test of a missing block fails.
