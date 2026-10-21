@@ -77,8 +77,12 @@ describe('main', () => {
     fetched = [];
     vi.spyOn(process.stdout, 'write').mockImplementation((t) => (out.push(String(t)), true));
     vi.spyOn(process.stderr, 'write').mockImplementation((t) => (err.push(String(t)), true));
+    // Every variable the reader reads is set here: CI sets GITHUB_STEP_SUMMARY in every job,
+    // and a test that inherits it judges (and writes to) the runner's own summary.
     vi.stubEnv('SONAR_TOKEN', 'tok');
     vi.stubEnv('SONAR_PULL_REQUEST', '7');
+    vi.stubEnv('SONAR_CEILING_SECONDS', '');
+    vi.stubEnv('GITHUB_STEP_SUMMARY', '');
   });
   afterEach(() => {
     vi.restoreAllMocks();
