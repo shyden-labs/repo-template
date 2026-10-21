@@ -99,7 +99,43 @@ const count = (text: string, pattern: RegExp) => text.split(pattern).length - 1;
 
 const SHA = 'a'.repeat(40);
 
+/**
+ * Each action pinned at more than one SHA across the workflows: a bump that
+ * reached one file and missed another. Named with every SHA and where it is.
+ */
+const splitPins = (uses: Use[]) => {
+  const pins = new Map<string, Map<string, string[]>>();
+  for (const { where, text } of uses) {
+    const pin = /uses:\s*([^@\s]+)@([0-9a-f]{40})(?![0-9a-f])/.exec(text);
+    if (pin === null) continue;
+    const [, action, sha] = pin as unknown as [string, string, string];
+    const shas = pins.get(action) ?? new Map<string, string[]>();
+    shas.set(sha, [...(shas.get(sha) ?? []), where]);
+    pins.set(action, shas);
+  }
+  return [...pins.entries()]
+    .filter(([, shas]) => shas.size > 1)
+    .map(([action, shas]) => `${action} at ${[...shas].map(([sha, at]) => `${sha.slice(0, 7)} (${at.join(', ')})`).join(' and ')}`);
+};
+
 describe('the CI supply chain is pinned', () => {
+  it('pins each action at one SHA in every workflow, judged over every pinned use', () => {
+    const uses = externalUses();
+    expect({ pinned: uses.length, split: splitPins(uses) }).toEqual({ pinned: 10, split: [] });
+  });
+
+  it('names an action whose bump reached one workflow and missed another', () => {
+    const other = 'b'.repeat(40);
+    expect(
+      splitPins([
+        { where: 'ci.yml:3', text: `uses: actions/setup-node@${SHA} # v7.0.0` },
+        { where: 'logs.yml:9', text: `uses: actions/setup-node@${other} # v7.1.0` },
+        { where: 'ci.yml:4', text: `uses: actions/setup-node@${SHA} # v7.0.0` },
+        { where: 'ci.yml:5', text: 'uses: actions/checkout@v4' },
+      ]),
+    ).toEqual(['actions/setup-node at aaaaaaa (ci.yml:3, ci.yml:4) and bbbbbbb (logs.yml:9)']);
+  });
+
   it('there is something to check', () => {
     expect(externalUses().length).toBeGreaterThan(0);
   });

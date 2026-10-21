@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { withoutYamlComments, withoutYamlQuotes } from './source-text';
+import { withoutPinnedShas, withoutYamlComments, withoutYamlQuotes } from './source-text';
 
 /**
  * One coverage tool, wired the same way in every repo made from the template
@@ -17,7 +17,7 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as {
 const lock = JSON.parse(readFileSync('package-lock.json', 'utf8')) as {
   packages: Record<string, { version?: string }>;
 };
-const yaml = (file: string) => withoutYamlQuotes(withoutYamlComments(readFileSync(file, 'utf8')));
+const yaml = (file: string) => withoutPinnedShas(withoutYamlQuotes(withoutYamlComments(readFileSync(file, 'utf8'))));
 
 describe('the coverage tool is pinned to the exact Vitest version', () => {
   it('names an exact Vitest version', () => {
@@ -39,12 +39,12 @@ describe('the coverage tool is pinned to the exact Vitest version', () => {
 
 describe('the commands', () => {
   it('runs the unit step without coverage', () => {
-    expect(pkg.scripts['test:unit']).toBe('vitest run');
+    expect(pkg.scripts['test:unit']).toBe('vitest run --config vitest.unit.config.ts');
   });
 
   it('measures every TypeScript and JavaScript file, tests included, with the V8-based provider, writing lcov and a summary', () => {
     expect(pkg.scripts['test:coverage']).toBe(
-      "vitest run --coverage.enabled --coverage.provider=custom --coverage.customProviderModule=./scripts/coverage-provider.ts --coverage.include='**/*.{ts,mts,cts,tsx,js,mjs,cjs,jsx}' --coverage.reporter=json-summary --coverage.reporter=lcov --coverage.reporter=text-summary",
+      "vitest run --config vitest.unit.config.ts --coverage.enabled --coverage.provider=custom --coverage.customProviderModule=./scripts/coverage-provider.ts --coverage.include='**/*.{ts,mts,cts,tsx,js,mjs,cjs,jsx}' --coverage.reporter=json-summary --coverage.reporter=lcov --coverage.reporter=text-summary",
     );
   });
 
@@ -60,8 +60,8 @@ describe('CI', () => {
         '  coverage:',
         '    runs-on: ubuntu-latest',
         '    steps:',
-        '      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1',
-        '      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020',
+        '      - uses: actions/checkout@<sha>',
+        '      - uses: actions/setup-node@<sha>',
         '        with:',
         '          node-version-file: .nvmrc',
         '          cache: npm',
