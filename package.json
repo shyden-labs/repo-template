@@ -2,7 +2,16 @@
   "name": "repo-template",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=24" },
-  "scripts": { "test:unit": "vitest run" },
-  "devDependencies": { "vitest": "^5.0.0" }
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test:unit": "vitest run",
+    "test:coverage": "vitest run --coverage.enabled --coverage.provider=custom --coverage.customProviderModule=./scripts/coverage-provider.ts --coverage.include='**/*.{ts,mts,cts,tsx,js,mjs,cjs,jsx}' --coverage.reporter=json-summary --coverage.reporter=lcov --coverage.reporter=text-summary",
+    "coverage:record": "node scripts/coverage-record.ts record"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "5.0.3",
+    "vitest": "5.0.3"
+  }
 }

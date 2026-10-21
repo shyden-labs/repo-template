@@ -18,6 +18,8 @@ rotting.
 | `.github/ISSUE_TEMPLATE/story.yml` | A story is fully defined at filing: story line, context, complete acceptance criteria, and an Estimate on the board. |
 | `scripts/board-setup.ts`, `scripts/board-progress.ts`, `docs/project-board.md` | Every board has a Number field `Estimate`. Every close-out reports progress by tickets and by effort, measured from the board. |
 | `scripts/branch-rules-setup.ts` | `develop` and `main` each carry a ruleset naming the branch, with strict required checks, so two pull requests that pass alone can never land untested together (issue #8). |
+| `scripts/coverage-provider.ts`, `scripts/coverage-record.ts`, `coverage-record.json`, `docs/coverage.md` | Coverage measures every code file, tests included, and the record holds each file's untested statements and branch arms: no count may rise, and the record must equal what was measured (issue #32). |
+| `scripts/cli.ts` | Every script's command-line entry, in one place, so it is tested in-process like the rest. |
 | `docs/api-docs.md` | Every API a repository builds has a fully capable Swagger interface; a private API's docs are private (operator ruling 2026-10-15). The standard, its four decisions, and what a project does. |
 
 ## The four rules
@@ -57,3 +59,4 @@ whole lesson.
 7. Set up the project board as `docs/project-board.md` describes: record its node id and title, run `node scripts/board-setup.ts`, give every story an Estimate when it is filed, and run `node scripts/board-orphans.ts` in the required PR checks so no ticket stays In Progress without a branch or pull request.
 8. **Fill in `.github/workflows/deploy-dev.yml`.** Every merge into `develop` deploys to dev by this trigger; replace its last step with your own deploy, acting only on the areas in `changed-files.txt`. Until then it fails, naming that step. A repository that hosts nothing deletes the workflow and `tests/unit/deploy-dev.test.ts`, and says why in its README.
 9. **Every API gets a Swagger interface.** If the repository serves any API (an HTTP route, a function, a webhook), follow `docs/api-docs.md` before its first route ships: a hand-written OpenAPI spec with contract tests, self-hosted Swagger UI, and private docs behind the operator's sign-in.
+10. **Keep coverage recorded.** `npm run test:coverage`, then `npm run coverage:record`, and commit `coverage-record.json` with the change that moved it. CI's `coverage` job fails when any file's untested count rose, when a gain was left unrecorded, when a code file went unmeasured, or when a comment tells coverage to skip a line. Make `coverage` a required check. `docs/coverage.md` explains why.
