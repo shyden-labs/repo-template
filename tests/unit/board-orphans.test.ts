@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
+import { emptyBoardNote } from '../../scripts/board-progress.ts';
 import { inProgressIssues, findOrphanIssues, main, QUERY, type OpenPullRequest } from '../../scripts/board-orphans.ts';
 
 // `gh` is stood in: a unit test starts no process. Each test queues gh's replies in call order.
@@ -138,9 +139,11 @@ describe('main', () => {
     expect(gh).toHaveBeenCalledTimes(1);
   });
 
-  it('refuses a board that reads empty, reading nothing else', () => {
+  // Issue #75: a new repository's empty board must not fail its pull requests.
+  it('passes a board of 0 items, naming it, reading nothing else', () => {
     reply([page([])]);
-    expect(() => main(ARGS)).toThrow('the board "Board" reads 0 items');
+    expect(main(ARGS)).toBe(0);
+    expect(out).toEqual([`board-orphans: ${emptyBoardNote('Board')}; nothing is In Progress\n`]);
     expect(gh).toHaveBeenCalledTimes(1);
   });
 
