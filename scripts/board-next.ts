@@ -20,7 +20,7 @@
  * scored and still counts as a blocker.
  */
 import { execFileSync } from 'node:child_process';
-import { assertWholeRead } from './board-progress.ts';
+import { assertWholeRead, emptyBoardNote } from './board-progress.ts';
 import { PRIORITY_OPTIONS } from './board-setup.ts';
 import { runIfEntry } from './cli.ts';
 
@@ -228,7 +228,10 @@ export function main(args: string[]): number {
     encoding: 'utf8',
   });
   const pages = JSON.parse(out) as RawPage[];
-  assertWholeRead(pages, title);
+  if (assertWholeRead(pages, title) === 0) {
+    process.stdout.write(`Next: nothing to pick; ${emptyBoardNote(title)}.\n`);
+    return 0;
+  }
   const items = parseNextItems(pages);
   for (const note of offBoardBlockers(items)) {
     process.stderr.write(`Note: ${note}.\n`);

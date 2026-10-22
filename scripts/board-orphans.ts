@@ -13,7 +13,7 @@
  * setting its Status back, or push its branch.
  */
 import { execFileSync } from 'node:child_process';
-import { assertWholeRead } from './board-progress.ts';
+import { assertWholeRead, emptyBoardNote } from './board-progress.ts';
 import { runIfEntry } from './cli.ts';
 
 export interface OpenPullRequest {
@@ -88,7 +88,10 @@ export function main(args: string[]): number {
     throw new Error('usage: node scripts/board-orphans.ts <board-node-id> "<board title>" <owner/repo>');
   }
   const pages = gh(['api', 'graphql', '--paginate', '--slurp', '-f', `query=${QUERY}`, '-f', `id=${id}`]) as RawPage[];
-  assertWholeRead(pages, title);
+  if (assertWholeRead(pages, title) === 0) {
+    process.stdout.write(`board-orphans: ${emptyBoardNote(title)}; nothing is In Progress\n`);
+    return 0;
+  }
   const issues = inProgressIssues(pages);
   process.stdout.write(`board-orphans: ${issues.length} open issue(s) In Progress on "${title}"\n`);
   if (issues.length === 0) return 0;

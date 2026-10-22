@@ -5,6 +5,7 @@ import { withoutTsComments } from './source-text.ts';
 import {
   assertTitle,
   assertWholeRead,
+  emptyBoardNote,
   formatLeftOut,
   formatLines,
   inScope,
@@ -194,6 +195,18 @@ describe('formatLines', () => {
       TODAY,
     );
     expect(lines[1]).toContain('2 closed stories unscored');
+  });
+
+  // Issue #75: a board holding only epics and post-launch stories has nothing in scope, and no percentage of nothing.
+  it('says both lines are unavailable when nothing on the board is in scope', () => {
+    const lines = formatLines(
+      progress([item({ number: 1, title: 'Epic: a' }), item({ number: 2, labels: ['post-launch'] })], TODAY),
+      TODAY,
+    );
+    expect(lines).toEqual([
+      'By tickets: unavailable, 0 in-scope stories on the board (1 epic and 1 post-launch left out)',
+      'By effort: unavailable, 0 in-scope stories on the board',
+    ]);
   });
 
   it('says effort is unavailable, with the count scored, before the backfill', () => {
@@ -462,10 +475,11 @@ describe('main', () => {
     expect(out).toEqual([]);
   });
 
-  it('refuses a board that reads empty', () => {
+  // Issue #75: a new board, or one whose items are all archived, is expected; it is named, never failed.
+  it('says a board of 0 items has no progress to report, and exits 0', () => {
     gh.mockReturnValueOnce(JSON.stringify([boardPage('Example Stories', [])]));
-    expect(() => main(['PVT_1', 'Example Stories'])).toThrow('the board "Example Stories" reads 0 items');
-    expect(out).toEqual([]);
+    expect(main(['PVT_1', 'Example Stories'])).toBe(0);
+    expect(out).toEqual([`${emptyBoardNote('Example Stories')}: no progress to report.\n`]);
   });
 
   it("asks for each page's board size", () => {
@@ -500,12 +514,17 @@ describe('assertWholeRead', () => {
   });
 
   it.each([
-    ['one page holding the whole board', [sized('Board', 3, 3)]],
-    ['two pages summing to the whole board', [sized('Board', 150, 100), sized('Board', 150, 50)]],
-  ])('accepts %s', (_, pages) => {
-    expect(() => {
-      assertWholeRead(pages, 'Board');
-    }).not.toThrow();
+    ['one page holding the whole board', [sized('Board', 3, 3)], 3],
+    ['two pages summing to the whole board', [sized('Board', 150, 100), sized('Board', 150, 50)], 150],
+    ['a board of 0 items, new or all archived (issue #75)', [sized('Board', 0, 0)], 0],
+  ])('accepts %s, returning its size', (_, pages, size) => {
+    expect(assertWholeRead(pages, 'Board')).toBe(size);
+  });
+
+  it('names an empty board as new, archived or a GitHub empty page', () => {
+    expect(emptyBoardNote('Board')).toBe(
+      'the board "Board" reads 0 items: a new board, every item archived, or GitHub served an empty page',
+    );
   });
 
   it.each([
@@ -519,11 +538,7 @@ describe('assertWholeRead', () => {
       [sized('Board', 5, 3), sized('Board', 3, 2)],
       'the board "Board" changed size while it was read (5, 3): nothing judged',
     ],
-    [
-      'an empty board',
-      [sized('Board', 0, 0)],
-      'the board "Board" reads 0 items: GitHub served an empty page, or the board has no tickets yet; nothing judged',
-    ],
+    ['an empty page of a board that holds items', [sized('Board', 5, 0)], 'the board "Board" holds 5 items and 0 were read: a short read'],
     ['a page with no size', [sized('Board', undefined, 1)], 'the board "Board" read a page with no items.totalCount: nothing judged'],
     ['a size that is not a count', [sized('Board', '1', 1)], 'the board "Board" read a page with no items.totalCount: nothing judged'],
   ])('refuses %s, naming it', (_, pages, message) => {

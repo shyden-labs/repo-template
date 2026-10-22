@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
+import { emptyBoardNote } from '../../scripts/board-progress.ts';
 import {
   main,
   nextTicket,
@@ -342,10 +343,11 @@ describe('main', () => {
     expect(out).toEqual([]);
   });
 
-  it('refuses a board that reads empty rather than saying nothing is open', () => {
+  // Issue #75: an empty board is expected (new, or every item archived); it is named, never "nothing is open".
+  it('names a board of 0 items rather than saying nothing is open, and exits 0', () => {
     serve(boardOf());
-    expect(() => main(ARGS)).toThrow('the board "Board" reads 0 items');
-    expect(out).toEqual([]);
+    expect(main(ARGS)).toBe(0);
+    expect(out).toEqual([`Next: nothing to pick; ${emptyBoardNote('Board')}.\n`]);
   });
 
   it("asks for each page's board size", () => {

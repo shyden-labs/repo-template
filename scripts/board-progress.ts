@@ -145,6 +145,12 @@ function eta(remaining: number, pace: number[], today: string): string {
 /** The two close-out lines: by tickets, then by effort. */
 export function formatLines(p: Progress, today: string): [string, string] {
   const t = p.tickets;
+  if (t.total === 0) {
+    return [
+      `By tickets: unavailable, 0 in-scope stories on the board (${plural(t.epics, 'epic')} and ${String(t.postLaunch)} post-launch left out)`,
+      'By effort: unavailable, 0 in-scope stories on the board',
+    ];
+  }
   const tickets =
     `By tickets: ${String(Math.round((100 * t.closed) / t.total))}% complete ` +
     `(${String(t.closed)} of ${String(t.total)} in-scope stories closed` +
@@ -265,14 +271,17 @@ export interface SizedPage {
 }
 
 /**
- * Refuses a board read that is not whole (issue #72): no pages, a page of
- * another board, pages disagreeing on the board's size, fewer or more items
- * than that size, or a board of 0 items. On 2026-10-22 GitHub's Projects API
- * served 0 and 100 items of a 466-item board, and a reader trusting the pages
- * said nothing was open. An empty board is refused too, with no switch round
- * it: GitHub's empty page and a board with no tickets read the same.
+ * Refuses a board read that is not whole (issue #72), and returns the board's
+ * size: no pages, a page of another board, pages disagreeing on the board's
+ * size, or fewer or more items than that size. On 2026-10-22 GitHub's
+ * Projects API served 0 and 100 items of a 466-item board, and a reader
+ * trusting the pages said nothing was open.
+ *
+ * A board of 0 items is accepted (issue #75; Shyden 2026-10-23: new and fully
+ * archived boards are expected): GitHub's empty page reads the same, so each
+ * caller names it with `emptyBoardNote` rather than reporting nothing.
  */
-export function assertWholeRead(pages: SizedPage[], title: string): void {
+export function assertWholeRead(pages: SizedPage[], title: string): number {
   if (pages.length === 0) throw new Error(`the board "${title}" read no pages: nothing judged`);
   for (const page of pages) assertTitle(page.data.node.title, title);
   const sizes = pages.map(({ data }) => data.node.items.totalCount);
@@ -284,10 +293,12 @@ export function assertWholeRead(pages: SizedPage[], title: string): void {
   const total = distinct[0] as number;
   const read = pages.reduce((sum, { data }) => sum + data.node.items.nodes.length, 0);
   if (read !== total) throw new Error(`the board "${title}" holds ${total} items and ${read} were read: a short read, nothing judged`);
-  if (total === 0) {
-    throw new Error(`the board "${title}" reads 0 items: GitHub served an empty page, or the board has no tickets yet; nothing judged`);
-  }
+  return total;
 }
+
+/** What every board script says of a board of 0 items, so an empty page from GitHub is never silent. */
+export const emptyBoardNote = (title: string): string =>
+  `the board "${title}" reads 0 items: a new board, every item archived, or GitHub served an empty page`;
 
 export const QUERY = `query($id: ID!, $endCursor: String) {
   node(id: $id) { ... on ProjectV2 { title
@@ -309,7 +320,10 @@ export function main(args: string[]): number {
     encoding: 'utf8',
   });
   const pages = JSON.parse(out) as RawPage[];
-  assertWholeRead(pages, title);
+  if (assertWholeRead(pages, title) === 0) {
+    process.stdout.write(`${emptyBoardNote(title)}: no progress to report.\n`);
+    return 0;
+  }
   const today = new Date().toISOString().slice(0, 10);
   const { items, pullRequests } = parseItems(pages);
   const leftOutLine = formatLeftOut(pullRequests);
