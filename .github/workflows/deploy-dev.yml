@@ -29,7 +29,7 @@ defaults:
 
 jobs:
   deploy-dev:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # The dev credential lives in this environment, restricted to `develop`,
     # never as a repository secret.
     environment: dev
