@@ -300,7 +300,7 @@ describe('parseNextItems', () => {
 
 describe('main', () => {
   const ARGS = ['PVT_1', 'Board'];
-  const boardOf = (...nodes: unknown[]) => [{ data: { node: { title: 'Board', items: { nodes } } } }];
+  const boardOf = (...nodes: unknown[]) => [{ data: { node: { title: 'Board', items: { totalCount: nodes.length, nodes } } } }];
   const node = (status: string | null, over: Record<string, unknown> = {}) => ({
     status: status === null ? null : { name: status },
     priority: { name: 'P2' },
@@ -330,9 +330,26 @@ describe('main', () => {
     });
   });
 
-  it('refuses an answer with no pages, as a board with no title', () => {
+  it('refuses an answer with no pages', () => {
     serve([]);
-    expect(() => main(ARGS)).toThrow('the board is "", not "Board": nothing read');
+    expect(() => main(ARGS)).toThrow('the board "Board" read no pages: nothing judged');
+  });
+
+  // Issue #72: GitHub served 0 of a 466-item board, and this printed "nothing is open".
+  it('refuses a short read rather than saying nothing is open', () => {
+    serve([{ data: { node: { title: 'Board', items: { totalCount: 466, nodes: [] } } } }]);
+    expect(() => main(ARGS)).toThrow('the board "Board" holds 466 items and 0 were read: a short read, nothing judged');
+    expect(out).toEqual([]);
+  });
+
+  it('refuses a board that reads empty rather than saying nothing is open', () => {
+    serve(boardOf());
+    expect(() => main(ARGS)).toThrow('the board "Board" reads 0 items');
+    expect(out).toEqual([]);
+  });
+
+  it("asks for each page's board size", () => {
+    expect(QUERY).toContain('items(first: 100, after: $endCursor) { totalCount pageInfo { hasNextPage endCursor }');
   });
 
   it('names the next ticket with its priority and status, and exits 0', () => {

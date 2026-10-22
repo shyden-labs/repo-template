@@ -20,7 +20,7 @@
  * scored and still counts as a blocker.
  */
 import { execFileSync } from 'node:child_process';
-import { assertTitle } from './board-progress.ts';
+import { assertWholeRead } from './board-progress.ts';
 import { PRIORITY_OPTIONS } from './board-setup.ts';
 import { runIfEntry } from './cli.ts';
 
@@ -138,7 +138,7 @@ export function offBoardBlockers(items: NextItem[]): string[] {
 
 export const QUERY = `query($id: ID!, $endCursor: String) {
   node(id: $id) { ... on ProjectV2 { title
-    items(first: 100, after: $endCursor) { pageInfo { hasNextPage endCursor }
+    items(first: 100, after: $endCursor) { totalCount pageInfo { hasNextPage endCursor }
       nodes {
         status: fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name } }
         priority: fieldValueByName(name: "Priority") { ... on ProjectV2ItemFieldSingleSelectValue { name } }
@@ -228,7 +228,7 @@ export function main(args: string[]): number {
     encoding: 'utf8',
   });
   const pages = JSON.parse(out) as RawPage[];
-  assertTitle(pages[0]?.data.node.title ?? '', title);
+  assertWholeRead(pages, title);
   const items = parseNextItems(pages);
   for (const note of offBoardBlockers(items)) {
     process.stderr.write(`Note: ${note}.\n`);

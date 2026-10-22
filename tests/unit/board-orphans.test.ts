@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { inProgressIssues, findOrphanIssues, main, type OpenPullRequest } from '../../scripts/board-orphans.ts';
+import { inProgressIssues, findOrphanIssues, main, QUERY, type OpenPullRequest } from '../../scripts/board-orphans.ts';
 
 // `gh` is stood in: a unit test starts no process. Each test queues gh's replies in call order.
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
@@ -17,12 +17,13 @@ const reply = (...values: unknown[]) => {
  * pull request (operator 2026-10-13: "Branch counts until its PR closes").
  */
 
-function page(items: { number: number; state: 'OPEN' | 'CLOSED'; status: string | null }[]) {
+function page(items: { number: number; state: 'OPEN' | 'CLOSED'; status: string | null }[], totalCount = items.length) {
   return {
     data: {
       node: {
         title: 'Board',
         items: {
+          totalCount,
           nodes: items.map((i) => ({
             status: i.status === null ? null : { name: i.status },
             content: { __typename: 'Issue', number: i.number, state: i.state },
@@ -128,6 +129,23 @@ describe('main', () => {
   it('refuses a board whose title differs', () => {
     reply([board]);
     expect(() => main(['PVT_1', 'Other', 'shyden-labs/repo'])).toThrow('the board is "Board", not "Other": nothing read');
+  });
+
+  // Issue #72: a short page could hide the one In Progress ticket nothing is working.
+  it('refuses a short read, reading nothing else', () => {
+    reply([page([{ number: 7, state: 'OPEN', status: 'Todo' }], 466)]);
+    expect(() => main(ARGS)).toThrow('the board "Board" holds 466 items and 1 were read: a short read, nothing judged');
+    expect(gh).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses a board that reads empty, reading nothing else', () => {
+    reply([page([])]);
+    expect(() => main(ARGS)).toThrow('the board "Board" reads 0 items');
+    expect(gh).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks for each page's board size", () => {
+    expect(QUERY).toContain('items(first: 100, after: $endCursor) { totalCount pageInfo { hasNextPage endCursor }');
   });
 
   it('passes when nothing is In Progress, reading nothing else', () => {

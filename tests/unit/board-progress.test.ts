@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
+import { readdirSync, readFileSync } from 'node:fs';
+import { withoutTsComments } from './source-text.ts';
 import {
   assertTitle,
+  assertWholeRead,
   formatLeftOut,
   formatLines,
   inScope,
@@ -419,7 +422,9 @@ describe('main', () => {
       labels: { nodes: [] },
     },
   });
-  const boardPage = (title: string, nodes: unknown[]) => ({ data: { node: { title, items: { nodes } } } });
+  const boardPage = (title: string, nodes: unknown[], totalCount = nodes.length) => ({
+    data: { node: { title, items: { totalCount, nodes } } },
+  });
   let out: string[];
   beforeEach(() => {
     gh.mockReset();
@@ -445,8 +450,26 @@ describe('main', () => {
   });
 
   it('refuses when any page names another board', () => {
-    gh.mockReturnValueOnce(JSON.stringify([boardPage('Example Stories', [card(1)]), boardPage('ShyTalk Stories', [card(2)])]));
+    gh.mockReturnValueOnce(JSON.stringify([boardPage('Example Stories', [card(1)], 2), boardPage('ShyTalk Stories', [card(2)], 2)]));
     expect(() => main(['PVT_1', 'Example Stories'])).toThrow('the board is "ShyTalk Stories", not "Example Stories": nothing read');
+  });
+
+  it('refuses a short read rather than reporting progress on part of the board', () => {
+    gh.mockReturnValueOnce(JSON.stringify([boardPage('Example Stories', [card(1)], 466)]));
+    expect(() => main(['PVT_1', 'Example Stories'])).toThrow(
+      'the board "Example Stories" holds 466 items and 1 were read: a short read, nothing judged',
+    );
+    expect(out).toEqual([]);
+  });
+
+  it('refuses a board that reads empty', () => {
+    gh.mockReturnValueOnce(JSON.stringify([boardPage('Example Stories', [])]));
+    expect(() => main(['PVT_1', 'Example Stories'])).toThrow('the board "Example Stories" reads 0 items');
+    expect(out).toEqual([]);
+  });
+
+  it("asks for each page's board size", () => {
+    expect(QUERY).toContain('items(first: 100, after: $endCursor) { totalCount pageInfo { hasNextPage endCursor }');
   });
 
   it('prints both progress lines, dated today, and exits 0', () => {
@@ -462,5 +485,99 @@ describe('main', () => {
     gh.mockReturnValueOnce(JSON.stringify(pages));
     main(['PVT_1', 'Example Stories']);
     expect(out.at(-1)).toBe('Left out, not issues: 1 pull request (#9).\n');
+  });
+});
+
+/**
+ * A board read is judged only when it is whole (issue #72). On 2026-10-22
+ * GitHub's Projects API served short and empty pages for a 466-item board,
+ * and board-next printed "nothing is open". Every page states the board's
+ * size; what was collected must equal it, on a board holding something.
+ */
+describe('assertWholeRead', () => {
+  const sized = (title: string, total: unknown, count: number) => ({
+    data: { node: { title, items: { totalCount: total, nodes: Array.from({ length: count }, (_, i) => ({ i })) } } },
+  });
+
+  it.each([
+    ['one page holding the whole board', [sized('Board', 3, 3)]],
+    ['two pages summing to the whole board', [sized('Board', 150, 100), sized('Board', 150, 50)]],
+  ])('accepts %s', (_, pages) => {
+    expect(() => {
+      assertWholeRead(pages, 'Board');
+    }).not.toThrow();
+  });
+
+  it.each([
+    ['no pages', [], 'the board "Board" read no pages: nothing judged'],
+    ['a page of another board', [sized('Board', 2, 1), sized('Other', 2, 1)], 'the board is "Other", not "Board": nothing read'],
+    ['a short page', [sized('Board', 466, 100)], 'the board "Board" holds 466 items and 100 were read: a short read, nothing judged'],
+    ['a short second page', [sized('Board', 150, 100), sized('Board', 150, 49)], 'the board "Board" holds 150 items and 149 were read'],
+    ['more items than the board holds', [sized('Board', 1, 2)], 'the board "Board" holds 1 items and 2 were read'],
+    [
+      'pages disagreeing on its size',
+      [sized('Board', 5, 3), sized('Board', 3, 2)],
+      'the board "Board" changed size while it was read (5, 3): nothing judged',
+    ],
+    [
+      'an empty board',
+      [sized('Board', 0, 0)],
+      'the board "Board" reads 0 items: GitHub served an empty page, or the board has no tickets yet; nothing judged',
+    ],
+    ['a page with no size', [sized('Board', undefined, 1)], 'the board "Board" read a page with no items.totalCount: nothing judged'],
+    ['a size that is not a count', [sized('Board', '1', 1)], 'the board "Board" read a page with no items.totalCount: nothing judged'],
+  ])('refuses %s, naming it', (_, pages, message) => {
+    expect(() => {
+      assertWholeRead(pages, 'Board');
+    }).toThrow(message);
+  });
+});
+
+/**
+ * Each script reading a board's items asks for the board's size and checks
+ * the read against it (issue #72), so a new script cannot leave it out. A
+ * script reads items when its code (comments stripped) holds `items(first:`.
+ */
+const unguardedReaders = (files: { name: string; text: string }[]) =>
+  files
+    .filter(({ text }) => /items\(first:/.test(text))
+    .map(({ name, text }) => ({
+      name,
+      missing: [
+        ...(/items\(first: \d+, after: \$endCursor\) \{ totalCount pageInfo/.test(text) ? [] : ['totalCount']),
+        ...(/assertWholeRead\(pages, title\)/.test(text) ? [] : ['assertWholeRead']),
+      ],
+    }));
+
+describe('every board reader checks its read is whole', () => {
+  const scripts = readdirSync('scripts')
+    .filter((f) => f.endsWith('.ts'))
+    .map((f) => ({ name: f, text: withoutTsComments(readFileSync(`scripts/${f}`, 'utf8')) }));
+
+  it('judged over every script that reads board items', () => {
+    const readers = unguardedReaders(scripts);
+    expect({ readers: readers.map(({ name }) => name), missing: readers.filter(({ missing }) => missing.length > 0) }).toEqual({
+      readers: ['board-next.ts', 'board-orphans.ts', 'board-progress.ts'],
+      missing: [],
+    });
+  });
+
+  const reader =
+    'const QUERY = `items(first: 100, after: $endCursor) { totalCount pageInfo { hasNextPage } }`;\nassertWholeRead(pages, title);';
+
+  it.each([
+    ['asks for no size', reader.replace(' totalCount', ''), ['totalCount']],
+    ['never checks the read', reader.replace('assertWholeRead(pages, title);', 'assertTitle(pages, title);'), ['assertWholeRead']],
+    [
+      'checks only in a comment',
+      reader.replace('assertWholeRead(pages, title);', '// assertWholeRead(pages, title);'),
+      ['assertWholeRead'],
+    ],
+  ])('names a reader that %s', (_, text, missing) => {
+    expect(unguardedReaders([{ name: 'x.ts', text: withoutTsComments(text) }])).toEqual([{ name: 'x.ts', missing }]);
+  });
+
+  it('accepts a reader that asks for the size and checks the read', () => {
+    expect(unguardedReaders([{ name: 'x.ts', text: withoutTsComments(reader) }])).toEqual([{ name: 'x.ts', missing: [] }]);
   });
 });
