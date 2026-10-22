@@ -260,9 +260,38 @@ export function assertTitle(actual: string, expected: string): void {
   }
 }
 
+export interface SizedPage {
+  data: { node: { title: string; items: { totalCount?: unknown; nodes: unknown[] } } };
+}
+
+/**
+ * Refuses a board read that is not whole (issue #72): no pages, a page of
+ * another board, pages disagreeing on the board's size, fewer or more items
+ * than that size, or a board of 0 items. On 2026-10-22 GitHub's Projects API
+ * served 0 and 100 items of a 466-item board, and a reader trusting the pages
+ * said nothing was open. An empty board is refused too, with no switch round
+ * it: GitHub's empty page and a board with no tickets read the same.
+ */
+export function assertWholeRead(pages: SizedPage[], title: string): void {
+  if (pages.length === 0) throw new Error(`the board "${title}" read no pages: nothing judged`);
+  for (const page of pages) assertTitle(page.data.node.title, title);
+  const sizes = pages.map(({ data }) => data.node.items.totalCount);
+  if (!sizes.every((size): size is number => Number.isInteger(size))) {
+    throw new Error(`the board "${title}" read a page with no items.totalCount: nothing judged`);
+  }
+  const distinct = [...new Set(sizes)];
+  if (distinct.length > 1) throw new Error(`the board "${title}" changed size while it was read (${distinct.join(', ')}): nothing judged`);
+  const total = distinct[0] as number;
+  const read = pages.reduce((sum, { data }) => sum + data.node.items.nodes.length, 0);
+  if (read !== total) throw new Error(`the board "${title}" holds ${total} items and ${read} were read: a short read, nothing judged`);
+  if (total === 0) {
+    throw new Error(`the board "${title}" reads 0 items: GitHub served an empty page, or the board has no tickets yet; nothing judged`);
+  }
+}
+
 export const QUERY = `query($id: ID!, $endCursor: String) {
   node(id: $id) { ... on ProjectV2 { title
-    items(first: 100, after: $endCursor) { pageInfo { hasNextPage endCursor }
+    items(first: 100, after: $endCursor) { totalCount pageInfo { hasNextPage endCursor }
       nodes {
         estimate: fieldValueByName(name: "Estimate") { ... on ProjectV2ItemFieldNumberValue { number } }
         content { __typename
@@ -280,7 +309,7 @@ export function main(args: string[]): number {
     encoding: 'utf8',
   });
   const pages = JSON.parse(out) as RawPage[];
-  for (const page of pages) assertTitle(page.data.node.title, title);
+  assertWholeRead(pages, title);
   const today = new Date().toISOString().slice(0, 10);
   const { items, pullRequests } = parseItems(pages);
   const leftOutLine = formatLeftOut(pullRequests);
