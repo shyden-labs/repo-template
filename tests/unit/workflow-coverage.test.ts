@@ -1,7 +1,19 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import { describe, it, expect, beforeAll } from 'vitest';
-import { workflowCoverage, workflowLcov, type ApiJob, type Evidence, type RunEvidence } from '../../scripts/workflow-coverage.ts';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
+import {
+  fetchEvidence,
+  githubApi,
+  main,
+  workflowCoverage,
+  workflowFiles,
+  workflowLcov,
+  type ApiJob,
+  type Evidence,
+  type RunEvidence,
+} from '../../scripts/workflow-coverage.ts';
 import { loadBash, type Bash } from '../../scripts/workflow-lines.ts';
 
 /**
@@ -165,6 +177,11 @@ describe('workflowCoverage', () => {
       run([job('a', A_STEPS), job('b', [['Run echo b', 'success']])], elseTraces, { id: 8 }),
     );
     expect(at(map, [8, 12, 14, 19, 22])).toEqual([true, true, true, true, false]);
+  });
+
+  it('joins the steps of every run: a step that ran in one run and was skipped in a later one ran', () => {
+    const later = run([job('a', withBranch('skipped')), SKIPPED_B], { 'a/__run': ONE_TRACE }, { id: 8 });
+    expect(at(coverage(run([job('a', A_STEPS), SKIPPED_B], THEN_TRACES), later), [9, 10, 11, 12])).toEqual([true, true, true, true]);
   });
 
   it('joins the attempts of one run: a step skipped in one attempt and run in another ran', () => {
@@ -365,6 +382,221 @@ describe('the real runs on dc5302f', () => {
     expect([...map].map(([file, lines]) => `${file} ${[...lines.values()].filter(Boolean).length}/${lines.size}`)).toEqual([
       '.github/workflows/ci.yml 50/50',
       '.github/workflows/deploy-dev.yml 42/43',
+    ]);
+  });
+});
+
+describe('fetchEvidence', () => {
+  const REPO = 'o/r';
+  const SHA = 'a'.repeat(40);
+  const ZIP = new Uint8Array(readFileSync(new URL('fixtures/workflow-coverage/deploy-dev-traces.zip', import.meta.url)));
+  const STEP = { number: 1, name: 'Set up job', status: 'completed', conclusion: 'success' };
+  const JOB = { name: 'deploy-dev', status: 'completed', conclusion: 'failure', steps: [STEP], html_url: 'ignored' };
+
+  /** A stand-in API answering each path from `answers`, and recording what was asked. */
+  function api(answers: Record<string, unknown>, zips: Record<string, Uint8Array> = { '/repos/o/r/actions/artifacts/5/zip': ZIP }) {
+    const asked: string[] = [];
+    const answer = (path: string) => {
+      asked.push(path);
+      // An unplanned path answers undefined, which the reader refuses with a message no test expects.
+      return path in zips ? zips[path] : answers[path];
+    };
+    return {
+      asked,
+      api: { json: (path: string) => Promise.resolve(answer(path)), bytes: (path: string) => Promise.resolve(answer(path) as Uint8Array) },
+    };
+  }
+
+  const RUNS = `/repos/o/r/actions/runs?head_sha=${SHA}&per_page=100`;
+  const JOBS = '/repos/o/r/actions/runs/9/jobs?filter=all&per_page=100';
+  const ARTIFACTS = '/repos/o/r/actions/runs/9/artifacts?per_page=100';
+  const runsPage = (...runs: unknown[]) => ({ total_count: runs.length, workflow_runs: runs });
+  const RUN = { id: 9, path: '.github/workflows/deploy-dev.yml', status: 'completed' };
+  const TRACE_ARTIFACT = { id: 5, name: 'workflow-trace-deploy-dev', expired: false };
+  const answers = (artifacts: unknown[] = [TRACE_ARTIFACT, { id: 6, name: 'coverage-report', expired: true }]) => ({
+    [RUNS]: runsPage(RUN, { id: 10, path: 'dynamic/dependabot/dependabot-updates', status: 'completed' }),
+    [JOBS]: { total_count: 1, jobs: [JOB] },
+    [ARTIFACTS]: { total_count: artifacts.length, artifacts },
+  });
+
+  it('reads the runs on the commit, every attempt’s jobs, and the traces in each trace artifact', async () => {
+    const { asked, api: stand } = api(answers());
+    const workflows = new Map([['.github/workflows/deploy-dev.yml', 'x']]);
+    const evidence = await fetchEvidence(stand, REPO, SHA, workflows);
+    expect(asked).toEqual([RUNS, JOBS, ARTIFACTS, '/repos/o/r/actions/artifacts/5/zip']);
+    expect(evidence.workflows).toBe(workflows);
+    expect(evidence.runs.map((r) => ({ ...r, traces: [...r.traces.keys()] }))).toEqual([
+      {
+        id: 9,
+        path: '.github/workflows/deploy-dev.yml',
+        status: 'completed',
+        jobs: [{ name: 'deploy-dev', status: 'completed', conclusion: 'failure', steps: [STEP] }],
+        traces: ['deploy-dev/__run', 'deploy-dev/__run_2'],
+      },
+    ]);
+    expect(evidence.runs[0]?.traces.get('deploy-dev/__run_2')?.split('\n')[1]).toBe('2');
+  });
+
+  it.each<[string, Record<string, unknown>, string]>([
+    [
+      'a second page of runs',
+      { ...answers(), [RUNS]: { total_count: 101, workflow_runs: [RUN] } },
+      `${RUNS} lists 101 workflow_runs; one page of 100 was read`,
+    ],
+    ['a second page of jobs', { ...answers(), [JOBS]: { total_count: 2, jobs: [JOB] } }, `${JOBS} lists 2 jobs; one page of 100 was read`],
+    [
+      'a second page of artifacts',
+      { ...answers(), [ARTIFACTS]: { total_count: 3, artifacts: [] } },
+      `${ARTIFACTS} lists 3 artifacts; one page of 100 was read`,
+    ],
+    ['an answer with no list', { ...answers(), [RUNS]: { message: 'Not Found' } }, `${RUNS} answered no workflow_runs list`],
+    [
+      'a list entry that is not an object',
+      { ...answers(), [RUNS]: runsPage('x') },
+      `${RUNS} lists a workflow_runs entry that is not an object`,
+    ],
+    ['a run with no id', { ...answers(), [RUNS]: runsPage({ path: 'p', status: 'completed' }) }, `${RUNS} lists an entry with no id`],
+    [
+      'a job with no steps list',
+      { ...answers(), [JOBS]: { total_count: 1, jobs: [{ ...JOB, steps: null }] } },
+      `${JOBS} lists a job with no steps list`,
+    ],
+    [
+      'a step that is not an object',
+      { ...answers(), [JOBS]: { total_count: 1, jobs: [{ ...JOB, steps: [1] }] } },
+      `${JOBS} lists a step that is not an object`,
+    ],
+    [
+      'a step with no conclusion field',
+      { ...answers(), [JOBS]: { total_count: 1, jobs: [{ ...JOB, steps: [{ ...STEP, conclusion: undefined }] }] } },
+      `${JOBS} lists an entry with no conclusion`,
+    ],
+    [
+      'an expired trace artifact',
+      answers([{ ...TRACE_ARTIFACT, expired: true }]),
+      'run 9: artifact workflow-trace-deploy-dev has expired; re-run the run to measure this commit',
+    ],
+    [
+      'a trace artifact with no expiry',
+      answers([{ id: 5, name: 'workflow-trace-deploy-dev' }]),
+      'run 9: artifact workflow-trace-deploy-dev has expired; re-run the run to measure this commit',
+    ],
+    [
+      'an entry of another job',
+      answers([{ ...TRACE_ARTIFACT, name: 'workflow-trace-other' }]),
+      'run 9: artifact workflow-trace-other holds deploy-dev/__run, not other/<step>',
+    ],
+    ['two artifacts holding one trace', answers([TRACE_ARTIFACT, TRACE_ARTIFACT]), 'run 9: two artifacts hold deploy-dev/__run'],
+  ])('fails closed on %s', async (_kind, page, message) => {
+    await expect(fetchEvidence(api(page).api, REPO, SHA, new Map())).rejects.toThrow(`workflow-coverage: ${message}`);
+  });
+
+  it('fails closed on an entry nested deeper than <job>/<step>', async () => {
+    const zipOf = (name: string) => new Uint8Array(readFileSync(new URL(`fixtures/workflow-coverage/${name}`, import.meta.url)));
+    const stand = api(answers([{ ...TRACE_ARTIFACT, name: 'workflow-trace-j' }]), {
+      '/repos/o/r/actions/artifacts/5/zip': zipOf('stored.zip'),
+    });
+    // stored.zip holds j/a and j/b, one level under the job, so it reads; nested.zip holds j/k/a, a level deeper.
+    expect([...((await fetchEvidence(stand.api, REPO, SHA, new Map())).runs[0] as RunEvidence).traces.keys()]).toEqual(['j/a', 'j/b']);
+    const deep = api(answers([{ ...TRACE_ARTIFACT, name: 'workflow-trace-j' }]), {
+      '/repos/o/r/actions/artifacts/5/zip': zipOf('nested.zip'),
+    });
+    await expect(fetchEvidence(deep.api, REPO, SHA, new Map())).rejects.toThrow(
+      'workflow-coverage: run 9: artifact workflow-trace-j holds j/k/a, not j/<step>',
+    );
+  });
+});
+
+describe('githubApi', () => {
+  const HEADERS = { headers: { Authorization: 'Bearer t0k', Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' } };
+
+  it('sends the token and API version, and reads JSON and bytes', async () => {
+    const calls: unknown[] = [];
+    const stand = ((url: string, init: unknown) => {
+      calls.push([url, init]);
+      return Promise.resolve(url.endsWith('/zip') ? new Response(new Uint8Array([1, 2])) : Response.json({ a: 1 }));
+    }) as unknown as typeof fetch;
+    const client = githubApi('t0k', stand);
+    expect(await client.json('/x')).toEqual({ a: 1 });
+    expect([...(await client.bytes('/y/zip'))]).toEqual([1, 2]);
+    expect(calls).toEqual([
+      ['https://api.github.com/x', HEADERS],
+      ['https://api.github.com/y/zip', HEADERS],
+    ]);
+  });
+
+  it('fails on an answer that is not 2xx, naming it', async () => {
+    const stand = (() => Promise.resolve(new Response('no', { status: 404 }))) as unknown as typeof fetch;
+    await expect(githubApi('t', stand).json('/x')).rejects.toThrow('workflow-coverage: GET /x answered 404');
+    await expect(githubApi('t', stand).bytes('/y')).rejects.toThrow('workflow-coverage: GET /y answered 404');
+  });
+});
+
+/** A repository root holding the given workflow files, in a new temporary folder. */
+function rootWith(files: Record<string, string>): string {
+  const root = mkdtempSync(join(tmpdir(), 'workflow-coverage-'));
+  mkdirSync(join(root, '.github/workflows'), { recursive: true });
+  for (const [name, text] of Object.entries(files)) writeFileSync(join(root, '.github/workflows', name), text);
+  return root;
+}
+
+describe('workflowFiles', () => {
+  it('reads every .yml and .yaml file under .github/workflows from the filesystem, in name order', () => {
+    expect(workflowFiles(rootWith({ 'b.yml': 'B', 'a.yaml': 'A', 'README.md': 'not a workflow' }))).toEqual(
+      new Map([
+        ['.github/workflows/a.yaml', 'A'],
+        ['.github/workflows/b.yml', 'B'],
+      ]),
+    );
+  });
+});
+
+describe('main', () => {
+  const SHA = 'b'.repeat(40);
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it.each([[[]], [['a']], [['a', 'b', 'c']]])('refuses %j: it takes a commit sha and an output path', async (args) => {
+    await expect(main(args)).rejects.toThrow('usage: node scripts/workflow-coverage.ts <commit-sha> <out.lcov>');
+  });
+
+  it('refuses a short sha', async () => {
+    await expect(main(['abc1234', 'out.lcov'])).rejects.toThrow('workflow-coverage: abc1234 is not a full commit sha');
+  });
+
+  it.each([
+    ['GITHUB_REPOSITORY', 'GITHUB_REPOSITORY is empty: name the repository as owner/name'],
+    ['GITHUB_TOKEN', 'GITHUB_TOKEN is empty: the runs and artifacts are read with it'],
+  ])('refuses an empty %s', async (name, message) => {
+    vi.stubEnv('GITHUB_REPOSITORY', 'o/r');
+    vi.stubEnv('GITHUB_TOKEN', 't');
+    vi.stubEnv(name, '');
+    await expect(main([SHA, 'out.lcov'])).rejects.toThrow(`workflow-coverage: ${message}`);
+  });
+
+  it('writes the lcov of every workflow file and prints what ran', async () => {
+    const root = rootWith({ 'ci.yml': 'on: [push]\njobs:\n  a:\n    steps:\n      - run: echo a\n' });
+    vi.spyOn(process, 'cwd').mockReturnValue(root);
+    vi.stubEnv('GITHUB_REPOSITORY', 'o/r');
+    vi.stubEnv('GITHUB_TOKEN', 't');
+    const asked: string[] = [];
+    const stand = ((url: string) => {
+      asked.push(url);
+      return Promise.resolve(Response.json({ total_count: 0, workflow_runs: [] }));
+    }) as unknown as typeof fetch;
+    const printed: string[] = [];
+    vi.spyOn(process.stdout, 'write').mockImplementation((text) => printed.push(String(text)) > 0);
+    const out = join(root, 'workflow.lcov');
+    expect(await main([SHA, out], stand)).toBe(0);
+    expect(asked).toEqual([`https://api.github.com/repos/o/r/actions/runs?head_sha=${SHA}&per_page=100`]);
+    expect(readFileSync(out, 'utf8')).toBe(
+      'TN:\nSF:.github/workflows/ci.yml\nDA:1,0\nDA:2,0\nDA:3,0\nDA:4,0\nDA:5,0\nLF:5\nLH:0\nend_of_record\n',
+    );
+    expect(printed).toEqual([
+      'workflow-coverage: .github/workflows/ci.yml: 0 of 5 lines ran\n',
+      `workflow-coverage: 0 of 5 workflow lines ran on ${SHA}, over 0 run(s); lcov in ${out}\n`,
     ]);
   });
 });

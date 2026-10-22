@@ -31,8 +31,12 @@
  * two hold the same workflow files.
  */
 import { createHash } from 'node:crypto';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { runIfEntry } from './cli.ts';
 import { parseTrace } from './workflow-trace.ts';
-import { executableUnits, layout, lcov, ranLines, type Bash, type LayoutStep, type RunStep } from './workflow-lines.ts';
+import { executableUnits, layout, lcov, loadBash, ranLines, type Bash, type LayoutStep, type RunStep } from './workflow-lines.ts';
+import { readZip } from './zip.ts';
 
 export interface ApiStep {
   number: number;
@@ -163,14 +167,13 @@ export function workflowCoverage(bash: Bash, evidence: Evidence): Map<string, Ma
     for (const job of jobs) {
       for (const line of job.lines) ran.set(line, jobRan.has(job.id));
       job.steps.forEach((step, k) => {
-        const took = stepRan.has(`${job.id}#${k}`);
-        for (const line of step.lines) ran.set(line, took);
+        for (const line of step.lines) ran.set(line, stepRan.has(`${job.id}#${k}`));
         if (!step.run) return;
         const shell = ranLines(executableUnits(bash, step.run.script), traced.get(`${job.id}/${step.run.action}`) ?? new Set());
         for (const [scriptLine, hit] of shell) {
           const line = step.run.firstLine + scriptLine - 1;
-          // A plain `run: x` line is the step's and the script's: both must have run.
-          ran.set(line, took && hit);
+          // A trace is read only from a run in which its step ran, so a traced line's step ran too.
+          ran.set(line, hit);
         }
       });
     }
@@ -186,3 +189,123 @@ export function workflowLcov(coverage: Map<string, Map<number, boolean>>): strin
     .map(([file, ran]) => lcov(file, ran))
     .join('');
 }
+
+/** The GitHub REST calls the reader makes: JSON, and the bytes of an artifact's zip. */
+export interface Api {
+  json(path: string): Promise<unknown>;
+  bytes(path: string): Promise<Uint8Array>;
+}
+
+const PAGE = 100;
+const TRACE_ARTIFACT = 'workflow-trace-';
+
+const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** One page of a list the API returns; more than one page fails closed rather than reading part of it. */
+function onePage(value: unknown, key: string, path: string): Record<string, unknown>[] {
+  if (!isObject(value) || typeof value.total_count !== 'number' || !Array.isArray(value[key])) fail(`${path} answered no ${key} list`);
+  const items = value[key] as unknown[];
+  if (value.total_count > items.length) fail(`${path} lists ${value.total_count} ${key}; one page of ${PAGE} was read`);
+  return items.map((item) => (isObject(item) ? item : fail(`${path} lists a ${key} entry that is not an object`)));
+}
+
+const field = <T>(item: Record<string, unknown>, key: string, is: (v: unknown) => v is T, path: string): T =>
+  is(item[key]) ? item[key] : fail(`${path} lists an entry with no ${key}`);
+const isNumber = (v: unknown): v is number => typeof v === 'number';
+const isString = (v: unknown): v is string => typeof v === 'string';
+const isConclusion = (v: unknown): v is string | null => v === null || typeof v === 'string';
+
+/** Every run GitHub made on `sha`, with every attempt's jobs and steps and the traces its artifacts hold. */
+export async function fetchEvidence(api: Api, repo: string, sha: string, workflows: Map<string, string>): Promise<Evidence> {
+  const runsPath = `/repos/${repo}/actions/runs?head_sha=${sha}&per_page=${PAGE}`;
+  const runs: RunEvidence[] = [];
+  for (const item of onePage(await api.json(runsPath), 'workflow_runs', runsPath)) {
+    const id = field(item, 'id', isNumber, runsPath);
+    const path = field(item, 'path', isString, runsPath);
+    const status = field(item, 'status', isString, runsPath);
+    if (path.startsWith('dynamic/')) continue;
+    const jobsPath = `/repos/${repo}/actions/runs/${id}/jobs?filter=all&per_page=${PAGE}`;
+    const jobs = onePage(await api.json(jobsPath), 'jobs', jobsPath).map((job) => ({
+      name: field(job, 'name', isString, jobsPath),
+      status: field(job, 'status', isString, jobsPath),
+      conclusion: field(job, 'conclusion', isConclusion, jobsPath),
+      steps: (Array.isArray(job.steps) ? job.steps : fail(`${jobsPath} lists a job with no steps list`)).map((step: unknown) => {
+        const s = isObject(step) ? step : fail(`${jobsPath} lists a step that is not an object`);
+        return {
+          number: field(s, 'number', isNumber, jobsPath),
+          name: field(s, 'name', isString, jobsPath),
+          status: field(s, 'status', isString, jobsPath),
+          conclusion: field(s, 'conclusion', isConclusion, jobsPath),
+        };
+      }),
+    }));
+    const artifactsPath = `/repos/${repo}/actions/runs/${id}/artifacts?per_page=${PAGE}`;
+    const traces = new Map<string, string>();
+    for (const artifact of onePage(await api.json(artifactsPath), 'artifacts', artifactsPath)) {
+      const name = field(artifact, 'name', isString, artifactsPath);
+      if (!name.startsWith(TRACE_ARTIFACT)) continue;
+      if (artifact.expired !== false) fail(`run ${id}: artifact ${name} has expired; re-run the run to measure this commit`);
+      const job = name.slice(TRACE_ARTIFACT.length);
+      const zip = readZip(await api.bytes(`/repos/${repo}/actions/artifacts/${field(artifact, 'id', isNumber, artifactsPath)}/zip`));
+      for (const [entry, text] of zip) {
+        const parts = entry.split('/');
+        if (parts.length !== 2 || parts[0] !== job) fail(`run ${id}: artifact ${name} holds ${entry}, not ${job}/<step>`);
+        if (traces.has(entry)) fail(`run ${id}: two artifacts hold ${entry}`);
+        traces.set(entry, text);
+      }
+    }
+    runs.push({ id, path, status, jobs, traces });
+  }
+  return { workflows, runs };
+}
+
+/** The REST API with a token, over `fetchImpl`; anything but a 2xx answer fails, naming it. */
+export function githubApi(token: string, fetchImpl: typeof fetch = fetch): Api {
+  const get = async (path: string) => {
+    const response = await fetchImpl(`https://api.github.com${path}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+    });
+    if (!response.ok) fail(`GET ${path} answered ${response.status}`);
+    return response;
+  };
+  return {
+    json: async (path): Promise<unknown> => (await get(path)).json(),
+    bytes: async (path) => new Uint8Array(await (await get(path)).arrayBuffer()),
+  };
+}
+
+const WORKFLOWS = '.github/workflows';
+
+/** Every workflow file under `.github/workflows`, read from the filesystem, by its repo path. */
+export function workflowFiles(root: string): Map<string, string> {
+  const files = readdirSync(join(root, WORKFLOWS))
+    .filter((name) => /\.ya?ml$/.test(name))
+    .sort();
+  return new Map(files.map((name) => [`${WORKFLOWS}/${name}`, readFileSync(join(root, WORKFLOWS, name), 'utf8')]));
+}
+
+export async function main(args: string[], fetchImpl: typeof fetch = fetch): Promise<number> {
+  const [sha, out, ...rest] = args;
+  if (sha === undefined || out === undefined || rest.length > 0)
+    throw new Error('usage: node scripts/workflow-coverage.ts <commit-sha> <out.lcov>');
+  if (!/^[0-9a-f]{40}$/.test(sha)) fail(`${sha} is not a full commit sha`);
+  const repo = process.env.GITHUB_REPOSITORY || fail('GITHUB_REPOSITORY is empty: name the repository as owner/name');
+  const token = process.env.GITHUB_TOKEN || fail('GITHUB_TOKEN is empty: the runs and artifacts are read with it');
+  const evidence = await fetchEvidence(githubApi(token, fetchImpl), repo, sha, workflowFiles(process.cwd()));
+  const coverage = workflowCoverage(await loadBash(), evidence);
+  writeFileSync(out, workflowLcov(coverage));
+  let ran = 0;
+  let lines = 0;
+  for (const [file, map] of coverage) {
+    const hit = [...map.values()].filter(Boolean).length;
+    ran += hit;
+    lines += map.size;
+    process.stdout.write(`workflow-coverage: ${file}: ${hit} of ${map.size} lines ran\n`);
+  }
+  process.stdout.write(
+    `workflow-coverage: ${ran} of ${lines} workflow lines ran on ${sha}, over ${evidence.runs.length} run(s); lcov in ${out}\n`,
+  );
+  return 0;
+}
+
+await runIfEntry(import.meta.url, main);
