@@ -27,7 +27,7 @@ defaults:
 
 jobs:
   record:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       # Before anything is checked out: the ref reaches the shell only
       # through env, never spliced into the script.

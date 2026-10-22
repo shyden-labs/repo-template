@@ -18,7 +18,7 @@ defaults:
 
 jobs:
   logs:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # GitHub's default is 360 minutes: a hung step must stop well before.
     # Set it from the suite's measured runs, at most 30.
     timeout-minutes: 10
