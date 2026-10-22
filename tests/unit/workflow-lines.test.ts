@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { executableUnits, lcov, loadBash, ranLines, runSteps, type Bash } from '../../scripts/workflow-lines.ts';
+import { executableUnits, layout, lcov, loadBash, ranLines, runSteps, type Bash } from '../../scripts/workflow-lines.ts';
 
 /**
  * Workflow lines are code (issue #35; Shyden 2026-10-22: a changed workflow
@@ -38,11 +38,11 @@ describe('runSteps', () => {
 
   it("finds every run step, its job, the name GitHub gives it, and its script's first line in the file", () => {
     expect(runSteps(WORKFLOW)).toEqual([
-      { job: 'build', action: '__run', firstLine: 8, script: ['npm ci'] },
-      { job: 'build', action: 'unit', firstLine: 12, script: ['npm test', '', 'echo done'] },
-      { job: 'build', action: '__run_2', firstLine: 16, script: ['x=1'] },
-      { job: 'lint', action: 'fmt', firstLine: 20, script: ['npx prettier --check .'] },
-      { job: 'lint', action: '__run', firstLine: 21, script: ['echo "two"'] },
+      { job: 'build', action: '__run', firstLine: 8, script: ['npm ci'], text: 'npm ci' },
+      { job: 'build', action: 'unit', firstLine: 12, script: ['npm test', '', 'echo done'], text: 'npm test\n\necho done\n' },
+      { job: 'build', action: '__run_2', firstLine: 16, script: ['x=1'], text: 'x=1' },
+      { job: 'lint', action: 'fmt', firstLine: 20, script: ['npx prettier --check .'], text: 'npx prettier --check .' },
+      { job: 'lint', action: '__run', firstLine: 21, script: ['echo "two"'], text: 'echo "two"' },
     ]);
   });
 
@@ -58,25 +58,25 @@ describe('runSteps', () => {
 
   it('reads past blank lines and comments between jobs and steps', () => {
     expect(runSteps(wf('jobs:', '', '  # the one job', '  a:', '    steps:', '', '      # first', '      - run: echo a'))).toEqual([
-      { job: 'a', action: '__run', firstLine: 8, script: ['echo a'] },
+      { job: 'a', action: '__run', firstLine: 8, script: ['echo a'], text: 'echo a' },
     ]);
   });
 
   it('stops at the next top-level key after jobs', () => {
     expect(runSteps(wf('jobs:', '  a:', '    steps:', '      - run: echo a', 'env:', '  X: 1'))).toEqual([
-      { job: 'a', action: '__run', firstLine: 4, script: ['echo a'] },
+      { job: 'a', action: '__run', firstLine: 4, script: ['echo a'], text: 'echo a' },
     ]);
   });
 
   it('reads a steps list written at the same indent as its key', () => {
     expect(runSteps(wf('jobs:', '  a:', '    steps:', '    - run: echo a'))).toEqual([
-      { job: 'a', action: '__run', firstLine: 4, script: ['echo a'] },
+      { job: 'a', action: '__run', firstLine: 4, script: ['echo a'], text: 'echo a' },
     ]);
   });
 
   it('ends a run block at the next key of its step', () => {
     expect(runSteps(wf('jobs:', '  a:', '    steps:', '      - run: |', '          echo a', '        env:', '          X: 1'))).toEqual([
-      { job: 'a', action: '__run', firstLine: 5, script: ['echo a'] },
+      { job: 'a', action: '__run', firstLine: 5, script: ['echo a'], text: 'echo a\n' },
     ]);
   });
 
@@ -110,7 +110,7 @@ describe('runSteps', () => {
       'a run in a list item outside steps',
       [
         '  a:',
-        '    strategy:',
+        '    outputs:',
         '      matrix:',
         '        include:',
         '          - os: x',
@@ -127,6 +127,123 @@ describe('runSteps', () => {
     ],
   ])('refuses %s', (_kind, lines, message) => {
     expect(() => runSteps(wf('jobs:', ...lines))).toThrow(`workflow-lines: ${message}`);
+  });
+});
+
+describe('layout', () => {
+  // Shyden 2026-10-22 (#35): every line but blank lines and comments is code; the
+  // top settings belong to the workflow, a job's own keys to the job, a step's lines
+  // to the step, and a run block's script lines are judged by the trace instead.
+  const WORKFLOW = wf(
+    '# about this file', // 1
+    'name: ci', // 2
+    'on: [push]', // 3
+    '', // 4
+    'jobs:', // 5
+    '  build:', // 6
+    '    runs-on: ubuntu-latest', // 7
+    '    # a comment in the job', // 8
+    '    steps:', // 9
+    '      - uses: actions/checkout@abc # v1', // 10
+    '        with:', // 11
+    '          fetch-depth: 0', // 12
+    '      - run: npm ci # install', // 13
+    '      # a comment between steps', // 14
+    '      - name: Test', // 15
+    '        run: |', // 16
+    '          npm test', // 17
+    '', // 18
+    '          echo done', // 19
+    '        env:', // 20
+    '          X: 1', // 21
+    '    timeout-minutes: 5', // 22
+    '  lint:', // 23
+    '    steps:', // 24
+    '      - name: Format # the check', // 25
+    '        run: |-', // 26
+    '          x=1', // 27
+  );
+
+  it('gives every code line one owner: the workflow, a job or a step, and leaves out a run block’s script lines', () => {
+    const { top, jobs } = layout(WORKFLOW);
+    expect(top).toEqual([2, 3, 5]);
+    expect(jobs.map(({ id, lines, steps }) => ({ id, lines, steps: steps.map((step) => step.lines) }))).toEqual([
+      { id: 'build', lines: [6, 7, 9, 22], steps: [[10, 11, 12], [13], [15, 16, 20, 21]] },
+      { id: 'lint', lines: [23, 24], steps: [[25, 26]] },
+    ]);
+  });
+
+  it('names each step as the jobs API does: its name, else Run and its uses or its one-line run', () => {
+    expect(layout(WORKFLOW).jobs.flatMap((job) => job.steps.map((step) => step.apiName))).toEqual([
+      'Run actions/checkout@abc',
+      'Run npm ci',
+      'Test',
+      'Format',
+    ]);
+  });
+
+  it('keeps each run step, and its text as the runner writes it: a plain value ends at its comment, | keeps one newline, |- none', () => {
+    expect(layout(WORKFLOW).jobs.flatMap((job) => job.steps.map((step) => step.run))).toEqual([
+      undefined,
+      { job: 'build', action: '__run', firstLine: 13, script: ['npm ci'], text: 'npm ci' },
+      { job: 'build', action: '__run_2', firstLine: 17, script: ['npm test', '', 'echo done'], text: 'npm test\n\necho done\n' },
+      { job: 'lint', action: '__run', firstLine: 27, script: ['x=1'], text: 'x=1' },
+    ]);
+  });
+
+  it('reads a step id up to its comment', () => {
+    expect(
+      layout(wf('jobs:', '  a:', '    steps:', '      - id: unit # the tests', '        run: echo a')).jobs[0]?.steps[0]?.run?.action,
+    ).toBe('unit');
+  });
+
+  it('names a named uses step by its name', () => {
+    expect(
+      layout(wf('jobs:', '  a:', '    steps:', '      - name: Check out # the code', '        uses: actions/checkout@abc')).jobs[0]
+        ?.steps[0]?.apiName,
+    ).toBe('Check out');
+  });
+
+  it('names an unnamed run block by its first line', () => {
+    expect(
+      layout(wf('jobs:', '  a:', '    steps:', '      - run: |', '          echo a', '          echo b')).jobs[0]?.steps[0]?.apiName,
+    ).toBe('Run echo a');
+  });
+
+  it('gives every line to the workflow when there are no jobs, and keys after jobs to the workflow', () => {
+    expect(layout(wf('name: x', 'on: [push]')).top).toEqual([1, 2]);
+    expect(layout(wf('jobs:', '  a:', '    steps:', '      - run: echo a', 'env:', '  X: 1')).top).toEqual([1, 5, 6]);
+  });
+
+  it('gives no job line to the workflow when nothing follows the jobs', () => {
+    expect(layout(wf('on: [push]', 'jobs:', '  a:', '    steps:', '      - run: echo a')).top).toEqual([1, 2]);
+  });
+
+  it.each(['name', 'strategy', 'uses', 'services', 'container'])(
+    'refuses a job with %s:, which changes the job names or steps the jobs API reports',
+    (key) => {
+      expect(() => layout(wf('jobs:', '  a:', '    runs-on: x', `    ${key}: y`, '    steps:', '      - run: echo a'))).toThrow(
+        `workflow-lines: line 4 gives job a a ${key}:; the reader cannot yet line its jobs and steps up with the API (Shyden 2026-10-22: fail, naming it)`,
+      );
+    },
+  );
+
+  it('reads those words as keys only at the job’s own indent', () => {
+    expect(layout(wf('jobs:', '  a:', '    env:', '      name: y', '    steps:', '      - run: echo a')).jobs[0]?.lines).toEqual([
+      2, 3, 4, 5,
+    ]);
+  });
+
+  it('refuses a step with neither run nor uses', () => {
+    expect(() =>
+      layout(wf('jobs:', '  a:', '    steps:', '      - run: echo a', '      - name: nothing', '        env:', '          X: 1')),
+    ).toThrow('workflow-lines: line 5 is a step with no run or uses');
+  });
+
+  it('refuses a line inside steps that belongs to no step', () => {
+    expect(() => layout(wf('jobs:', '  a:', '    steps:', '        - run: echo a', '      stray: 1'))).toThrow(
+      'workflow-lines: line 5 sits in steps outside any step',
+    );
   });
 });
 
