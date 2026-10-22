@@ -11,6 +11,14 @@
  * typecheck run there, oldest commit first. The first failure stops the push,
  * naming the commit and the check. No test suite runs (global rule
  * 2026-10-12); CI runs every suite on the pull request.
+ *
+ * Trust: each commit is checked with its own npm scripts and configs, as CI
+ * would check it, so pushing runs code from every pushed commit, earlier ones
+ * included, on this machine. A malicious script in a middle commit of someone
+ * else's branch, removed again by a later one, would run on push. Shyden
+ * chose to keep this and document it (2026-10-23, after a security review):
+ * these repositories take no unreviewed outside commits. Review another
+ * person's commits before pushing them.
  */
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, symlinkSync } from 'node:fs';
