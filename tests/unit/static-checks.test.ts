@@ -51,11 +51,12 @@ describe('ci.yml', () => {
 });
 
 describe('.githooks/pre-push', () => {
-  it('runs the three static checks, failing on the first, and no test suite', () => {
+  // Issue #65: the checks run on each pushed commit, in scripts/pre-push.ts (tested in pre-push.test.ts), never on the working tree.
+  it('hands the push, stdin included, to the script that checks each pushed commit, and runs no test suite', () => {
     const commands = withoutCommentLines(readFileSync('.githooks/pre-push', 'utf8'))
       .split('\n')
       .filter((line) => line.trim() !== '');
-    expect(commands).toEqual(['set -euo pipefail', 'npm run --silent format:check', 'npm run --silent lint', 'npm run --silent typecheck']);
+    expect(commands).toEqual(['set -euo pipefail', 'exec node scripts/pre-push.ts "$@"']);
   });
 
   it('is executable, so git runs it', () => {
