@@ -22,8 +22,9 @@ const gh = vi.mocked(execFileSync);
 
 /**
  * Progress from the board, never from feel: every session close-out states
- * the project's % complete and an ETA twice, by tickets and by story points
- * (the `Estimate` field). These tests pin how both are counted.
+ * the project's progress and an ETA twice: by tickets, as a % complete, and by
+ * story points (the `Estimate` field), as the points remaining. These tests pin
+ * how both are counted.
  */
 
 const TODAY = '2026-10-04';
@@ -129,6 +130,7 @@ describe('progress by effort', () => {
       available: true,
       closedPoints: 5,
       openPoints: 8,
+      open: 1,
       assumedClosed: 0,
     });
   });
@@ -170,11 +172,18 @@ describe('formatLines', () => {
     );
   });
 
-  it('states effort complete, the measured pace and the ETA at that pace', () => {
+  // Shyden, 2026-10-12: effort is the points left on open tickets, never a percentage.
+  it('states the points remaining, the measured pace and the ETA at that pace', () => {
     expect(formatLines(progress(sample(), TODAY), TODAY)[1]).toBe(
-      'By effort: 25% complete (7 of 28 points closed). ' +
+      'By effort: 21 points remaining across 2 open tickets (7 points closed). ' +
         'Measured pace 1.00 points a day over the last 7 days (0, 0, 0, 0, 0, 5, 2). ' +
         'ETA at that pace: 2026-10-25, before outside waits.',
+    );
+  });
+
+  it('names one point and one ticket in the singular', () => {
+    expect(formatLines(progress([closedOn(1, '2026-10-03', 1), item({ number: 2, estimate: 1 })], TODAY), TODAY)[1]).toMatch(
+      /^By effort: 1 point remaining across 1 open ticket \(1 point closed\)\. /,
     );
   });
 

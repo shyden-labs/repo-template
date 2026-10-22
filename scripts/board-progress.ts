@@ -55,6 +55,8 @@ export type EffortProgress =
       available: true;
       closedPoints: number;
       openPoints: number;
+      /** Open in-scope stories, every one scored. */
+      open: number;
       /** Closed stories with no estimate, counted at the scored closed mean. */
       assumedClosed: number;
       scoredMean: number;
@@ -120,6 +122,7 @@ export function progress(items: BoardItem[], today: string): Progress {
       available: true,
       closedPoints: closed.reduce((sum, item) => sum + points(item), 0),
       openPoints: open.reduce((sum, item) => sum + points(item), 0),
+      open: open.length,
       assumedClosed: closed.length - scoredClosed.length,
       scoredMean,
       pace: perDay(closed, days, points),
@@ -163,14 +166,13 @@ export function formatLines(p: Progress, today: string): [string, string] {
   if (!e.available) {
     return [tickets, `By effort: unavailable, ${String(e.scored)} of ${String(e.open)} open tickets scored`];
   }
-  const total = e.closedPoints + e.openPoints;
   const assumed =
     e.assumedClosed === 0
       ? ''
       : `; ${plural(e.assumedClosed, 'closed story', 'closed stories')} unscored, counted at the scored mean of ${e.scoredMean.toFixed(1)} points (assumed)`;
   const effort =
-    `By effort: ${String(Math.round((100 * e.closedPoints) / total))}% complete ` +
-    `(${String(Math.round(e.closedPoints))} of ${String(Math.round(total))} points closed${assumed}). ` +
+    `By effort: ${plural(Math.round(e.openPoints), 'point')} remaining across ${plural(e.open, 'open ticket')} ` +
+    `(${plural(Math.round(e.closedPoints), 'point')} closed${assumed}). ` +
     `Measured pace ${meanOf(e.pace).toFixed(2)} points a day over the last ${plural(e.pace.length, 'day')} ` +
     `(${e.pace.map((n) => String(Math.round(n))).join(', ')}). ` +
     eta(e.openPoints, e.pace, today);
