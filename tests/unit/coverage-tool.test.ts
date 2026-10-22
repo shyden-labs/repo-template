@@ -58,7 +58,7 @@ describe('CI', () => {
     expect(yaml('.github/workflows/ci.yml')).toContain(
       [
         '  coverage:',
-        '    runs-on: ubuntu-latest',
+        '    runs-on: ubuntu-26.04',
         '    steps:',
         '      - uses: actions/checkout@<sha>',
         '      - uses: actions/setup-node@<sha>',

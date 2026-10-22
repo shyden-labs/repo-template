@@ -3,6 +3,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { withoutYamlComments, withoutYamlQuotes } from './source-text.ts';
 import { leaks, parseGroups } from './dependabot-groups.ts';
+import { layout } from '../../scripts/workflow-lines.ts';
 
 /**
  * The CI supply chain is pinned, and something keeps it current.
@@ -235,5 +236,213 @@ describe('Dependabot keeps the pins from rotting', () => {
       'an ecosystem defaults to the default branch, bypassing the develop gate',
     ).toBe(ecosystems);
     expect(config).not.toMatch(/target-branch:\s*["']?main["']?/);
+  });
+});
+
+/**
+ * One Node and one runner, pinned exactly (issue #63; global rule 2026-10-08
+ * sets Node 26.3+, and every project runs the same versions as the rest).
+ *
+ * `ubuntu-latest` and a bare major in `.nvmrc` elsewhere are floating pins:
+ * the image or the Node under CI changes on GitHub's schedule, not ours. Each
+ * reader is an allow-list of the one value written, so every other spelling
+ * (a list, an expression, a block of labels, another case) fails, naming it.
+ */
+const RUNNER = 'ubuntu-26.04';
+
+interface Runner {
+  where: string;
+  value: string;
+}
+
+/**
+ * Every `runs-on:` in one workflow's comment-stripped text, named by the job
+ * key above it, with its value as written less its quotes. A block form
+ * (`runs-on:` then `labels:` below) reads as an empty value.
+ */
+const runnersIn = (file: string, source: string): Runner[] => {
+  const found: Runner[] = [];
+  let job = '';
+  for (const line of withoutYamlComments(source).split('\n')) {
+    const key = /^ {2}([\w-]+):\s*$/.exec(line);
+    if (key) job = key[1] as string;
+    const on = /^\s+runs-on:(.*)$/.exec(line);
+    if (on) found.push({ where: `${file} ${job}`, value: withoutYamlQuotes(on[1] as string).trim() });
+  }
+  return found;
+};
+
+const floating = (runners: Runner[]) =>
+  runners.filter(({ value }) => value !== RUNNER).map(({ where, value }) => `${where} runs-on: ${value}`);
+
+const workflowFiles = () => readdirSync(WORKFLOWS).filter((f) => /\.ya?ml$/.test(f));
+const workflow = (file: string) => readFileSync(join(WORKFLOWS, file), 'utf8');
+
+/**
+ * Every `actions/setup-node` step in one workflow, named with what is wrong:
+ * it must read `node-version-file: .nvmrc` and name no `node-version:` of its
+ * own, or that workflow runs a Node of its own choosing. A step runs from its
+ * `- ` line to the next line indented no deeper, so a later step's key is
+ * never credited to it.
+ */
+const setupNodeSteps = (file: string, source: string): { where: string; wrong: string[] }[] => {
+  const lines = withoutYamlQuotes(withoutYamlComments(source)).split('\n');
+  const indent = (line: string) => line.length - line.trimStart().length;
+  return lines.flatMap((line, i) => {
+    if (!/^\s*(-\s+)?uses:\s*actions\/setup-node@/i.test(line)) return [];
+    let start = i;
+    while (start > 0 && !(lines[start] as string).trimStart().startsWith('- ')) start--;
+    const dash = indent(lines[start] as string);
+    let end = start + 1;
+    while (end < lines.length && (lines[end] as string).trim() !== '' && indent(lines[end] as string) > dash) end++;
+    const step = lines.slice(start, end);
+    const wrong = [
+      ...(step.some((l) => /^\s+node-version-file:\s*\.nvmrc\s*$/.test(l)) ? [] : ['does not read .nvmrc']),
+      ...(step.some((l) => /^\s+node-version:/.test(l)) ? ['names its own node-version'] : []),
+    ];
+    return [{ where: `${file} step at ${line.trim().slice(0, 40)}`, wrong }];
+  });
+};
+
+describe('the template runs one Node and one runner, pinned exactly', () => {
+  it(`every job runs on ${RUNNER}, judged over every runs-on read`, () => {
+    const runners = workflowFiles().flatMap((f) => runnersIn(f, workflow(f)));
+    expect({ read: runners.length, floating: floating(runners) }).toEqual({ read: 7, floating: [] });
+  });
+
+  it('reads one runs-on for every job the workflow parser finds, per file', () => {
+    const files = workflowFiles();
+    expect({
+      files: files.length,
+      mismatched: files.filter((f) => runnersIn(f, workflow(f)).length !== layout(workflow(f)).jobs.length),
+    }).toEqual({ files: 6, mismatched: [] });
+  });
+
+  const job = (runsOn: string) => ['jobs:', '  build:', `    runs-on:${runsOn}`, '    steps:', '      - run: true', ''].join('\n');
+
+  it.each([
+    [' ubuntu-latest', 'ubuntu-latest'],
+    [" 'ubuntu-latest'", 'ubuntu-latest'],
+    [' "ubuntu-24.04"', 'ubuntu-24.04'],
+    [' [ubuntu-26.04]', '[ubuntu-26.04]'],
+    [' ${{ matrix.os }}', '${{ matrix.os }}'],
+    [' Ubuntu-26.04', 'Ubuntu-26.04'],
+    [' ubuntu-latest # was 26.04', 'ubuntu-latest'],
+    ['\n      labels: ubuntu-26.04', ''],
+  ])('names the runner written as runs-on:%j', (runsOn, value) => {
+    expect(floating(runnersIn('ci.yml', job(runsOn)))).toEqual([`ci.yml build runs-on: ${value}`]);
+  });
+
+  it.each([[' ubuntu-26.04'], [" 'ubuntu-26.04'"], [' ubuntu-26.04 # pinned']])('accepts runs-on:%j', (runsOn) => {
+    const runners = runnersIn('ci.yml', job(runsOn));
+    expect({ read: runners.length, floating: floating(runners) }).toEqual({ read: 1, floating: [] });
+  });
+
+  it('reads no runs-on from a comment', () => {
+    expect(runnersIn('ci.yml', 'jobs:\n  build:\n    # runs-on: ubuntu-latest\n    runs-on: ubuntu-26.04\n')).toEqual([
+      { where: 'ci.yml build', value: RUNNER },
+    ]);
+  });
+
+  it('every setup-node step reads .nvmrc and names no Node of its own, judged over every step read', () => {
+    const steps = workflowFiles().flatMap((f) => setupNodeSteps(f, workflow(f)));
+    expect({ read: steps.length, wrong: steps.filter(({ wrong }) => wrong.length > 0) }).toEqual({ read: 6, wrong: [] });
+  });
+
+  it('reads every setup-node step a plain search of each file finds', () => {
+    const files = workflowFiles();
+    expect({
+      files: files.length,
+      mismatched: files.filter((f) => setupNodeSteps(f, workflow(f)).length !== workflow(f).split(/actions\/setup-node@/i).length - 1),
+    }).toEqual({ files: 6, mismatched: [] });
+  });
+
+  const steps = (...lines: string[]) => ['    steps:', ...lines, ''].join('\n');
+  const wrongIn = (text: string) => setupNodeSteps('ci.yml', text).map(({ wrong }) => wrong);
+
+  it.each([
+    [
+      'names its own Node',
+      steps(`      - uses: actions/setup-node@${SHA}`, '        with:', '          node-version: 24'),
+      [['does not read .nvmrc', 'names its own node-version']],
+    ],
+    [
+      'reads .nvmrc and names a Node too',
+      steps(
+        `      - uses: actions/setup-node@${SHA}`,
+        '        with:',
+        "          node-version-file: '.nvmrc'",
+        '          node-version: 24',
+      ),
+      [['names its own node-version']],
+    ],
+    ['has no with: at all', steps(`      - uses: actions/setup-node@${SHA}`, '      - run: npm ci'), [['does not read .nvmrc']]],
+    [
+      'reads another file',
+      steps(`      - uses: actions/setup-node@${SHA}`, '        with:', '          node-version-file: .node-version'),
+      [['does not read .nvmrc']],
+    ],
+    [
+      'leaves .nvmrc to the next step',
+      steps(
+        `      - uses: actions/setup-node@${SHA}`,
+        `      - uses: actions/cache@${SHA}`,
+        '        with:',
+        '          node-version-file: .nvmrc',
+      ),
+      [['does not read .nvmrc']],
+    ],
+    [
+      'is spelled in capitals',
+      steps(`      - uses: ACTIONS/SETUP-NODE@${SHA}`, '        with:', '          node-version: 24'),
+      [['does not read .nvmrc', 'names its own node-version']],
+    ],
+    [
+      'has .nvmrc only in a comment',
+      steps(
+        `      - uses: actions/setup-node@${SHA}`,
+        '        with:',
+        '          # node-version-file: .nvmrc',
+        '          node-version: 26',
+      ),
+      [['does not read .nvmrc', 'names its own node-version']],
+    ],
+  ])('names a setup-node step that %s', (_, text, wrong) => {
+    expect(wrongIn(text)).toEqual(wrong);
+  });
+
+  it('accepts a named setup-node step reading .nvmrc', () => {
+    expect(
+      wrongIn(
+        steps(
+          '      - name: Node',
+          `        uses: actions/setup-node@${SHA}`,
+          '        with:',
+          "          node-version-file: '.nvmrc'",
+          '      - run: npm ci',
+        ),
+      ),
+    ).toEqual([[]]);
+  });
+
+  it('.nvmrc holds 26, the major every project runs', () => {
+    expect(readFileSync('.nvmrc', 'utf8')).toBe('26\n');
+  });
+
+  interface Manifest {
+    engines?: unknown;
+    devDependencies?: Record<string, string>;
+  }
+  const manifest = (): Manifest => JSON.parse(readFileSync('package.json', 'utf8')) as Manifest;
+  const lockRoot = (): Manifest | undefined =>
+    (JSON.parse(readFileSync('package-lock.json', 'utf8')) as { packages?: Record<string, Manifest> }).packages?.[''];
+
+  // The lockfile keeps its own copy, and npm ci never checks the two agree.
+  it('engines.node allows exactly 24.16+ within 24, or 26.3 and later, in package.json and its lockfile', () => {
+    expect([manifest().engines, lockRoot()?.engines]).toEqual([{ node: '^24.16.0 || >=26.3.0' }, { node: '^24.16.0 || >=26.3.0' }]);
+  });
+
+  it('@types/node is pinned exactly within major 26', () => {
+    expect(manifest().devDependencies?.['@types/node']).toMatch(/^26\.\d+\.\d+$/);
   });
 });

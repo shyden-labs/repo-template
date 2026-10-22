@@ -27,7 +27,7 @@ describe('mutations.yml', () => {
     expect(yamlBlock(workflow(), 'jobs').split('\n').slice(0, 4)).toEqual([
       'jobs:',
       '  mutations:',
-      '    runs-on: ubuntu-latest',
+      '    runs-on: ubuntu-26.04',
       '    timeout-minutes: 30',
     ]);
   });
