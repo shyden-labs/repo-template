@@ -457,6 +457,11 @@ describe('fetchEvidence', () => {
     ],
     ['a run with no id', { ...answers(), [RUNS]: runsPage({ path: 'p', status: 'completed' }) }, `${RUNS} lists an entry with no id`],
     [
+      'a job with no name',
+      { ...answers(), [JOBS]: { total_count: 1, jobs: [{ ...JOB, name: undefined }] } },
+      `${JOBS} lists an entry with no name`,
+    ],
+    [
       'a job with no steps list',
       { ...answers(), [JOBS]: { total_count: 1, jobs: [{ ...JOB, steps: null }] } },
       `${JOBS} lists a job with no steps list`,
