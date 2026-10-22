@@ -432,6 +432,7 @@ describe('the template runs one Node and one runner, pinned exactly', () => {
   interface Manifest {
     engines?: unknown;
     devDependencies?: Record<string, string>;
+    allowScripts?: Record<string, boolean>;
   }
   const manifest = (): Manifest => JSON.parse(readFileSync('package.json', 'utf8')) as Manifest;
   const lockRoot = (): Manifest | undefined =>
@@ -444,5 +445,28 @@ describe('the template runs one Node and one runner, pinned exactly', () => {
 
   it('@types/node is pinned exactly within major 26', () => {
     expect(manifest().devDependencies?.['@types/node']).toMatch(/^26\.\d+\.\d+$/);
+  });
+
+  // npm 11 skips every dependency install script that allowScripts does not name, and warns about it. The only
+  // install script fsevents has is the `node-gyp rebuild` npm adds for a package published with a binding.gyp,
+  // but its tarball ships no binding.gyp, only a prebuilt universal fsevents.node that loads without it (#70).
+  it('allowScripts denies fsevents and approves nothing', () => {
+    expect(manifest().allowScripts).toEqual({ fsevents: false });
+  });
+
+  // An allow-scripts line in .npmrc approves packages past allowScripts, so the file is pinned whole.
+  it('.npmrc holds engine-strict alone, so nothing approves an install script past allowScripts', () => {
+    expect(readFileSync('.npmrc', 'utf8')).toBe('engine-strict=true\n');
+  });
+
+  // The lockfile says which packages carry install scripts: one missing from allowScripts is the warning on
+  // the next `npm ci`, and an entry naming no such package is stale.
+  it('allowScripts decides every lockfile package with an install script, and only those', () => {
+    const packages = (JSON.parse(readFileSync('package-lock.json', 'utf8')) as { packages: Record<string, { hasInstallScript?: boolean }> })
+      .packages;
+    const withScripts = Object.entries(packages)
+      .filter(([, entry]) => entry.hasInstallScript === true)
+      .map(([path]) => path.slice(path.lastIndexOf('node_modules/') + 'node_modules/'.length));
+    expect([withScripts.sort(), Object.keys({ ...manifest().allowScripts }).sort()]).toEqual([['fsevents'], ['fsevents']]);
   });
 });
