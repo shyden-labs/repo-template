@@ -13,7 +13,7 @@
  * setting its Status back, or push its branch.
  */
 import { execFileSync } from 'node:child_process';
-import { assertTitle } from './board-progress.ts';
+import { assertWholeRead } from './board-progress.ts';
 import { runIfEntry } from './cli.ts';
 
 export interface OpenPullRequest {
@@ -69,9 +69,9 @@ export function findOrphanIssues(issues: number[], prs: OpenPullRequest[], branc
   );
 }
 
-const QUERY = `query($id: ID!, $endCursor: String) {
+export const QUERY = `query($id: ID!, $endCursor: String) {
   node(id: $id) { ... on ProjectV2 { title
-    items(first: 100, after: $endCursor) { pageInfo { hasNextPage endCursor }
+    items(first: 100, after: $endCursor) { totalCount pageInfo { hasNextPage endCursor }
       nodes {
         status: fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name } }
         content { __typename ... on Issue { number state } } } } } } }`;
@@ -88,7 +88,7 @@ export function main(args: string[]): number {
     throw new Error('usage: node scripts/board-orphans.ts <board-node-id> "<board title>" <owner/repo>');
   }
   const pages = gh(['api', 'graphql', '--paginate', '--slurp', '-f', `query=${QUERY}`, '-f', `id=${id}`]) as RawPage[];
-  for (const p of pages) assertTitle(p.data.node.title, title);
+  assertWholeRead(pages, title);
   const issues = inProgressIssues(pages);
   process.stdout.write(`board-orphans: ${issues.length} open issue(s) In Progress on "${title}"\n`);
   if (issues.length === 0) return 0;
