@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { RELEASE_CUT } from '../../scripts/branch-rules-setup.ts';
+import { withoutPinnedShas, withoutYamlComments, yamlBlock } from './source-text.ts';
 import { auditReleaseCut, gatherFacts, main, parseParents, type ReleaseCutFacts } from '../../scripts/release-cut.ts';
 
 // git is stood in: a unit test starts no process. Each test answers git by its arguments.
@@ -248,5 +251,95 @@ describe('main', () => {
       'release-cut refuses this merge:\n  the head branch is feature/x, not a release/ branch',
     );
     expect(out).toEqual([]);
+  });
+});
+
+/** The workflow as comment-stripped text (trailing `# vX.Y.Z` comments too), every pinned SHA read as <sha>. */
+const workflow = (file: string): string => withoutPinnedShas(withoutYamlComments(readFileSync(`.github/workflows/${file}`, 'utf8')));
+const steps = () =>
+  yamlBlock(yamlBlock(workflow('check-release-cut.yml'), 'jobs'), 'steps', '    ')
+    .split(/\n(?= {6}- )/)
+    .slice(1)
+    .map((step) => step.replace(/^ {4}steps:\n/, ''));
+const usesLines = (text: string): string[] =>
+  text
+    .split('\n')
+    .filter((line) => /^\s*-?\s*uses:/.test(line))
+    .map((line) => line.trim().replace(/^-\s*/, ''));
+
+describe('check-release-cut.yml', () => {
+  it('runs on pull requests into main only', () => {
+    expect(yamlBlock(workflow('check-release-cut.yml'), 'on')).toBe('on:\n  pull_request:\n    branches: [main]');
+  });
+
+  it('can only read the repository', () => {
+    expect(yamlBlock(workflow('check-release-cut.yml'), 'permissions')).toBe('permissions:\n  contents: read');
+  });
+
+  // A required check is matched by its job's name, so the job carries no display name of its own.
+  it('reports as the one check main requires, under no other name', () => {
+    const jobs = yamlBlock(workflow('check-release-cut.yml'), 'jobs');
+    expect([
+      RELEASE_CUT,
+      jobs.split('\n').filter((line) => /^ {2}\S/.test(line)),
+      jobs.split('\n').filter((line) => /^ {4}name:/.test(line)),
+    ]).toEqual(['release-cut', ['  release-cut:'], []]);
+  });
+
+  it('stops a job that hangs after five minutes', () => {
+    expect(
+      yamlBlock(workflow('check-release-cut.yml'), 'release-cut', '  ')
+        .split('\n')
+        .filter((line) => /^ {4}timeout-minutes:/.test(line)),
+    ).toEqual(['    timeout-minutes: 5']);
+  });
+
+  it('checks out the merge ref, not another ref, with every branch’s history and no credential kept', () => {
+    expect(steps()[0]).toBe(
+      ['      - uses: actions/checkout@<sha>', '        with:', '          fetch-depth: 0', '          persist-credentials: false'].join(
+        '\n',
+      ),
+    );
+  });
+
+  it('sets up node from .nvmrc and installs nothing, since the check imports only node and its own scripts', () => {
+    expect(steps()[1]).toBe(
+      ['      - uses: actions/setup-node@<sha>', '        with:', "          node-version-file: '.nvmrc'"].join('\n'),
+    );
+  });
+
+  // The head ref is text the pull request's author chose: it reaches the shell through env, never through an expression.
+  it('hands the head ref and SHA to the check through env', () => {
+    expect(steps()[2]).toBe(
+      [
+        '      - name: Judge the release cut',
+        '        env:',
+        '          HEAD_REF: ${{ github.head_ref }}',
+        '          HEAD_SHA: ${{ github.event.pull_request.head.sha }}',
+        '        run: node scripts/release-cut.ts "$HEAD_REF" "$HEAD_SHA"',
+      ].join('\n'),
+    );
+  });
+
+  it('puts no expression inside any shell line', () => {
+    const runs = workflow('check-release-cut.yml')
+      .split('\n')
+      .filter((line) => /^\s*(- )?run: \S/.test(line));
+    expect({ runs: runs.length, withExpressions: runs.filter((line) => line.includes('${{')) }).toEqual({ runs: 1, withExpressions: [] });
+  });
+
+  it('runs four steps: checkout, node, the check, then the trace upload', () => {
+    expect(steps().map((step) => step.split('\n')[0])).toEqual([
+      '      - uses: actions/checkout@<sha>',
+      '      - uses: actions/setup-node@<sha>',
+      '      - name: Judge the release cut',
+      '      - if: ${{ !cancelled() }}',
+    ]);
+  });
+
+  it('pins the same actions at the same SHAs as ci.yml', () => {
+    const pins = (file: string) => usesLines(readFileSync(`.github/workflows/${file}`, 'utf8'));
+    // ci.yml runs several jobs, each pinning the same actions: compare the distinct pins.
+    expect(pins('check-release-cut.yml')).toEqual([...new Set(pins('ci.yml'))]);
   });
 });

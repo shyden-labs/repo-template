@@ -12,7 +12,7 @@
  *   (d) every commit `main` holds beyond `develop` is a two-parent merge whose
  *       second parent is on `develop`, so `main` never took anything else.
  *
- * Run by `.github/workflows/release-cut.yml` on the pull request's merge ref,
+ * Run by `.github/workflows/check-release-cut.yml` on the pull request's merge ref,
  * with full history:
  *
  *   node scripts/release-cut.ts <head ref> <40-hex head sha>

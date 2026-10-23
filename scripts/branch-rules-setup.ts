@@ -40,7 +40,7 @@ export interface ExistingRuleset extends RulesetBody {
 export type Branch = 'develop' | 'main';
 const BRANCHES: Branch[] = ['develop', 'main'];
 
-/** The check `.github/workflows/release-cut.yml` reports on pull requests into main. */
+/** The check `.github/workflows/check-release-cut.yml` reports on pull requests into main. */
 export const RELEASE_CUT = 'release-cut';
 
 /** The ruleset a branch must carry. */
