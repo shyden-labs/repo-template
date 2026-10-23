@@ -46,12 +46,32 @@ describe('desiredRuleset', () => {
     });
   });
 
-  it('requires the checks to be run on an up-to-date branch (strict)', () => {
+  it('requires develop’s checks to be run on an up-to-date branch (strict)', () => {
     expect(checksRule(desiredRuleset('develop', CHECKS))?.strict_required_status_checks_policy).toBe(true);
   });
 
-  it('requires exactly the named checks, in order', () => {
-    expect(checksRule(desiredRuleset('main', CHECKS))?.required_status_checks).toEqual([{ context: 'unit' }, { context: 'PR Gate' }]);
+  it('requires exactly the named checks on develop, in order', () => {
+    expect(checksRule(desiredRuleset('develop', CHECKS))?.required_status_checks).toEqual([{ context: 'unit' }, { context: 'PR Gate' }]);
+  });
+
+  // Each release merge lands on main and never on squash-only develop, so a
+  // strict main would refuse every cut after the first (#86).
+  it('does not require main’s checks to be run on an up-to-date branch', () => {
+    expect(checksRule(desiredRuleset('main', CHECKS))?.strict_required_status_checks_policy).toBe(false);
+  });
+
+  it('requires the named checks on main, in order, then release-cut', () => {
+    expect(checksRule(desiredRuleset('main', CHECKS))?.required_status_checks).toEqual([
+      { context: 'unit' },
+      { context: 'PR Gate' },
+      { context: 'release-cut' },
+    ]);
+  });
+
+  it('refuses release-cut among the named checks, since develop would wait on it forever', () => {
+    expect(() => desiredRuleset('develop', ['unit', 'release-cut'])).toThrow(
+      'release-cut runs only on pull requests into main: leave it out, and main gets it alone',
+    );
   });
 
   it('also forbids deletion and force pushes and requires pull requests and signed commits', () => {
@@ -74,10 +94,11 @@ describe('desiredRuleset', () => {
   });
 });
 
-function existing(id: number, name: string, include: string[], strict = true): ExistingRuleset {
+/** The ruleset as desired, or with its strict setting flipped to `strict`. */
+function existing(id: number, name: string, include: string[], strict?: boolean): ExistingRuleset {
   const body = desiredRuleset(name === 'main' ? 'main' : 'develop', CHECKS);
   const rules = body.rules.map((r) =>
-    r.type === 'required_status_checks'
+    r.type === 'required_status_checks' && strict !== undefined
       ? { ...r, parameters: { ...(r.parameters as object), strict_required_status_checks_policy: strict } }
       : r,
   );
@@ -97,6 +118,14 @@ describe('planRulesets', () => {
     expect(plan.map((p) => [p.action, p.body.name, 'id' in p ? p.id : undefined])).toEqual([
       ['update', 'develop', 11],
       ['create', 'main', undefined],
+    ]);
+  });
+
+  it('updates a same-named main ruleset that is strict, by its id', () => {
+    const plan = planRulesets([existing(11, 'develop', ['refs/heads/develop']), existing(12, 'main', ['refs/heads/main'], true)], CHECKS);
+    expect(plan).toMatchObject([
+      { action: 'keep', id: 11, body: { name: 'develop' } },
+      { action: 'update', id: 12, body: { name: 'main' } },
     ]);
   });
 
@@ -152,7 +181,43 @@ describe('auditBranchRules', () => {
   });
 
   it('names a branch that does not require pull requests', () => {
-    expect(auditBranchRules('main', [good[0], good[2]])).toEqual(['main: no rule requires a pull request']);
+    expect(auditBranchRules('develop', [good[0], good[2]])).toEqual(['develop: no rule requires a pull request']);
+  });
+
+  const mainChecks = (strict: boolean, contexts: string[]): Rule => ({
+    type: 'required_status_checks',
+    parameters: { strict_required_status_checks_policy: strict, required_status_checks: contexts.map((context) => ({ context })) },
+  });
+
+  it('passes a main that requires release-cut and is not strict', () => {
+    expect(auditBranchRules('main', [good[0], good[1], mainChecks(false, ['unit', 'release-cut'])])).toEqual([]);
+  });
+
+  it('names a main whose required checks are strict', () => {
+    expect(auditBranchRules('main', [good[0], good[1], mainChecks(true, ['unit', 'release-cut'])])).toEqual([
+      'main: a required-checks rule is strict, so a second release cut could never merge',
+    ]);
+  });
+
+  // An answer that leaves the parameters out proves nothing, so each branch reads it as short.
+  it.each([
+    ['develop' as const, ['develop: a required-checks rule is not strict']],
+    [
+      'main' as const,
+      ['main: a required-checks rule is strict, so a second release cut could never merge', 'main: no rule requires release-cut'],
+    ],
+  ])('names a %s whose required-checks rule has no parameters', (branch, problems) => {
+    expect(auditBranchRules(branch, [good[0], good[1], { type: 'required_status_checks' }])).toEqual(problems);
+  });
+
+  it('names a develop that requires release-cut, which never runs on its pull requests', () => {
+    expect(auditBranchRules('develop', [good[0], good[1], mainChecks(true, ['unit', 'release-cut'])])).toEqual([
+      'develop: a rule requires release-cut, which runs only on pull requests into main',
+    ]);
+  });
+
+  it('names a main that does not require release-cut', () => {
+    expect(auditBranchRules('main', [good[0], good[1], mainChecks(false, ['unit'])])).toEqual(['main: no rule requires release-cut']);
   });
 
   // With "Automatically delete head branches" on, merging a develop -> main
@@ -186,6 +251,14 @@ describe('main', () => {
     { type: 'pull_request' },
     { type: 'required_status_checks', parameters: { strict_required_status_checks_policy: true } },
   ];
+  const mainRules = [
+    strict[0],
+    strict[1],
+    {
+      type: 'required_status_checks',
+      parameters: { strict_required_status_checks_policy: false, required_status_checks: [{ context: 'release-cut' }] },
+    },
+  ];
   const deletes = { delete_branch_on_merge: true };
   const reply = (...values: unknown[]) => {
     for (const value of values) gh.mockReturnValueOnce(JSON.stringify(value));
@@ -205,7 +278,7 @@ describe('main', () => {
   });
 
   it('creates both rulesets where there are none, reads both branches back and exits 0', () => {
-    reply([], {}, {}, strict, strict, {}, deletes);
+    reply([], {}, {}, strict, mainRules, {}, deletes);
     expect(main([REPO, ...CHECKS])).toBe(0);
     expect(calls()).toEqual([
       [['api', `repos/${REPO}/rulesets`], undefined],
@@ -219,14 +292,14 @@ describe('main', () => {
     expect(out).toEqual([
       'develop: create\n',
       'main: create\n',
-      `${REPO}: develop and main each forbid deletion and require pull requests and strict checks; merged head branches are deleted.\n`,
+      `${REPO}: develop requires strict checks; main requires release-cut instead; both forbid deletion and require pull requests; merged head branches are deleted.\n`,
     ]);
   });
 
   it('keeps a ruleset that matches and updates one that differs, by id', () => {
     const developRuleset = { id: 1, ...desiredRuleset('develop', CHECKS) };
     const mainRuleset = { id: 2, ...desiredRuleset('main', ['build-and-test']) };
-    reply([{ id: 1 }, { id: 2 }], developRuleset, mainRuleset, {}, strict, strict, {}, deletes);
+    reply([{ id: 1 }, { id: 2 }], developRuleset, mainRuleset, {}, strict, mainRules, {}, deletes);
     expect(main([REPO, ...CHECKS])).toBe(0);
     expect(calls().slice(1, 4)).toEqual([
       [['api', `repos/${REPO}/rulesets/1`], undefined],
@@ -237,13 +310,13 @@ describe('main', () => {
   });
 
   it('fails, naming each shortfall, when the rules read back fall short', () => {
-    reply([], {}, {}, strict, [strict[0], strict[2]]);
+    reply([], {}, {}, strict, [mainRules[0], mainRules[2]]);
     expect(() => main([REPO, ...CHECKS])).toThrow('read back, the rules still fall short:\n  main: no rule requires a pull request');
     expect(gh).toHaveBeenCalledTimes(5);
   });
 
   it('fails, naming the setting, when the repository still keeps merged head branches', () => {
-    reply([], {}, {}, strict, strict, {}, { delete_branch_on_merge: false });
+    reply([], {}, {}, strict, mainRules, {}, { delete_branch_on_merge: false });
     expect(() => main([REPO, ...CHECKS])).toThrow(
       'read back, the repository still falls short:\n  merged head branches are not deleted (delete_branch_on_merge is false)',
     );
