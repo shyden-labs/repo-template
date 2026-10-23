@@ -113,3 +113,125 @@ describe('the API documentation standard (#14)', () => {
     expect(api).toBeGreaterThan(deploy);
   });
 });
+
+/**
+ * Every project's diagnostic logs go to one store, run the same way
+ * everywhere (operator ruling 2026-10-16, Refs #18). The module (#19), the
+ * viewer (#22) and the collector (#23) build what this design fixes, so each
+ * rule they build against is pinned here, with Shyden's choices in his words.
+ */
+describe('the diagnostic logging design (#18)', () => {
+  const design = () => readFileSync('docs/logging.md', 'utf8');
+
+  it.each([
+    [
+      'the privacy ruling',
+      "we must make sure there's no private information logged that can be leaked. and nothing that is personally identifiable",
+    ],
+    ['the store choice', 'Shyden chose by AskUserQuestion *"Build our own on R2 (Recommended)"*'],
+    ['the collector placement', 'Shyden chose by AskUserQuestion *"Same account (Recommended)"*'],
+    ['the one account', 'he answered *"All in one account"*'],
+    ['the error-burst rule', 'Shyden chose by AskUserQuestion *"Fold repeats (Recommended)"*'],
+  ])('records %s in his words', (_what, words) => {
+    expect(design()).toContain(words);
+  });
+
+  const header =
+    '| Criterion | Our own on Cloudflare R2 (chosen) | Axiom Personal | Grafana Cloud Free | New Relic Free | VictoriaLogs, self-hosted |';
+
+  /** The comparison table's rows, from its header to the first line that is not a row. */
+  const comparison = () => {
+    const lines = design().split('\n');
+    const start = lines.indexOf(header);
+    expect(start).toBeGreaterThan(-1);
+    const end = lines.findIndex((line, i) => i > start && !line.startsWith('|'));
+    expect(end).toBeGreaterThan(start);
+    return lines.slice(start + 2, end);
+  };
+
+  it('compares at least four stores, on every criterion the story names', () => {
+    expect(design()).toContain(header);
+  });
+
+  it.each([
+    'Licence',
+    'Cost now',
+    'Cost at 10x volume',
+    'Retention and deletion',
+    'Keeping projects apart',
+    'How each sender ships',
+    'arm64',
+    'Resources needed',
+    'Backup',
+    'Upkeep',
+  ])('has a %s row in the comparison, filled for all five stores', (criterion) => {
+    const rows = comparison().filter((line) => line.startsWith(`| ${criterion} |`));
+    expect(rows).toHaveLength(1);
+    // Exactly one row, asserted above, so joining the rows gives that row.
+    const cells = rows.join('').split(' | ').slice(1);
+    expect(cells.map((cell) => cell.replace(/\s*\|$/, '').trim().length > 0)).toEqual([true, true, true, true, true]);
+  });
+
+  it.each([
+    [
+      'one line format',
+      'Every line is one JSON object on one line, with these five fields first, in this order: `ts`, `lvl`, `app`, `env`, `code`.',
+    ],
+    [
+      'the closed set of field types',
+      'Every other field has one of seven types, and only these: a code from a closed list, a count, a duration in milliseconds, a boolean, a status number, a content id, or a commit.',
+    ],
+    [
+      'refusal at write time',
+      'Free text, error messages, and request or response bodies are refused when the line is written, never redacted afterwards.',
+    ],
+    ['an error by name and code', "An `error` line carries the error's name and a code, never its message."],
+    [
+      'personal data refused by default',
+      'A project may log a personal field only by declaring it with a pointer to the privacy-policy section that says why it is needed, what is done with it and when, and how long it is kept.',
+    ],
+    [
+      'device apps keep their own logs',
+      "An app on a user's device keeps its log on the device, where the user can read and copy it through the same allow-list check, and sends nothing.",
+    ],
+    [
+      'one bucket per environment',
+      'There is one bucket per environment, `shyden-logs-prod` and `shyden-logs-dev`, each created with the `apac` location hint.',
+    ],
+    ['the best-effort hint', '"Location Hints are a best effort and not a guarantee"'],
+    [
+      'the object key layout',
+      'Each flushed batch is one gzipped NDJSON object at `<project>/<app>/<YYYY-MM-DD>/<HH>/<HHmmssSSS>-<8 hex>.ndjson.gz`, all in UTC.',
+    ],
+    ['writes only by the collector', 'Only the collector writes, through its R2 binding; no app has a binding to a log bucket.'],
+    [
+      'reads only by the viewer, behind a sign-in',
+      'Only the viewer reads, through a read-only binding, behind Cloudflare Access with one allowed identity: Shyden.',
+    ],
+    ['the shared request allowance', '"Accounts on the Workers Free plan have a daily request limit of 100,000 requests"'],
+    ['the Service Binding cost', '"do not incur additional request fees"'],
+    ['a row per batch', 'Each batch the collector receives is one Durable Object row, never one row per line.'],
+    [
+      'a ratio measured per batch',
+      'A batch is compressed on its own, so the budget uses the ratio measured at its size, not one over a whole day.',
+    ],
+    [
+      'the drop order',
+      'Over budget, the collector drops `debug` lines first, then routine summaries, never an error or a warning, and counts every drop in the next summary.',
+    ],
+  ])('fixes %s', (_what, sentence) => {
+    expect(design()).toContain(sentence);
+  });
+
+  it('is named in the file table', () => {
+    expect(readme()).toContain('| `docs/logging.md` |');
+  });
+
+  it('is a setup step, after the static checks', () => {
+    const text = readme();
+    const checks = text.indexOf('14. **Keep the static checks clean.**');
+    const logs = text.indexOf('15. **Every app logs, after its release.**');
+    expect(checks).toBeGreaterThan(-1);
+    expect(logs).toBeGreaterThan(checks);
+  });
+});
