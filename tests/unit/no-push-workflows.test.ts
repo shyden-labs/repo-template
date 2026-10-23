@@ -40,7 +40,7 @@ const judged = workflows.filter((f) => !MAY_WRITE.test(f));
 describe('no workflow writes to the repository', () => {
   it('judges every workflow but the deploy and release ones', () => {
     expect({ judged, allowed: workflows.filter((f) => MAY_WRITE.test(f)) }).toEqual({
-      judged: ['ci.yml', 'logs.yml', 'mutations.yml', 'record.yml', 'sonarcloud.yml'],
+      judged: ['check-release-cut.yml', 'ci.yml', 'logs.yml', 'mutations.yml', 'record.yml', 'sonarcloud.yml'],
       allowed: ['deploy-dev.yml'],
     });
   });

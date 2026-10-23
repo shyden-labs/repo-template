@@ -1,16 +1,21 @@
 /**
  * Gives a repository one ruleset per long-lived branch, `develop` and `main`,
- * each naming its branch, requiring pull requests and the named checks run on
- * an up-to-date branch ("strict"), signed commits, and no deletion or force
- * push (issue #8). Run once per repository, by the operator (rulesets need
- * admin rights), after `develop` becomes the default branch:
+ * each naming its branch, requiring pull requests, the named checks, signed
+ * commits, and no deletion or force push (issue #8). `develop` requires the
+ * checks run on an up-to-date branch ("strict"); `main` does not, because each
+ * release merge lands on `main` and never on squash-only `develop`, so a strict
+ * `main` would refuse every cut after the first. `main` requires `release-cut`
+ * in its place (issue #86, docs/release-cut.md). Run once per repository, by
+ * the operator (rulesets need admin rights), after `develop` becomes the
+ * default branch:
  *
  *   node scripts/branch-rules-setup.ts <owner/repo> <required check>...
  *
  * It refuses a ruleset that targets ~DEFAULT_BRANCH: that target moves when the
  * default branch changes, which is how ShyTalk's `main` lost its rules on
  * 2026-10-13. It creates what is missing, updates what differs, and reads both
- * branches' rules back, failing unless both are strict.
+ * branches' rules back, failing unless develop is strict and main is not and
+ * requires release-cut.
  */
 import { execFileSync } from 'node:child_process';
 import { runIfEntry } from './cli.ts';
@@ -35,11 +40,18 @@ export interface ExistingRuleset extends RulesetBody {
 export type Branch = 'develop' | 'main';
 const BRANCHES: Branch[] = ['develop', 'main'];
 
+/** The commit status `.github/workflows/check-release-cut.yml` posts on each pull request into main's head. */
+export const RELEASE_CUT = 'release-cut';
+
 /** The ruleset a branch must carry. */
 export function desiredRuleset(branch: Branch, checks: string[]): RulesetBody {
   if (checks.length === 0) {
     throw new Error('name at least one required check: a strict rule with no checks tests nothing');
   }
+  if (checks.includes(RELEASE_CUT)) {
+    throw new Error(`${RELEASE_CUT} runs only on pull requests into main: leave it out, and main gets it alone`);
+  }
+  const contexts = branch === 'main' ? [...checks, RELEASE_CUT] : checks;
   return {
     name: branch,
     target: 'branch',
@@ -61,8 +73,8 @@ export function desiredRuleset(branch: Branch, checks: string[]): RulesetBody {
       {
         type: 'required_status_checks',
         parameters: {
-          strict_required_status_checks_policy: true,
-          required_status_checks: checks.map((context) => ({ context })),
+          strict_required_status_checks_policy: branch === 'develop',
+          required_status_checks: contexts.map((context) => ({ context })),
         },
       },
       { type: 'required_signatures' },
@@ -106,10 +118,11 @@ export function planRulesets(existing: ExistingRuleset[], checks: string[]): Rul
 
 interface ChecksParameters {
   strict_required_status_checks_policy?: boolean;
+  required_status_checks?: { context: string }[];
 }
 
 /** Every way a branch's rules (as `rules/branches/<branch>` reports them) fall short; empty when none. */
-export function auditBranchRules(branch: string, rules: Rule[]): string[] {
+export function auditBranchRules(branch: Branch, rules: Rule[]): string[] {
   const problems: string[] = [];
   // The repository deletes merged head branches (#28), so a deletable
   // develop would go the first time a develop -> main pull request merges.
@@ -119,11 +132,24 @@ export function auditBranchRules(branch: string, rules: Rule[]): string[] {
   if (!rules.some((r) => r.type === 'pull_request')) {
     problems.push(`${branch}: no rule requires a pull request`);
   }
-  const checks = rules.filter((r) => r.type === 'required_status_checks');
+  const checks = rules.filter((r) => r.type === 'required_status_checks').map((r) => (r.parameters ?? {}) as ChecksParameters);
+  const requiresReleaseCut = checks.some((c) => c.required_status_checks?.some((s) => s.context === RELEASE_CUT) === true);
   if (checks.length === 0) {
     problems.push(`${branch}: no rule requires status checks`);
-  } else if (checks.some((r) => (r.parameters as ChecksParameters | undefined)?.strict_required_status_checks_policy !== true)) {
-    problems.push(`${branch}: a required-checks rule is not strict`);
+  } else if (branch === 'develop') {
+    if (checks.some((c) => c.strict_required_status_checks_policy !== true)) {
+      problems.push(`${branch}: a required-checks rule is not strict`);
+    }
+    if (requiresReleaseCut) {
+      problems.push(`${branch}: a rule requires ${RELEASE_CUT}, which runs only on pull requests into main`);
+    }
+  } else {
+    if (checks.some((c) => c.strict_required_status_checks_policy !== false)) {
+      problems.push(`${branch}: a required-checks rule is strict, so a second release cut could never merge`);
+    }
+    if (!requiresReleaseCut) {
+      problems.push(`${branch}: no rule requires ${RELEASE_CUT}`);
+    }
   }
   return problems;
 }
@@ -166,7 +192,7 @@ export function main(args: string[]): number {
     throw new Error(`read back, the repository still falls short:\n  ${settings.join('\n  ')}`);
   }
   process.stdout.write(
-    `${repo}: develop and main each forbid deletion and require pull requests and strict checks; merged head branches are deleted.\n`,
+    `${repo}: develop requires strict checks; main requires ${RELEASE_CUT} instead; both forbid deletion and require pull requests; merged head branches are deleted.\n`,
   );
   return 0;
 }

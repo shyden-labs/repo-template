@@ -104,6 +104,7 @@ describe('no workflow approves an install script past allowScripts', () => {
       'ISSUE_TEMPLATE/config.yml',
       'ISSUE_TEMPLATE/story.yml',
       'dependabot.yml',
+      'workflows/check-release-cut.yml',
       'workflows/ci.yml',
       'workflows/deploy-dev.yml',
       'workflows/logs.yml',

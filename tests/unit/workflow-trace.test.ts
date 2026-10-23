@@ -144,12 +144,12 @@ const UPLOAD = [
 ].join('\n');
 
 describe('the workflows', () => {
-  it('are the six the template ships', () => {
-    expect(workflows.length).toBe(6);
+  it('are the seven the template ships', () => {
+    expect(workflows.length).toBe(7);
   });
 
-  it('hold the seven jobs the template ships', () => {
-    expect(jobs.length).toBe(7);
+  it('hold the eight jobs the template ships', () => {
+    expect(jobs.length).toBe(8);
   });
 
   it.each(workflows)('%s runs every step under the tracing shell', (file) => {
