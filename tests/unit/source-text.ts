@@ -44,22 +44,34 @@
  * value, so an apostrophe in plain text (`don't`) hides no comment.
  */
 export function withoutYamlComments(text: string): string {
+  return yamlLinesWithoutComments(text)
+    .filter((line) => line.trim() !== '')
+    .join('\n');
+}
+
+/**
+ * The same text, one entry per line of the file: a blank or comment-only line
+ * is kept as '', so an index plus one is the file's own line number (#78).
+ */
+export function yamlLinesWithoutComments(text: string): string[] {
   const out: string[] = [];
   // The column of the key whose block scalar is being read, or null.
   let blockKey: number | null = null;
   for (const line of text.split('\n')) {
-    if (line.trim() === '') continue;
+    if (line.trim() === '') {
+      out.push('');
+      continue;
+    }
     if (blockKey !== null && line.length - line.trimStart().length > blockKey) {
       out.push(line);
       continue;
     }
     blockKey = null;
     const kept = yamlLineWithoutComment(line);
-    if (kept.trim() === '') continue;
-    out.push(kept);
+    out.push(kept.trim() === '' ? '' : kept);
     if (/:\s+[|>][-+0-9]*$/.test(kept)) blockKey = (/^\s*(?:-\s+)*/.exec(kept) as RegExpExecArray)[0].length;
   }
-  return out.join('\n');
+  return out;
 }
 
 /** One YAML line with its comment cut off: a `#` at the line's start or after whitespace, outside quotes. */
