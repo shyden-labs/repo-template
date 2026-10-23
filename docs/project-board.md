@@ -1,8 +1,10 @@
 # The project board
 
 Every Shyden Labs project has one GitHub Project board for its stories. Every
-session close-out states the project's progress **twice**, by tickets and by
-effort, each with a % complete and an ETA. The board carries what both need.
+session close-out states the project's progress **twice**, each with an ETA:
+by tickets, as a % complete, and by effort, as the points remaining on open
+tickets, never a percentage (Shyden, 2026-10-12). The board carries what both
+need.
 
 ## Setting up a new board
 
@@ -119,7 +121,7 @@ This prints the two close-out lines, for example:
 
 ```text
 By tickets: 13% complete (32 of 254 in-scope stories closed; 9 epics and 2 post-launch left out). Measured pace 8.00 a day over the last 4 days (10, 14, 8, 0). ETA at that pace: 2026-11-01, before outside waits.
-By effort: 14% complete (160 of 1114 points closed). Measured pace 40.00 points a day over the last 4 days (64, 53, 43, 0). ETA at that pace: 2026-10-28, before outside waits.
+By effort: 954 points remaining across 222 open tickets (160 points closed). Measured pace 40.00 points a day over the last 4 days (64, 53, 43, 0). ETA at that pace: 2026-10-28, before outside waits.
 ```
 
 - The pace is measured over the last 7 days, or fewer while the board's oldest
