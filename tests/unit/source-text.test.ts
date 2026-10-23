@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { withoutCommentLines, withoutPinnedShas, withoutTsComments, withoutYamlComments, yamlBlock } from './source-text.ts';
+import {
+  withoutCommentLines,
+  withoutPinnedShas,
+  withoutTsComments,
+  withoutYamlComments,
+  yamlBlock,
+  yamlLinesWithoutComments,
+} from './source-text.ts';
 
 describe('withoutYamlComments', () => {
   const y = (...lines: string[]) => lines.join('\n');
@@ -52,6 +59,34 @@ describe('withoutYamlComments', () => {
 
   it('reads an unclosed quote to the end of its line, so the next line is read afresh', () => {
     expect(withoutYamlComments(y('x: "a #b', 'y: 1 # gone'))).toBe(y('x: "a #b', 'y: 1'));
+  });
+});
+
+// One entry per line of the file, so a guard can name the file's own line number (#78).
+describe('yamlLinesWithoutComments', () => {
+  it('keeps a blank, a comment-only and a whitespace-only line as empty, in place', () => {
+    expect(yamlLinesWithoutComments(['a: 1', '', '# gone', '  # gone', '   ', 'b: 2 # gone'].join('\n'))).toEqual([
+      'a: 1',
+      '',
+      '',
+      '',
+      '',
+      'b: 2',
+    ]);
+  });
+
+  it('keeps a block scalar whole across a blank line inside it', () => {
+    expect(yamlLinesWithoutComments(['run: |', '  a # stays', '', '  b # stays', 'c: 1 # gone'].join('\n'))).toEqual([
+      'run: |',
+      '  a # stays',
+      '',
+      '  b # stays',
+      'c: 1',
+    ]);
+  });
+
+  it('ends a block scalar at a key that follows a comment-only line', () => {
+    expect(yamlLinesWithoutComments(['run: |', '  a', '# gone', 'c: 1 # gone'].join('\n'))).toEqual(['run: |', '  a', '', 'c: 1']);
   });
 });
 

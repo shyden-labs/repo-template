@@ -11,6 +11,7 @@ rotting.
 | `.github/dependabot.yml` | Version updates are **not** inheritable org-wide — only *security* updates are. Every repo needs its own file, covering every ecosystem present **and** `github-actions`. |
 | `.github/workflows/ci.yml` | Demonstrates the SHA-pinning convention with real, current pins. |
 | `tests/unit/supply-chain.test.ts` | Asserts the rules below, so a new unpinned action or an undeclared ecosystem fails CI instead of being noticed years later. |
+| `tests/unit/install-script-approvals.test.ts` | No workflow approves a dependency's install script past `allowScripts` in `package.json` (issue #78): every route npm reads, in every spelling it accepts, measured on npm itself. |
 | `tests/unit/source-text.ts` | Comment stripping. A guard that reads a file as text must never be satisfiable by that file's own documentation. |
 | `.npmrc` | `engine-strict=true` turns the `engines` floor from a warning into a hard install failure. |
 | `package-lock.json` | `npm ci` refuses to run without it, so CI installs exactly what was tested. |
