@@ -37,6 +37,7 @@
   "tests/unit/devices-report.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/file-story.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/fold-record.test.ts": { "statements": 0, "branches": 0 },
+  "tests/unit/install-script-approvals.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/lint-config.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/logs-suite.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/mutate.test.ts": { "statements": 0, "branches": 0 },
