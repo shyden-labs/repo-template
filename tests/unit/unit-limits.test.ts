@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TestModule } from 'vitest/node';
 import {
@@ -387,5 +388,13 @@ describe('the unit config', () => {
 describe('the other configs', () => {
   it('keeps limits out of the integration suite: its one limit is the CI step', () => {
     expect(Object.keys(integration.test)).toEqual(['include']);
+  });
+});
+
+describe('the README', () => {
+  it('finds the unit limits’ files in its file table', () => {
+    expect(readFileSync('README.md', 'utf8')).toContain(
+      '| `tests/setup/limits.ts`, `tests/setup/refusals.ts`, `vitest.unit.config.ts`, `vitest.integration.config.ts`, `docs/unit-limits.md` |',
+    );
   });
 });
