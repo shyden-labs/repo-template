@@ -14,7 +14,7 @@ import {
   summarise,
 } from '../setup/limits.ts';
 import LimitsReporter from '../setup/limits-reporter.ts';
-import { LOAD, UNIT_CPU, UNIT_JUDGES, UNIT_LOAD_LIMIT, UNIT_SETUP } from '../setup/files.ts';
+import { LOAD, UNIT_CPU, UNIT_JUDGES, UNIT_LOAD_LIMIT, UNIT_REFUSAL, UNIT_SETUP } from '../setup/files.ts';
 import unit from '../../vitest.unit.config.ts';
 import integration from '../../vitest.integration.config.ts';
 
@@ -339,11 +339,21 @@ describe('the limits reporter', () => {
 
 describe('the setup files', () => {
   it('names each shim by its path', () => {
-    expect([UNIT_CPU, LOAD, UNIT_LOAD_LIMIT]).toEqual(['tests/setup/unit-cpu.ts', 'tests/setup/load.ts', 'tests/setup/unit-load-limit.ts']);
+    expect([UNIT_REFUSAL, UNIT_CPU, LOAD, UNIT_LOAD_LIMIT]).toEqual([
+      'tests/setup/unit-refusal.ts',
+      'tests/setup/unit-cpu.ts',
+      'tests/setup/load.ts',
+      'tests/setup/unit-load-limit.ts',
+    ]);
   });
 
-  it('starts the load clock after the CPU judge and judges the load last', () => {
-    expect(UNIT_SETUP).toEqual(['tests/setup/unit-cpu.ts', 'tests/setup/load.ts', 'tests/setup/unit-load-limit.ts']);
+  it('refuses first, starts the load clock after the CPU judge and judges the load last', () => {
+    expect(UNIT_SETUP).toEqual([
+      'tests/setup/unit-refusal.ts',
+      'tests/setup/unit-cpu.ts',
+      'tests/setup/load.ts',
+      'tests/setup/unit-load-limit.ts',
+    ]);
   });
 
   it('counts the two judges as the ones a coverage run leaves out', () => {
@@ -361,7 +371,12 @@ describe('the unit config', () => {
   });
 
   it('loads every setup shim, in order', () => {
-    expect(unit.test.setupFiles).toEqual(['tests/setup/unit-cpu.ts', 'tests/setup/load.ts', 'tests/setup/unit-load-limit.ts']);
+    expect(unit.test.setupFiles).toEqual([
+      'tests/setup/unit-refusal.ts',
+      'tests/setup/unit-cpu.ts',
+      'tests/setup/load.ts',
+      'tests/setup/unit-load-limit.ts',
+    ]);
   });
 
   it('prints the limits report after the default one', () => {
