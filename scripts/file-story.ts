@@ -124,10 +124,21 @@ const SET_NUMBER = `mutation($project: ID!, $item: ID!, $field: ID!, $number: Fl
   updateProjectV2ItemFieldValue(input: { projectId: $project, itemId: $item, fieldId: $field, value: { number: $number } }) { clientMutationId } }`;
 const SET_OPTION = `mutation($project: ID!, $item: ID!, $field: ID!, $option: String!) {
   updateProjectV2ItemFieldValue(input: { projectId: $project, itemId: $item, fieldId: $field, value: { singleSelectOptionId: $option } }) { clientMutationId } }`;
-const READ_ITEM = `query($item: ID!) { node(id: $item) { ... on ProjectV2Item { project { title }
+// Read through the repository, not the item's node id: the GitHub App router
+// runs a graphql call as a project's App only when its fields name that
+// project's board or repository, and a PVTI_ item id names neither (issue #96).
+const READ_CARDS = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) { issue(number: $number) { projectItems(first: 50) { nodes { project { id title }
   estimate: fieldValueByName(name: "Estimate") { ... on ProjectV2ItemFieldNumberValue { number } }
   priority: fieldValueByName(name: "Priority") { ... on ProjectV2ItemFieldSingleSelectValue { name } }
-  status: fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name } } } } }`;
+  status: fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name } } } } } } }`;
+
+interface Card {
+  project: { id: string; title: string };
+  estimate: { number: number } | null;
+  priority: { name: string } | null;
+  status: { name: string } | null;
+}
 
 const list = (numbers: number[]) => (numbers.length === 0 ? 'nothing' : numbers.map((n) => `#${n}`).join(', '));
 
@@ -186,18 +197,13 @@ export function main(args: string[]): number {
     gh(['api', '-X', 'POST', `repos/${story.repo}/issues/${story.parent}/sub_issues`, '-F', `sub_issue_id=${issue.id}`]);
   }
 
-  const back = (
-    gh(['api', 'graphql', '-f', `query=${READ_ITEM}`, '-f', `item=${item}`]) as {
-      data: {
-        node: {
-          project: { title: string };
-          estimate: { number: number } | null;
-          priority: { name: string } | null;
-          status: { name: string } | null;
-        };
-      };
+  const [owner, name] = story.repo.split('/') as [string, string];
+  const cards = (
+    gh(['api', 'graphql', '-f', `query=${READ_CARDS}`, '-f', `owner=${owner}`, '-f', `name=${name}`, '-F', `number=${issue.number}`]) as {
+      data: { repository: { issue: { projectItems: { nodes: Card[] } } } };
     }
-  ).data.node;
+  ).data.repository.issue.projectItems.nodes;
+  const back = cards.find((card) => card.project.id === id) ?? fail(`${ref} was filed, but it has no card on ${title} (${id})`);
   const blockers = (gh(['api', `repos/${story.repo}/issues/${issue.number}/dependencies/blocked_by`]) as { number: number }[])
     .map((b) => b.number)
     .sort((a, b) => a - b);

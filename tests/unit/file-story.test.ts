@@ -154,14 +154,24 @@ describe('main', () => {
     for (const value of values) gh.mockReturnValueOnce(JSON.stringify(value));
   };
   const board = (title = 'App Stories') => ({ data: { node: { title, fields: { nodes: FIELDS } } } });
-  const readBack = (over: object = {}) => ({
+  /** The issue's cards as GitHub lists them: one on another board first, then this board's. */
+  const readBack = (over: object = {}, cards?: object[]) => ({
     data: {
-      node: {
-        project: { title: 'App Stories' },
-        estimate: { number: 3 },
-        priority: { name: 'P2' },
-        status: { name: 'Todo' },
-        ...over,
+      repository: {
+        issue: {
+          projectItems: {
+            nodes: cards ?? [
+              { project: { id: 'PVT_9', title: 'Other' }, estimate: null, priority: null, status: null },
+              {
+                project: { id: 'PVT_1', title: 'App Stories' },
+                estimate: { number: 3 },
+                priority: { name: 'P2' },
+                status: { name: 'Todo' },
+                ...over,
+              },
+            ],
+          },
+        },
       },
     },
   });
@@ -226,7 +236,7 @@ describe('main', () => {
       ['api', 'repos/shyden-labs/app/issues/12'],
       ['api', '-X', 'POST', 'repos/shyden-labs/app/issues/40/dependencies/blocked_by', '-F', 'issue_id=1200'],
       ['api', '-X', 'POST', 'repos/shyden-labs/app/issues/7/sub_issues', '-F', 'sub_issue_id=4000'],
-      ['api', 'graphql', '-f', '-f', 'item=PVTI_40'],
+      ['api', 'graphql', '-f', '-f', 'owner=shyden-labs', '-f', 'name=app', '-F', 'number=40'],
       ['api', 'repos/shyden-labs/app/issues/40/dependencies/blocked_by'],
       ['api', 'repos/shyden-labs/app/issues/40/parent'],
     ]);
@@ -234,6 +244,38 @@ describe('main', () => {
       'file-story: filed shyden-labs/app#40 "A new story"\n',
       'file-story: read back: board App Stories, Estimate 3, Priority P2, Status Todo, blocked by #12, parent #7\n',
     ]);
+  });
+
+  it.each([
+    ['only on another board', [{ project: { id: 'PVT_9', title: 'App Stories' }, estimate: null, priority: null, status: null }]],
+    ['on no board', []],
+  ])('fails, naming the board, when the issue has a card %s', (_where, cards) => {
+    reply(...filing().map((r, i) => (i === 10 ? readBack({}, cards) : r)));
+    expect(() => main(['PVT_1', 'App Stories', write(STORY)])).toThrow(
+      'file-story: shyden-labs/app#40 was filed, but it has no card on App Stories (PVT_1)',
+    );
+  });
+
+  // The GitHub App router (~/.claude/scripts/github-app/gh_route.py) runs a call
+  // as a project's App only when it names that project: a REST path or -R under
+  // its repository, or a graphql body (every -f/-F value) naming its board's
+  // node id, or its owner and name together. A call naming neither is refused,
+  // so a filing that worked exited 1 (issue #96: a bare PVTI_ item id).
+  it('names the repository or the board in every call it makes, as the App router needs', () => {
+    reply(...filing());
+    // Soft, so a run that throws still reports which calls named nothing.
+    expect.soft(() => main(['PVT_1', 'App Stories', write(STORY)])).not.toThrow();
+    const unnamed = gh.mock.calls
+      .map((c) => c[1] as string[])
+      .filter((args) => {
+        if (args[1] === 'graphql') {
+          const body = args.filter((_a, i) => ['-f', '-F'].includes(args[i - 1] ?? '')).join('\n');
+          return !(body.includes('PVT_1') || (body.includes('shyden-labs') && body.includes('app')));
+        }
+        return !(args.includes('shyden-labs/app') || args.some((a) => a.startsWith('repos/shyden-labs/app/')));
+      });
+    expect(unnamed).toEqual([]);
+    expect(gh.mock.calls).toHaveLength(13);
   });
 
   it('reads back two blockers in whatever order GitHub lists them', () => {
@@ -284,7 +326,7 @@ describe('main', () => {
     ['the Priority', { readBack: { priority: { name: 'P3' } } }, 'Priority read back as P3, not P2'],
     ['an unset Priority', { readBack: { priority: null } }, 'Priority read back as none, not P2'],
     ['the Status', { readBack: { status: null } }, 'Status read back as none, not Todo'],
-    ['the board', { readBack: { project: { title: 'Other' } } }, 'the item read back on Other, not App Stories'],
+    ['the board', { readBack: { project: { id: 'PVT_1', title: 'Other' } } }, 'the item read back on Other, not App Stories'],
     ['a blocker', { blockers: [] }, 'blocked by read back as nothing, not #12'],
     ['the parent', { parent: { number: 8 } }, 'parent read back as #8, not #7'],
   ])('fails, naming it, when %s does not read back', (_what, over, problem) => {
