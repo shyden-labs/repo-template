@@ -1,78 +1,45 @@
-import { describe, it, expect } from 'vitest';
-import v8 from '@vitest/coverage-v8';
-import { V8CoverageProvider } from '@vitest/coverage-v8/dist/provider.js';
+import { describe, it, expect, vi } from 'vitest';
 import provider, { AllCodeProvider, EXCLUDE } from '../../scripts/coverage-provider.ts';
 
 /**
- * Tests are code too (Shyden 2026-10-22), but Vitest always adds the test
- * files, setup files and config file to `coverage.exclude`, and its source says
- * user config cannot override that. The custom provider keeps everything V8
- * does and replaces only that list. The stand-in context below is what Vitest
- * hands a provider once it has added its own exclusions.
+ * The all-code provider's own logic, on stand-ins for `@vitest/coverage-v8`
+ * (#92): loading the real one costs ~200 ms of CPU, over the unit load limit,
+ * so what it does with real V8 is judged in
+ * tests/integration/coverage-provider.test.ts.
  */
 
-const ROOT = '/repo';
-const INCLUDE = ['**/*.{ts,mts,cts,tsx,js,mjs,cjs,jsx}'];
+const hooks = vi.hoisted(() => ({ startCoverage: vi.fn(), takeCoverage: vi.fn(), stopCoverage: vi.fn() }));
 
-function vitestContext(version: string, warnings: string[] = []) {
-  return {
-    version,
-    _coverageOptions: {
-      include: INCLUDE,
-      // What Vitest's config resolution forces in: the test include pattern and node_modules.
-      exclude: ['**/*.{test,spec}.?(c|m)[jt]s?(x)', '**/node_modules/**'],
-      reportsDirectory: 'coverage',
-    },
-    config: { root: ROOT, project: [] },
-    projects: [],
-    logger: { warn: (message: string) => void warnings.push(message) },
-  };
-}
+vi.mock('@vitest/coverage-v8', () => ({ default: hooks }));
+vi.mock('@vitest/coverage-v8/dist/provider.js', () => ({
+  // V8's initialize, reduced to what the subclass depends on: it sets the options.
+  V8CoverageProvider: class {
+    options: Record<string, unknown> = {};
+    initialize(ctx: { _coverageOptions: Record<string, unknown> }): void {
+      this.options = { ...ctx._coverageOptions };
+    }
+  },
+}));
 
-function initialized<T extends V8CoverageProvider>(p: T): T {
-  const warnings: string[] = [];
-  p.initialize(vitestContext(p.version, warnings) as never);
-  expect(warnings).toEqual([]);
-  return p;
-}
-
-describe('the coverage provider', () => {
+describe('the coverage provider, on stand-ins', () => {
   it('hands Vitest the all-code provider', async () => {
     expect(await provider.getProvider()).toBeInstanceOf(AllCodeProvider);
   });
 
   it("keeps V8's own hooks for starting and taking coverage in each worker", () => {
-    expect(provider.startCoverage).toBe(v8.startCoverage);
-    expect(provider.takeCoverage).toBe(v8.takeCoverage);
-    expect(provider.stopCoverage).toBe(v8.stopCoverage);
+    expect(provider.startCoverage).toBe(hooks.startCoverage);
+    expect(provider.takeCoverage).toBe(hooks.takeCoverage);
+    expect(provider.stopCoverage).toBe(hooks.stopCoverage);
   });
 
-  it("keeps V8's warning when Vitest and the provider are different versions", () => {
-    const warnings: string[] = [];
-    new AllCodeProvider().initialize(vitestContext('0.0.0', warnings) as never);
-    expect(warnings.join('')).toContain('Running mixed versions is not supported');
+  it('lets V8 set every option first, then replaces only the exclusions, with a copy of its own', () => {
+    const p = new AllCodeProvider();
+    p.initialize({ _coverageOptions: { include: ['**/*.ts'], exclude: ['**/*.test.ts'] } } as never);
+    expect(p.options).toEqual({ include: ['**/*.ts'], exclude: EXCLUDE });
+    expect(p.options.exclude).not.toBe(EXCLUDE);
   });
 
   it('excludes only dependencies, what tools write, and virtual modules', () => {
-    expect(initialized(new AllCodeProvider()).options.exclude).toEqual(EXCLUDE);
+    expect(EXCLUDE).toEqual(['**/node_modules/**', 'coverage/**', '**/virtual:*', '**/__x00__*']);
   });
-
-  it('measures a test file', () => {
-    expect(initialized(new AllCodeProvider()).isIncluded(`${ROOT}/tests/unit/a.test.ts`)).toBe(true);
-  });
-
-  it('control: plain V8 leaves that test file out', () => {
-    expect(initialized(new V8CoverageProvider()).isIncluded(`${ROOT}/tests/unit/a.test.ts`)).toBe(false);
-  });
-
-  it('measures a script', () => {
-    expect(initialized(new AllCodeProvider()).isIncluded(`${ROOT}/scripts/a.ts`)).toBe(true);
-  });
-
-  it.each([['node_modules/x/index.js'], ['coverage/prettify.js'], ['src/virtual:entry.ts'], ['src/__x00__id.ts']])(
-    'leaves out %s',
-    (file) => {
-      expect(initialized(new AllCodeProvider()).isIncluded(`${ROOT}/${file}`)).toBe(false);
-    },
-  );
 });

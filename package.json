@@ -8,7 +8,8 @@
   "scripts": {
     "test:unit": "vitest run --config vitest.unit.config.ts",
     "test:logs": "vitest run --config vitest.logs.config.ts",
-    "test:coverage": "vitest run --config vitest.unit.config.ts --coverage.enabled --coverage.provider=custom --coverage.customProviderModule=./scripts/coverage-provider.ts --coverage.include='**/*.{ts,mts,cts,tsx,js,mjs,cjs,jsx}' --coverage.reporter=json-summary --coverage.reporter=lcov --coverage.reporter=text-summary",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:coverage": "vitest run --config vitest.coverage.config.ts --coverage.enabled --coverage.provider=custom --coverage.customProviderModule=./scripts/coverage-provider.ts --coverage.include='**/*.{ts,mts,cts,tsx,js,mjs,cjs,jsx}' --coverage.reporter=json-summary --coverage.reporter=lcov --coverage.reporter=text-summary",
     "coverage:record": "node scripts/coverage-record.ts record",
     "typecheck": "tsc --noEmit -p .",
     "lint": "eslint --max-warnings 0 .",

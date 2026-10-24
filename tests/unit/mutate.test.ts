@@ -36,7 +36,10 @@ const FILE: MutationFile = { targets: ['tests/logs/writer.test.ts'], suite: 'log
 
 describe('SUITES', () => {
   it('lists every non-unit suite with the folder it holds and the command that runs it', () => {
-    expect(SUITES).toEqual({ logs: { dir: 'tests/logs/', config: 'vitest.logs.config.ts' } });
+    expect(SUITES).toEqual({
+      logs: { dir: 'tests/logs/', config: 'vitest.logs.config.ts' },
+      integration: { dir: 'tests/integration/', config: 'vitest.integration.config.ts' },
+    });
   });
 });
 

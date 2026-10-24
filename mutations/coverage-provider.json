@@ -1,0 +1,35 @@
+{
+  "targets": ["tests/integration/coverage-provider.test.ts"],
+  "suite": "integration",
+  "mutations": [
+    {
+      "name": "keeps V8's exclusions instead of replacing them",
+      "path": "scripts/coverage-provider.ts",
+      "anchor": "this.options.exclude = [...EXCLUDE];",
+      "replacement": "void EXCLUDE;",
+      "predict": {
+        "red": [
+          "excludes only dependencies, what tools write, and virtual modules",
+          "measures a test file",
+          "leaves out coverage/prettify.js",
+          "leaves out src/virtual:entry.ts",
+          "leaves out src/__x00__id.ts"
+        ]
+      }
+    },
+    {
+      "name": "hands Vitest plain V8",
+      "path": "scripts/coverage-provider.ts",
+      "anchor": "Promise.resolve(new AllCodeProvider())",
+      "replacement": "Promise.resolve(new V8CoverageProvider())",
+      "predict": { "red": ["hands Vitest the all-code provider"] }
+    },
+    {
+      "name": "measures what tools write",
+      "path": "scripts/coverage-provider.ts",
+      "anchor": "'coverage/**', ",
+      "replacement": "",
+      "predict": { "red": ["leaves out coverage/prettify.js"] }
+    }
+  ]
+}

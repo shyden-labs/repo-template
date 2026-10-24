@@ -36,7 +36,7 @@ describe('package.json', () => {
 });
 
 describe('ci.yml', () => {
-  it('runs typecheck, lint and format check as named steps of build-and-test, after npm ci and before the unit suite', () => {
+  it('runs typecheck, lint and format check as named steps of build-and-test, after npm ci and before the unit suite, then the integration suite', () => {
     expect(steps(yamlBlock(ci, 'build-and-test', '  '))).toEqual([
       { name: '', run: '' },
       { name: '', run: '' },
@@ -45,6 +45,7 @@ describe('ci.yml', () => {
       { name: 'Lint', run: 'npm run lint' },
       { name: 'Format', run: 'npm run format:check' },
       { name: '', run: 'npm run test:unit' },
+      { name: 'Integration tests', run: 'npm run test:integration' },
       { name: '', run: '' },
     ]);
   });
