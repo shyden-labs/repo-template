@@ -55,7 +55,8 @@ describe('the commands', () => {
 
   it('measures the unit and integration suites together, each on its own files', () => {
     expect(coverageConfig.test.projects).toEqual([
-      { test: { name: 'unit', include: ['tests/unit/**/*.test.ts'] } },
+      // Without the unit limits' judges and 1 s timeouts, which instrumented code would trip (#92).
+      { test: { name: 'unit', include: ['tests/unit/**/*.test.ts'], pool: 'forks', setupFiles: ['tests/setup/load.ts'] } },
       { test: { name: 'integration', include: ['tests/integration/**/*.test.ts'] } },
     ]);
   });
