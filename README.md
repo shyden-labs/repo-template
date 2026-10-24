@@ -31,12 +31,13 @@ rotting.
 | `tsconfig.json`, `eslint.config.js`, `.prettierrc.json`, `.githooks/pre-push`, `docs/static-checks.md` | Every code file is typechecked under strict settings, linted with typescript-eslint's strict rules and format-checked, in CI and before every push (issue #61). |
 | `scripts/workflow-lines.ts`, `scripts/workflow-trace.ts`, `scripts/workflow-coverage.ts`, `scripts/zip.ts`, `docs/workflow-lines.md` | Workflow lines are code: every `run:` step runs under a tracing shell that records the lines bash ran, each job uploads the traces, and one commit's runs become lcov for every workflow file (issue #35). |
 
-## The four rules
+## The five rules
 
 1. **Every repo gets Dependabot**, covering every ecosystem present and `github-actions`.
 2. **Pin actions to SHAs, never tags.** A tag is mutable and can be repointed by anyone who can push to that action's repo. Keep the trailing `# vX.Y.Z` comment: it is what makes a bump reviewable rather than an opaque hex swap.
 3. **Target `develop`, never `main`.** A PR against a protected default branch either cannot merge or bypasses the dev gate.
 4. **Group same-repo sub-path actions and pinned pairs, and exclude them from every catch-all.** Dependabot offers a package to every group that can hold it, and a group with no patterns (`patch-updates`) outscores any wildcard, so order decides nothing (Shyden, 2026-10-20). Each group with no patterns lists every pattern group's patterns in `exclude-patterns`, and `tests/unit/supply-chain.test.ts` checks that each pattern group's packages can land in that group alone.
+5. **`develop` is the default branch.** GitHub opens Dependabot **security** fixes against the default branch only; `target-branch` steers version updates alone. With `main` as default, every security fix opens where the develop-first flow cannot merge it (ShyTalk #2183 sat there a month). CI's first step fails unless the default branch is `develop`. Before switching an existing repo, turn every scheduled workflow that acts on a live system into a trigger that dispatches the real job with `--ref main`, because GitHub runs scheduled workflows from the default branch.
 
 ## The rule behind the rules
 
@@ -60,7 +61,7 @@ whole lesson.
 ## Using it
 
 1. **Use this template** on GitHub, or `gh repo create <name> --public --template shyden-labs/repo-template`. New repos are public and open source: `LICENSE` is Apache-2.0, and a repo carrying game, art or learning content adds its own content licence on top.
-2. Create `develop` and make it the default branch before Dependabot first runs: `.github/dependabot.yml` targets `develop`, and a repository created from a template copies only the default branch.
+2. Create `develop` and make it the default branch before Dependabot first runs: `.github/dependabot.yml` targets `develop`, security fixes go only to the default branch, and a repository created from a template copies only the default branch. CI fails until this is done (rule 5).
 3. **Require up-to-date pull requests on `develop`, and a release cut on `main`, each by its own ruleset.** As the operator (rulesets need admin rights): `node scripts/branch-rules-setup.ts <owner/repo> <required check>...`. Name every check the template's CI runs: `build-and-test coverage mutations`. Then read both branches' rules back (`rules/branches/develop` and `rules/branches/main`): `develop` requires all three, strict; `main` requires them and `release-cut`, not strict (`docs/release-cut.md`). Each ruleset names its branch and requires pull requests, signed commits and the named checks. On `develop` they run with *require branches to be up to date* (strict), so what lands is exactly what CI tested; on `main`, the `release-cut` status proves the same of each release cut, because each release merge never reaches squash-only `develop`, so a strict `main` would refuse every cut after the first. `release-cut` is posted from the default branch's own copy, so it must be on the default branch before `main` requires it. It refuses a ruleset that targets `~DEFAULT_BRANCH`: that target moves when the default branch changes, which is how ShyTalk's `main` lost its rules (2026-10-13). Once both branches read back as forbidding deletion, it then turns on **Automatically delete head branches** (`delete_branch_on_merge`) and reads it back: a template copies files, not settings, and the order matters, because with that setting on a deletable `develop` would be deleted by the first `develop` → `main` pull request.
 4. Add the ecosystems your repo actually uses to `.github/dependabot.yml`.
 5. `npm ci && npm run test:unit` — the supply-chain suite must be green before anything else is written.
