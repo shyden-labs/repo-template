@@ -49,6 +49,15 @@ describe('ci.yml', () => {
       { name: '', run: '' },
     ]);
   });
+
+  // The integration suite's one limit is its step's (docs/unit-limits.md), set
+  // from its measured runs: 1 s on PR #102, and a whole minute is the least.
+  it('limits the integration step to one minute', () => {
+    const step = yamlBlock(ci, 'build-and-test', '  ')
+      .split(/\n(?= {6}- )/)
+      .find((block) => /^ {6}- name: Integration tests$/m.test(block));
+    expect(step?.match(/^ {8}timeout-minutes: (\d+)$/m)?.[1]).toBe('1');
+  });
 });
 
 describe('.githooks/pre-push', () => {
