@@ -46,17 +46,18 @@ export function main(args: string[]): number {
   const short = head.slice(0, 7);
   const remote = run('git', ['branch', '-r', '--contains', 'HEAD']).trim();
   if (remote !== '') fail(`HEAD ${short} is already on ${remote}; fold only into a commit no remote branch holds`);
-  const view = JSON.parse(run('gh', ['run', 'view', id, '--json', 'workflowName,status,conclusion,headSha'])) as {
+  const view = JSON.parse(run('gh', ['run', 'view', id, '--json', 'workflowName,status,conclusion'])) as {
     workflowName: string;
     status: string;
     conclusion: string;
-    headSha: string;
   };
   if (view.workflowName !== 'record') fail(`run ${id} is ${view.workflowName}, not record`);
   if (view.status !== 'completed' || view.conclusion !== 'success') {
     fail(`run ${id} is ${view.status === 'completed' ? view.conclusion : view.status}, not a success`);
   }
-  if (view.headSha !== head) fail(`run ${id} measured ${view.headSha.slice(0, 7)}, but HEAD is ${short}`);
+  // A dispatched run's own head is the branch its workflow ran from (develop),
+  // never the scratch ref it checked out: the artifact's sha, written after the
+  // checkout, is what names the commit it measured.
   const dir = join(tmpdir(), `fold-record-${id}`);
   rmSync(dir, { recursive: true, force: true });
   run('gh', ['run', 'download', id, '--name', 'record', '--dir', dir]);
