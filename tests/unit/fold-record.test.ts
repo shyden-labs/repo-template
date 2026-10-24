@@ -29,9 +29,7 @@ function before(over: { status?: string; head?: string; remote?: string; run?: o
   run.mockReturnValueOnce(over.status ?? '');
   run.mockReturnValueOnce(`${over.head ?? HEAD}\n`);
   run.mockReturnValueOnce(over.remote ?? '');
-  run.mockReturnValueOnce(
-    JSON.stringify({ workflowName: 'record', status: 'completed', conclusion: 'success', headSha: HEAD, ...over.run }),
-  );
+  run.mockReturnValueOnce(JSON.stringify({ workflowName: 'record', status: 'completed', conclusion: 'success', ...over.run }));
 }
 
 /** The download: writes the artifact the way `gh run download` would. */
@@ -96,9 +94,15 @@ describe('fold-record', () => {
     expect(() => main([RUN])).toThrow('fold-record: run 123 is failure, not a success');
   });
 
-  it('refuses a run that measured another commit', () => {
-    before({ run: { headSha: 'b'.repeat(40) } });
-    expect(() => main([RUN])).toThrow('fold-record: run 123 measured bbbbbbb, but HEAD is aaaaaaa');
+  // A dispatched run's own head is the branch its workflow ran from (develop),
+  // never the scratch ref it checked out; the artifact's sha names what it measured.
+  it('folds a dispatched run whose own head is the workflow branch, judging the commit by the artifact', () => {
+    before({ run: { headSha: 'd'.repeat(40) } });
+    artifact({ 'coverage-record.json': '{}\n' });
+    run.mockReturnValueOnce('');
+    run.mockReturnValueOnce('feat: a change\n');
+    run.mockReturnValueOnce('');
+    expect(main([RUN])).toBe(0);
   });
 
   it('refuses an artifact that names another commit', () => {
@@ -126,7 +130,7 @@ describe('fold-record', () => {
       ['git', ['status', '--porcelain']],
       ['git', ['rev-parse', 'HEAD']],
       ['git', ['branch', '-r', '--contains', 'HEAD']],
-      ['gh', ['run', 'view', RUN, '--json', 'workflowName,status,conclusion,headSha']],
+      ['gh', ['run', 'view', RUN, '--json', 'workflowName,status,conclusion']],
       ['gh', ['run', 'download', RUN, '--name', 'record', '--dir', DIR]],
       ['git', ['add', '--', 'coverage-record.json', 'docs/floors/x.json']],
       ['git', ['log', '-1', '--format=%B']],

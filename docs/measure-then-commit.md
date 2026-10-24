@@ -37,9 +37,11 @@ hands the files back, and the session folds them in and pushes once (issue
    ```
 
    It refuses, by name, a tree with uncommitted changes, a HEAD a remote
-   branch already holds, a run that is not a successful `record` run of
-   exactly HEAD, and an artifact made from another commit. Otherwise it
-   copies the files in and amends HEAD, adding the run's line to its message.
+   branch already holds, a run that is not a successful `record` run, and an
+   artifact made from any commit but HEAD. The artifact's SHA is the proof:
+   a dispatched run's own head is `develop`, never the scratch ref it
+   measured. Otherwise it copies the files in and amends HEAD, adding the
+   run's line to its message.
 5. **Push the branch once**, then delete the scratch ref:
 
    ```sh
