@@ -5,7 +5,7 @@
  * `develop`, so this check proves instead what strict proved, that what lands
  * is what CI tested:
  *
- *   (a) the head branch is a `release/` branch;
+ *   (a) the head branch is a `release/` branch, and origin holds it at the head;
  *   (b) the head is on `origin/develop`, where CI tested it;
  *   (c) the pull request's merge ref is GitHub's merge of the head into main,
  *       and it lands exactly the head's tree;
@@ -16,9 +16,12 @@
  * own copy (`pull_request_target`), never the pull request's: it fetches the
  * pull request's merge ref as git data, runs none of its code, and posts its
  * verdict as the `release-cut` commit status on the head, which `main`
- * requires (Shyden's rulings of 2026-10-23 on #86):
+ * requires (Shyden's rulings of 2026-10-23 on #86). A status belongs to a
+ * SHA, which a fork's pull request can share with a release's, so a pull
+ * request from any other repository is refused before anything is posted
+ * (issue #103):
  *
- *   node scripts/release-cut.ts <head ref> <40-hex head sha> <pull request number>
+ *   node scripts/release-cut.ts <head repository> <head ref> <40-hex head sha> <pull request number>
  */
 import { execFileSync } from 'node:child_process';
 import { RELEASE_CUT } from './branch-rules-setup.ts';
@@ -35,6 +38,8 @@ export interface MainCommit {
 export interface ReleaseCutFacts {
   headRef: string;
   headSha: string;
+  /** The commit origin's `refs/heads/<headRef>` is at, read live; null when origin holds no such branch. */
+  originHeadSha: string | null;
   headOnDevelop: boolean;
   /** The checked-out commit's parents: main's tip, then the head. */
   mergeParents: string[];
@@ -50,6 +55,7 @@ export const MERGE_REF = 'refs/remotes/pull/merge';
 /** GitHub refuses a commit status description longer than this. */
 const DESCRIPTION_LIMIT = 140;
 const DEVELOP = 'origin/develop';
+const DEVELOP_BRANCH = 'refs/heads/develop';
 const BEYOND_DEVELOP = 'origin/develop..origin/main';
 
 /** Every reason the merge is not a release cut, in the order (a)-(d); empty when it is one. */
@@ -57,6 +63,11 @@ export function auditReleaseCut(facts: ReleaseCutFacts): string[] {
   const problems: string[] = [];
   if (!/^release\/./.test(facts.headRef)) {
     problems.push(`the head branch is ${facts.headRef}, not a release/ branch`);
+  }
+  if (facts.originHeadSha === null) {
+    problems.push(`origin holds no branch ${facts.headRef}`);
+  } else if (facts.originHeadSha !== facts.headSha) {
+    problems.push(`origin's ${facts.headRef} is at ${facts.originHeadSha}, not the head ${facts.headSha}`);
   }
   if (!facts.headOnDevelop) {
     problems.push(`the head ${facts.headSha} is not on ${DEVELOP}`);
@@ -95,6 +106,26 @@ export function parseParents(revList: string): { sha: string; parents: string[] 
     });
 }
 
+/**
+ * Reads where origin holds `ref`, from `git ls-remote` asked for develop and `ref`. ls-remote matches each pattern by
+ * its tail, so only a line naming `ref` exactly is it. develop is always there: an answer without it is not read as
+ * `ref`'s absence.
+ */
+export function parseRemoteHead(lsRemote: string, ref: string, question: string): string | null {
+  const lines = lsRemote === '' ? [] : lsRemote.replace(/\n$/, '').split('\n');
+  const refs = lines.map((line) => {
+    const match = /^([0-9a-f]{40})\t(refs\/[^\t]+)$/.exec(line);
+    if (match === null) throw new Error(`unreadable ls-remote line: ${line}`);
+    return { sha: match[1] as string, name: match[2] as string };
+  });
+  if (!refs.some(({ name }) => name === DEVELOP_BRANCH)) {
+    throw new Error(`git ${question} named no ${DEVELOP_BRANCH}, so its answer cannot be read`);
+  }
+  const named = refs.filter(({ name }) => name === ref);
+  if (named.length > 1) throw new Error(`git ${question} named ${ref} twice`);
+  return named[0]?.sha ?? null;
+}
+
 function git(args: string[]): string {
   return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 }
@@ -115,6 +146,9 @@ function onDevelop(sha: string): boolean {
 /** Fetches the pull request's merge ref as data, then asks git about it, the head and main. */
 export function gatherFacts(headRef: string, headSha: string, pullNumber: number): ReleaseCutFacts {
   git(['fetch', '--no-tags', 'origin', `+refs/pull/${pullNumber}/merge:${MERGE_REF}`]);
+  // The head ref is only a name the pull request gives, so origin is asked where it holds that branch now.
+  const remoteArgs = ['ls-remote', 'origin', DEVELOP_BRANCH, `refs/heads/${headRef}`];
+  const originHeadSha = parseRemoteHead(git(remoteArgs), `refs/heads/${headRef}`, remoteArgs.join(' '));
   const headOnDevelop = onDevelop(headSha);
   const mergeParents = parseParents(git(['rev-list', '--parents', '-n', '1', MERGE_REF]))[0]?.parents ?? [];
   const mergeTree = git(['rev-parse', `${MERGE_REF}^{tree}`]).trim();
@@ -124,7 +158,7 @@ export function gatherFacts(headRef: string, headSha: string, pullNumber: number
     parents,
     secondParentOnDevelop: parents.length === 2 ? onDevelop(parents[1] as string) : null,
   }));
-  return { headRef, headSha, headOnDevelop, mergeParents, mergeTree, headTree, mainCommits };
+  return { headRef, headSha, originHeadSha, headOnDevelop, mergeParents, mergeTree, headTree, mainCommits };
 }
 
 /** The commit status a verdict posts: GitHub shows its description beside the check. */
@@ -174,11 +208,17 @@ async function post(env: Env, headSha: string, status: Status): Promise<void> {
 }
 
 export async function main(args: string[]): Promise<number> {
-  if (args.length !== 3 || !SHA.test(args[1] as string) || !PULL_NUMBER.test(args[2] as string)) {
-    throw new Error('usage: node scripts/release-cut.ts <head ref> <40-hex head sha> <pull request number>');
+  if (args.length !== 4 || !SHA.test(args[2] as string) || !PULL_NUMBER.test(args[3] as string)) {
+    throw new Error('usage: node scripts/release-cut.ts <head repository> <head ref> <40-hex head sha> <pull request number>');
   }
-  const [headRef, headSha, pullNumber] = args as [string, string, string];
+  const [headRepository, headRef, headSha, pullNumber] = args as [string, string, string, string];
   const env = actionsEnv();
+  // Any verdict, a failure too, would land on a SHA a release's pull request may share, so a fork's posts none.
+  if (headRepository !== env.GITHUB_REPOSITORY) {
+    throw new Error(
+      `release-cut posts nothing for a pull request from ${JSON.stringify(headRepository)}: a release cut comes from this repository's own release/ branch, not a fork`,
+    );
+  }
   let facts: ReleaseCutFacts;
   try {
     facts = gatherFacts(headRef, headSha, Number(pullNumber));

@@ -27,7 +27,10 @@ posted on pull requests into `develop`, so every merge would wait on it).
 every pull request into `main`. It fetches the pull request's merge ref
 (`refs/pull/<n>/merge`) and fails, naming each reason, unless:
 
-- **(a)** the head branch starts with `release/` and names something after it;
+- **(a)** the head branch starts with `release/` and names something after
+  it, and `origin` holds that branch at the head now (`git ls-remote`, asked
+  for `develop` too, so an answer without `develop` fails rather than reading
+  as the branch's absence);
 - **(b)** the head is an ancestor of `origin/develop`, so CI tested it there;
 - **(c)** the merge ref is GitHub's merge of this head into `main` (two
   parents, the second the head), and its tree equals the head's tree, so the
@@ -41,6 +44,17 @@ later cut passes with one release merge per earlier release. The job prints
 how many commits it judged. git failing to answer fails the check rather
 than reading as a pass: no merge ref (GitHub builds none for a pull request
 that conflicts with `main`), or a missing branch.
+
+## Which pull requests it judges (issue #103)
+
+It judges only pull requests whose head branch is in this repository. A
+fork's pull request posts no status at all: its job fails, naming the fork,
+before git or GitHub is asked anything. A commit status belongs to a SHA, not
+a pull request, and the latest post wins. A fork can open a pull request whose
+head is a commit already on `develop`, the same SHA as a real release's, so
+any verdict it posted, a failure as much as a success, would overwrite the
+release's. A fork whose repository was deleted has no name and is refused the
+same way.
 
 A `release-cut` result can stay green while `main` moves, because `main` is
 not strict. That is still safe: `develop` is linear, so (b) puts any two cuts
