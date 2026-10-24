@@ -23,7 +23,7 @@ describe('the licence', () => {
 describe('a new repository', () => {
   it('is told to create develop before Dependabot first runs', () => {
     expect(readme()).toContain(
-      '2. Create `develop` and make it the default branch before Dependabot first runs: `.github/dependabot.yml` targets `develop`, and a repository created from a template copies only the default branch.',
+      '2. Create `develop` and make it the default branch before Dependabot first runs: `.github/dependabot.yml` targets `develop`, security fixes go only to the default branch, and a repository created from a template copies only the default branch. CI fails until this is done (rule 5).',
     );
   });
 

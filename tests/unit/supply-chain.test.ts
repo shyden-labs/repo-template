@@ -470,3 +470,55 @@ describe('the template runs one Node and one runner, pinned exactly', () => {
     expect([withScripts.sort(), Object.keys({ ...manifest().allowScripts }).sort()]).toEqual([['fsevents'], ['fsevents']]);
   });
 });
+
+/**
+ * GitHub: "Dependabot raises pull requests for security updates against the
+ * default branch only", and `target-branch` steers version updates alone. So
+ * with `main` as the default branch every SECURITY fix opens against `main`,
+ * outside the develop gate (ShyTalk #2183 sat there for a month). The default
+ * branch must be `develop`, and only CI can see the repository setting, so CI
+ * checks it as its FIRST step: a wrong default fails within seconds, before
+ * anything is installed (issue #46).
+ */
+describe('security fixes open against develop', () => {
+  const STEP = /^\s*- name:\s*The default branch is develop\s*$/;
+  const ciLines = () => withoutYamlComments(readFileSync(join(WORKFLOWS, 'ci.yml'), 'utf8')).split('\n');
+
+  /** Each such step's own lines: everything after its `- name:` indented deeper than it. */
+  const defaultBranchSteps = () => {
+    const lines = ciLines();
+    return lines.flatMap((line, at) => {
+      if (!STEP.test(line)) return [];
+      const indent = line.search(/\S/);
+      // The blank sentinel ends a step that is the file's last.
+      const rest = [...lines.slice(at + 1), ''];
+      return [
+        rest
+          .slice(
+            0,
+            rest.findIndex((next) => next.search(/\S/) <= indent),
+          )
+          .join('\n'),
+      ];
+    });
+  };
+
+  it('CI has exactly one step checking the default branch', () => {
+    expect(defaultBranchSteps()).toHaveLength(1);
+  });
+
+  it('the step reads the repository setting and fails unless it is develop', () => {
+    const steps = defaultBranchSteps();
+    expect(steps, 'no default-branch step in ci.yml').toHaveLength(1);
+    const block = steps.join('\n');
+    expect(block).toMatch(/DEFAULT_BRANCH:\s*\$\{\{\s*github\.event\.repository\.default_branch\s*\}\}/);
+    expect(block).toMatch(/if \[ "\$DEFAULT_BRANCH" != "develop" \]; then[\s\S]*\bexit 1\b[\s\S]*\bfi\b/);
+    // A skipped or tolerated step reports success: the check must run and must fail the job.
+    expect(block).not.toMatch(/continue-on-error/);
+    expect(block).not.toMatch(/^\s*if:/m);
+  });
+
+  it('the check runs before anything else in the job', () => {
+    expect(ciLines().find((line) => /^\s*- (name|uses|run):/.test(line))).toMatch(STEP);
+  });
+});
