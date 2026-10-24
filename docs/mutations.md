@@ -31,7 +31,8 @@ Unit-test mutations may still run on the laptop:
 `node scripts/mutate.ts run mutations/<file>.json`.
 
 Non-unit test files are the ones under a suite listed in `SUITES`
-(`scripts/mutate.ts`). Today that is `tests/logs/` (`docs/logs-suite.md`). A
+(`scripts/mutate.ts`). Today that is `tests/logs/` (`docs/logs-suite.md`) and
+`tests/integration/` (`docs/unit-limits.md`). A
 new suite joins that list.
 
 ## A mutation file

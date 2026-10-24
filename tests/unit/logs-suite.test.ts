@@ -24,7 +24,7 @@ const readme = () => readFileSync('README.md', 'utf8');
 
 describe('the unit suite', () => {
   it('collects tests under tests/unit only', () => {
-    expect(unitConfig.test?.include).toEqual(['tests/unit/**/*.test.ts']);
+    expect(unitConfig.test.include).toEqual(['tests/unit/**/*.test.ts']);
   });
 
   it('is what npm run test:unit runs', () => {

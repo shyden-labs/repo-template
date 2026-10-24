@@ -19,4 +19,14 @@ export class AllCodeProvider extends V8CoverageProvider {
   }
 }
 
-export default { ...v8, getProvider: (): Promise<AllCodeProvider> => Promise.resolve(new AllCodeProvider()) };
+// V8 keeps its inspector session on its own module object (`this.session`).
+// Vitest can load this module afresh between starting and taking coverage in a
+// worker (it does when the run has `projects`), so each hook runs on V8's own
+// object, never on a copy of it (#92).
+export default {
+  ...v8,
+  startCoverage: v8.startCoverage?.bind(v8),
+  takeCoverage: v8.takeCoverage?.bind(v8),
+  stopCoverage: v8.stopCoverage?.bind(v8),
+  getProvider: (): Promise<AllCodeProvider> => Promise.resolve(new AllCodeProvider()),
+};

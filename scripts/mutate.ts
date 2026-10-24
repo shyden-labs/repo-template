@@ -36,6 +36,7 @@ export interface MutationFile {
 /** Every non-unit suite: the folder its tests live in and the config that runs them. New suites join here. */
 export const SUITES: Record<string, { dir: string; config: string }> = {
   logs: { dir: 'tests/logs/', config: 'vitest.logs.config.ts' },
+  integration: { dir: 'tests/integration/', config: 'vitest.integration.config.ts' },
 };
 
 const TEST_FILE = /\.test\.[cm]?[jt]sx?$/;

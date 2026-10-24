@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { withoutPinnedShas, withoutYamlComments, withoutYamlQuotes } from './source-text.ts';
+import coverageConfig from '../../vitest.coverage.config.ts';
 
 /**
  * One coverage tool, wired the same way in every repo made from the template
@@ -44,8 +45,27 @@ describe('the commands', () => {
 
   it('measures every TypeScript and JavaScript file, tests included, with the V8-based provider, writing lcov and a summary', () => {
     expect(pkg.scripts['test:coverage']).toBe(
-      "vitest run --config vitest.unit.config.ts --coverage.enabled --coverage.provider=custom --coverage.customProviderModule=./scripts/coverage-provider.ts --coverage.include='**/*.{ts,mts,cts,tsx,js,mjs,cjs,jsx}' --coverage.reporter=json-summary --coverage.reporter=lcov --coverage.reporter=text-summary",
+      "vitest run --config vitest.coverage.config.ts --coverage.enabled --coverage.provider=custom --coverage.customProviderModule=./scripts/coverage-provider.ts --coverage.include='**/*.{ts,mts,cts,tsx,js,mjs,cjs,jsx}' --coverage.reporter=json-summary --coverage.reporter=lcov --coverage.reporter=text-summary",
     );
+  });
+
+  it('runs the integration suite on its own config, with no limit inside it', () => {
+    expect(pkg.scripts['test:integration']).toBe('vitest run --config vitest.integration.config.ts');
+  });
+
+  it('measures the unit and integration suites together, each on its own files', () => {
+    expect(coverageConfig.test.projects).toEqual([
+      // The refusals, without the unit limits' judges and 1 s timeouts, which instrumented code would trip (#92).
+      {
+        test: {
+          name: 'unit',
+          include: ['tests/unit/**/*.test.ts'],
+          pool: 'forks',
+          setupFiles: ['tests/setup/unit-refusal.ts', 'tests/setup/load.ts'],
+        },
+      },
+      { test: { name: 'integration', include: ['tests/integration/**/*.test.ts'] } },
+    ]);
   });
 
   it('records the measured counts with the record script', () => {

@@ -32,6 +32,10 @@ jobs:
       - name: Format
         run: npm run format:check
       - run: npm run test:unit
+      # Cases that cannot fit the unit limits (docs/unit-limits.md, #92); its one limit is this step's.
+      - name: Integration tests
+        run: npm run test:integration
+        timeout-minutes: 1
       # Each run step's line trace, for the workflow-line record (issue #35); kept after a failure too.
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

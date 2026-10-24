@@ -36,7 +36,7 @@ describe('package.json', () => {
 });
 
 describe('ci.yml', () => {
-  it('runs typecheck, lint and format check as named steps of build-and-test, after npm ci and before the unit suite', () => {
+  it('runs typecheck, lint and format check as named steps of build-and-test, after npm ci and before the unit suite, then the integration suite', () => {
     expect(steps(yamlBlock(ci, 'build-and-test', '  '))).toEqual([
       { name: '', run: '' },
       { name: '', run: '' },
@@ -45,8 +45,18 @@ describe('ci.yml', () => {
       { name: 'Lint', run: 'npm run lint' },
       { name: 'Format', run: 'npm run format:check' },
       { name: '', run: 'npm run test:unit' },
+      { name: 'Integration tests', run: 'npm run test:integration' },
       { name: '', run: '' },
     ]);
+  });
+
+  // The integration suite's one limit is its step's (docs/unit-limits.md), set
+  // from its measured runs: 1 s on PR #102, and a whole minute is the least.
+  it('limits the integration step to one minute', () => {
+    const step = yamlBlock(ci, 'build-and-test', '  ')
+      .split(/\n(?= {6}- )/)
+      .find((block) => /^ {6}- name: Integration tests$/m.test(block));
+    expect(step?.match(/^ {8}timeout-minutes: (\d+)$/m)?.[1]).toBe('1');
   });
 });
 

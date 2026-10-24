@@ -45,6 +45,15 @@ Fix it in the code. A disable comment, a `@ts-ignore` or an `as any` hides the
 finding; a cast is used only to state an invariant the types cannot see, with a
 comment saying what it is.
 
+One exemption exists, granted by the operator for this case alone
+(2026-10-24): Vitest 5 reads a suite hook's first parameter as its fixtures
+and requires an object pattern there, so the load hooks in
+`tests/setup/limits.ts` take `({}, suite)` behind one
+`eslint-disable-next-line no-empty-pattern` with its reason. It is not a
+pattern to follow: every other finding is fixed in the code, and a new
+exemption, or a rule loosened in `eslint.config.js`, needs the operator's
+ruling first. Lint fails if this one stops being needed.
+
 `tests/unit/static-checks.test.ts` pins the scripts, the CI steps, the hook and
 these settings; `tests/unit/lint-config.test.ts` pins the lint config's own
 choices.

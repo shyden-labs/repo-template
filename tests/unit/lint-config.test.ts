@@ -60,6 +60,10 @@ describe('eslint.config.js', () => {
     ]);
   });
 
+  it('refuses every empty pattern as the base does: the one Vitest needs is a one-line exemption, not a looser rule', () => {
+    expect(rules.filter(([name]) => name === 'no-empty-pattern')).toEqual([['no-empty-pattern', 'error']]);
+  });
+
   it('sets its own rules after the strict preset, so they are the ones that apply', () => {
     expect(config.findIndex((c) => c.rules !== undefined && c !== js.configs.recommended)).toBeGreaterThan(strictAt);
   });
