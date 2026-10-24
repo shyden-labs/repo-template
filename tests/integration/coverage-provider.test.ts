@@ -45,10 +45,17 @@ describe('the coverage provider', () => {
     expect(await provider.getProvider()).toBeInstanceOf(AllCodeProvider);
   });
 
-  it("keeps V8's own hooks for starting and taking coverage in each worker", () => {
-    expect(provider.startCoverage).toBe(v8.startCoverage);
-    expect(provider.takeCoverage).toBe(v8.takeCoverage);
-    expect(provider.stopCoverage).toBe(v8.stopCoverage);
+  // The premise of binding the hooks: real V8 reads its inspector session from
+  // the object a hook runs on, so a hook run on a copy finds none. Called on an
+  // empty object, never on V8's own: taking coverage there would reset the
+  // counts of the coverage run measuring this file.
+  it('real V8 reads its inspector session from the object a hook runs on', async () => {
+    await expect(v8.takeCoverage?.call({}, {} as never)).rejects.toThrow('V8 provider missing inspector session.');
+  });
+
+  it.each(['startCoverage', 'takeCoverage', 'stopCoverage'] as const)('hands Vitest V8’s own %s, bound to V8’s own object', (name) => {
+    expect(provider[name]?.name).toBe(`bound ${name}`);
+    expect(v8[name]?.name).toBe(name);
   });
 
   it("keeps V8's warning when Vitest and the provider are different versions", () => {

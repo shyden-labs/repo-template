@@ -30,6 +30,15 @@
       "anchor": "'coverage/**', ",
       "replacement": "",
       "predict": { "red": ["leaves out coverage/prettify.js"] }
+    },
+    {
+      "name": "runs V8's takeCoverage on a copy",
+      "path": "scripts/coverage-provider.ts",
+      "anchor": "takeCoverage: v8.takeCoverage?.bind(v8),",
+      "replacement": "takeCoverage: v8.takeCoverage,",
+      "predict": {
+        "red": ["hands Vitest V8’s own takeCoverage, bound to V8’s own object"]
+      }
     }
   ]
 }
