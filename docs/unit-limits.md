@@ -44,7 +44,9 @@ suite keeps a stand-in of its logic, in the same pull request. A cut never
 drops a real run; it moves. The integration suite
 (`vitest.integration.config.ts`, `npm run test:integration`) runs in CI's
 `build-and-test` job, with one measured time limit on its step and none
-inside.
+inside. It is also where release-cut's planted cases run against real git
+(#87): a case that drives `git` itself starts a process, so unit keeps its
+stand-ins and the real runs live here.
 
 ## Reading the reports
 
