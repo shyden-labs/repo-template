@@ -24,11 +24,14 @@ const STRAY = 'e'.repeat(40);
 const TREE = 'f'.repeat(40);
 /** The pull request's merge ref, GitHub's merge of HEAD into main's tip. */
 const PR_MERGE = '9'.repeat(40);
+/** origin's develop, which every answer from origin must name. */
+const DEVELOP_TIP = '8'.repeat(40);
 
 /** A second cut after one release merge: every fact as it should be. */
 const good: ReleaseCutFacts = {
   headRef: 'release/2026-10-23',
   headSha: HEAD,
+  originHeadSha: HEAD,
   headOnDevelop: true,
   mergeParents: [MERGE, HEAD],
   mergeTree: TREE,
@@ -47,6 +50,17 @@ describe('auditReleaseCut', () => {
 
   it.each(['feature/x', 'releases/2026-10-23', 'release', 'release/', 'xrelease/2026-10-23'])('refuses the head branch %s', (headRef) => {
     expect(auditReleaseCut({ ...good, headRef })).toEqual([`the head branch is ${headRef}, not a release/ branch`]);
+  });
+
+  // The head ref is only a name the pull request gives: origin must hold that branch, at this head (issue #103).
+  it('refuses a head branch origin does not hold', () => {
+    expect(auditReleaseCut({ ...good, originHeadSha: null })).toEqual(['origin holds no branch release/2026-10-23']);
+  });
+
+  it('refuses a head branch origin holds at another commit', () => {
+    expect(auditReleaseCut({ ...good, originHeadSha: STRAY })).toEqual([
+      `origin's release/2026-10-23 is at ${STRAY}, not the head ${HEAD}`,
+    ]);
   });
 
   it('refuses a head that is not on develop', () => {
@@ -99,6 +113,7 @@ describe('auditReleaseCut', () => {
     const facts: ReleaseCutFacts = {
       headRef: 'feature/x',
       headSha: HEAD,
+      originHeadSha: STRAY,
       headOnDevelop: false,
       mergeParents: [MERGE],
       mergeTree: STRAY,
@@ -107,6 +122,7 @@ describe('auditReleaseCut', () => {
     };
     expect(auditReleaseCut(facts)).toEqual([
       'the head branch is feature/x, not a release/ branch',
+      `origin's feature/x is at ${STRAY}, not the head ${HEAD}`,
       `the head ${HEAD} is not on origin/develop`,
       `the checked-out commit is not GitHub's merge of the head ${HEAD} into main (its parents: ${MERGE})`,
       `the merge would land tree ${STRAY}, not the head's tree ${TREE}`,
@@ -152,8 +168,10 @@ function answer(replies: Record<string, string | Error>): void {
 
 const ancestor = (sha: string) => `merge-base --is-ancestor ${sha} origin/develop`;
 const FETCH = 'fetch --no-tags origin +refs/pull/7/merge:refs/remotes/pull/merge';
+const LS_REMOTE = 'ls-remote origin refs/heads/develop refs/heads/release/2026-10-23';
 const repoReplies = (overrides: Record<string, string | Error> = {}): Record<string, string | Error> => ({
   [FETCH]: '',
+  [LS_REMOTE]: `${DEVELOP_TIP}\trefs/heads/develop\n${HEAD}\trefs/heads/release/2026-10-23\n`,
   [ancestor(HEAD)]: '',
   'rev-list --parents -n 1 refs/remotes/pull/merge': `${PR_MERGE} ${MERGE} ${HEAD}\n`,
   'rev-parse refs/remotes/pull/merge^{tree}': `${TREE}\n`,
@@ -181,6 +199,7 @@ describe('gatherFacts', () => {
     expect(gatherFacts('release/2026-10-23', HEAD, 7)).toEqual(good);
     expect(git.mock.calls.map((c) => [c[0], (c[1] as string[]).join(' ')])).toEqual([
       ['git', FETCH],
+      ['git', LS_REMOTE],
       ['git', ancestor(HEAD)],
       ['git', 'rev-list --parents -n 1 refs/remotes/pull/merge'],
       ['git', 'rev-parse refs/remotes/pull/merge^{tree}'],
@@ -192,6 +211,52 @@ describe('gatherFacts', () => {
 
   it('names the merge ref it fetches into', () => {
     expect(MERGE_REF).toBe('refs/remotes/pull/merge');
+  });
+
+  // origin is asked live, beside develop, which it always holds: an answer without develop is unread, never an absence.
+  it('reads the head branch as absent when origin names develop alone', () => {
+    answer(repoReplies({ [LS_REMOTE]: `${DEVELOP_TIP}\trefs/heads/develop\n` }));
+    expect(gatherFacts('release/2026-10-23', HEAD, 7).originHeadSha).toBeNull();
+  });
+
+  it('reads the commit origin holds the head branch at', () => {
+    answer(repoReplies({ [LS_REMOTE]: `${DEVELOP_TIP}\trefs/heads/develop\n${STRAY}\trefs/heads/release/2026-10-23\n` }));
+    expect(gatherFacts('release/2026-10-23', HEAD, 7).originHeadSha).toBe(STRAY);
+  });
+
+  // ls-remote matches a pattern by its tail, so it also names branches whose names only end in the head ref.
+  it('takes no branch whose name only ends in the head ref for it', () => {
+    const tail = `${DEVELOP_TIP}\trefs/heads/develop\n${HEAD}\trefs/heads/x/refs/heads/release/2026-10-23\n`;
+    answer(repoReplies({ [LS_REMOTE]: tail }));
+    expect(gatherFacts('release/2026-10-23', HEAD, 7).originHeadSha).toBeNull();
+  });
+
+  it.each(['', `${HEAD}\trefs/heads/release/2026-10-23\n`, `${DEVELOP_TIP}\trefs/heads/x/refs/heads/develop\n`])(
+    'fails rather than read an answer from origin naming no develop: %j',
+    (reply) => {
+      answer(repoReplies({ [LS_REMOTE]: reply }));
+      expect(() => gatherFacts('release/2026-10-23', HEAD, 7)).toThrow(
+        `git ${LS_REMOTE} named no refs/heads/develop, so its answer cannot be read`,
+      );
+    },
+  );
+
+  it.each([
+    `${DEVELOP_TIP} refs/heads/develop`,
+    `${DEVELOP_TIP.slice(1)}\trefs/heads/develop`,
+    `${OLD_CUT.toUpperCase()}\trefs/heads/develop`,
+    `${DEVELOP_TIP}\t`,
+    `${DEVELOP_TIP}\trefs/heads/develop\textra`,
+    '',
+  ])('refuses the ls-remote line %j by name', (line) => {
+    answer(repoReplies({ [LS_REMOTE]: `${line}\n${DEVELOP_TIP}\trefs/heads/develop\n` }));
+    expect(() => gatherFacts('release/2026-10-23', HEAD, 7)).toThrow(`unreadable ls-remote line: ${line}`);
+  });
+
+  it('fails, naming origin, when it holds the head branch twice', () => {
+    const twice = `${DEVELOP_TIP}\trefs/heads/develop\n${HEAD}\trefs/heads/release/2026-10-23\n${STRAY}\trefs/heads/release/2026-10-23\n`;
+    answer(repoReplies({ [LS_REMOTE]: twice }));
+    expect(() => gatherFacts('release/2026-10-23', HEAD, 7)).toThrow(`git ${LS_REMOTE} named refs/heads/release/2026-10-23 twice`);
   });
 
   it('reads status 1 from --is-ancestor as not on develop', () => {
@@ -223,7 +288,7 @@ describe('gatherFacts', () => {
     expect(gatherFacts('release/2026-10-23', HEAD, 7).mainCommits).toEqual([
       { sha: STRAY, parents: [OLD_MAIN], secondParentOnDevelop: null },
     ]);
-    expect(git).toHaveBeenCalledTimes(6);
+    expect(git).toHaveBeenCalledTimes(7);
   });
 
   it('reads no parents when git names no merge commit, so the merge check fails', () => {
@@ -234,7 +299,7 @@ describe('gatherFacts', () => {
   it('runs git with its output read as text and nothing on its input', () => {
     answer(repoReplies());
     gatherFacts('release/2026-10-23', HEAD, 7);
-    expect(git.mock.calls.map((c) => c[2])).toEqual(Array(7).fill({ encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }));
+    expect(git.mock.calls.map((c) => c[2])).toEqual(Array(8).fill({ encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }));
   });
 });
 
@@ -305,30 +370,48 @@ describe('main', () => {
 
   it.each([
     [[]],
-    [['release/x', HEAD]],
-    [['release/x', HEAD, '7', 'extra']],
-    [['release/x', HEAD.slice(1), '7']],
-    [['release/x', `-${HEAD.slice(1)}`, '7']],
-    [['release/x', HEAD, '0']],
-    [['release/x', HEAD, '07']],
-    [['release/x', HEAD, '7x']],
+    [['release/x', HEAD, '7']],
+    [['shyden-labs/app', 'release/x', HEAD, '7', 'extra']],
+    [['shyden-labs/app', 'release/x', HEAD.slice(1), '7']],
+    [['shyden-labs/app', 'release/x', `-${HEAD.slice(1)}`, '7']],
+    [['shyden-labs/app', 'release/x', HEAD, '0']],
+    [['shyden-labs/app', 'release/x', HEAD, '07']],
+    [['shyden-labs/app', 'release/x', HEAD, '7x']],
   ])('refuses the arguments %j, asking git and GitHub nothing', async (args) => {
     answerPosts();
-    await expect(main(args)).rejects.toThrow('usage: node scripts/release-cut.ts <head ref> <40-hex head sha> <pull request number>');
+    await expect(main(args)).rejects.toThrow(
+      'usage: node scripts/release-cut.ts <head repository> <head ref> <40-hex head sha> <pull request number>',
+    );
     expect([git.mock.calls.length, posted.length]).toEqual([0, 0]);
   });
+
+  // A status belongs to the head's SHA, which a fork's pull request can share with a release's: a fork's verdict, even a
+  // failure, would overwrite the release's, so it posts none (issue #103). Its own job still fails, naming why.
+  it.each(['someone/app', 'shyden-labs/App', 'shyden-labs/app-fork', ''])(
+    'refuses a pull request from %j by name, asking git and GitHub nothing',
+    async (repository) => {
+      answer(repoReplies());
+      answerPosts();
+      await expect(main([repository, 'release/2026-10-23', HEAD, '7'])).rejects.toThrow(
+        `release-cut posts nothing for a pull request from ${JSON.stringify(repository)}: a release cut comes from this repository's own release/ branch, not a fork`,
+      );
+      expect([git.mock.calls.length, posted.length]).toEqual([0, 0]);
+    },
+  );
 
   it.each(Object.keys(ENV))('refuses to run without %s, asking git and GitHub nothing', async (name) => {
     answerPosts();
     vi.stubEnv(name, '');
-    await expect(main(['release/2026-10-23', HEAD, '7'])).rejects.toThrow(`release-cut needs ${name}, which GitHub Actions sets`);
+    await expect(main(['shyden-labs/app', 'release/2026-10-23', HEAD, '7'])).rejects.toThrow(
+      `release-cut needs ${name}, which GitHub Actions sets`,
+    );
     expect([git.mock.calls.length, posted.length]).toEqual([0, 0]);
   });
 
   it('posts success on the head, says what it judged and exits 0 when the merge is a release cut', async () => {
     answer(repoReplies());
     answerPosts();
-    await expect(main(['release/2026-10-23', HEAD, '7'])).resolves.toBe(0);
+    await expect(main(['shyden-labs/app', 'release/2026-10-23', HEAD, '7'])).resolves.toBe(0);
     expect(posted).toEqual([statusPost('success', "a tested release cut: the merge lands the head's tree")]);
     expect(out).toEqual([
       `release-cut: release/2026-10-23 at ${HEAD}; judged 1 commit(s) in origin/develop..origin/main; the merge lands the head's tree.\n`,
@@ -336,9 +419,10 @@ describe('main', () => {
   });
 
   it('posts failure on the head and refuses the merge, naming each reason', async () => {
-    answer(repoReplies());
+    const featureBranch = `${DEVELOP_TIP}\trefs/heads/develop\n${HEAD}\trefs/heads/feature/x\n`;
+    answer(repoReplies({ 'ls-remote origin refs/heads/develop refs/heads/feature/x': featureBranch }));
     answerPosts();
-    await expect(main(['feature/x', HEAD, '7'])).rejects.toThrow(
+    await expect(main(['shyden-labs/app', 'feature/x', HEAD, '7'])).rejects.toThrow(
       'release-cut refuses this merge:\n  the head branch is feature/x, not a release/ branch',
     );
     expect(posted).toEqual([statusPost('failure', 'the head branch is feature/x, not a release/ branch')]);
@@ -348,7 +432,7 @@ describe('main', () => {
   it('posts an error on the head when git cannot answer, then fails with git’s reason', async () => {
     answer(repoReplies({ [ancestor(HEAD)]: exited(128, 'fatal: bad object') }));
     answerPosts();
-    await expect(main(['release/2026-10-23', HEAD, '7'])).rejects.toThrow(
+    await expect(main(['shyden-labs/app', 'release/2026-10-23', HEAD, '7'])).rejects.toThrow(
       `git merge-base --is-ancestor ${HEAD} origin/develop failed: fatal: bad object`,
     );
     expect(posted).toEqual([
@@ -359,7 +443,7 @@ describe('main', () => {
   it('fails, naming GitHub’s answer, when the status cannot be posted', async () => {
     answer(repoReplies());
     answerPosts(403);
-    await expect(main(['release/2026-10-23', HEAD, '7'])).rejects.toThrow(
+    await expect(main(['shyden-labs/app', 'release/2026-10-23', HEAD, '7'])).rejects.toThrow(
       `POST https://api.github.com/repos/shyden-labs/app/statuses/${HEAD} answered 403; the pull request has no release-cut status`,
     );
   });
@@ -421,16 +505,17 @@ describe('check-release-cut.yml', () => {
   });
 
   // The head ref is text the pull request's author chose: it reaches the shell through env, never through an expression.
-  it('hands the head ref, head SHA, pull request number and token to the check through env', () => {
+  it('hands the head repository, head ref, head SHA, pull request number and token to the check through env', () => {
     expect(steps()[2]).toBe(
       [
         '      - name: Judge the release cut and post its status',
         '        env:',
+        '          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}',
         '          HEAD_REF: ${{ github.head_ref }}',
         '          HEAD_SHA: ${{ github.event.pull_request.head.sha }}',
         '          PR_NUMBER: ${{ github.event.pull_request.number }}',
         '          GITHUB_TOKEN: ${{ github.token }}',
-        '        run: node scripts/release-cut.ts "$HEAD_REF" "$HEAD_SHA" "$PR_NUMBER"',
+        '        run: node scripts/release-cut.ts "$HEAD_REPOSITORY" "$HEAD_REF" "$HEAD_SHA" "$PR_NUMBER"',
       ].join('\n'),
     );
   });
@@ -471,6 +556,12 @@ describe('docs/release-cut.md', () => {
         .split('\n')
         .filter((line) => line.startsWith(`- **${label}**`)),
     ).toHaveLength(1);
+  });
+
+  it('says which pull requests it judges, and why a fork’s posts nothing', () => {
+    expect(doc().replace(/\s+/g, ' ')).toContain(
+      "It judges only pull requests whose head branch is in this repository. A fork's pull request posts no status at all",
+    );
   });
 
   it('says how to apply the rules and what to read back', () => {

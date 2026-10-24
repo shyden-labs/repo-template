@@ -40,11 +40,13 @@ jobs:
       # The head ref is text the pull request's author chose: it reaches the shell through env, never through an expression.
       - name: Judge the release cut and post its status
         env:
+          # A fork's full name, refused before anything is posted (issue #103); empty once the fork is deleted.
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
           HEAD_REF: ${{ github.head_ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GITHUB_TOKEN: ${{ github.token }}
-        run: node scripts/release-cut.ts "$HEAD_REF" "$HEAD_SHA" "$PR_NUMBER"
+        run: node scripts/release-cut.ts "$HEAD_REPOSITORY" "$HEAD_REF" "$HEAD_SHA" "$PR_NUMBER"
       # Each run step's line trace, for the workflow-line record (issue #35); kept after a failure too.
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
