@@ -65,10 +65,11 @@ cut in the next change that touches it, and a story is filed when it is not.
 
 ## The coverage run
 
-`npm run test:coverage` runs the unit suite with the refusals but without
-the two judges and the 1 s limits, because instrumented code runs slower
-than the limits allow. The 1 s step, `npm run test:unit`, runs without
-coverage. The judges' own logic is covered by `tests/unit/unit-limits.test.ts`.
+`npm run test:coverage`, which runs in CI only, runs the unit suite with the
+refusals but without the two judges and the 1 s limits, because instrumented
+code runs slower than the limits allow. The 1 s step, `npm run test:unit`,
+runs without coverage. The judges' own logic is covered by
+`tests/unit/unit-limits.test.ts`.
 
 ## How it is set up
 

@@ -5,9 +5,9 @@
  * "Untested count" and "Must be recorded"). A count, not a percentage: a
  * percentage ratchet would block a pull request that deletes well-tested code.
  *
- *   npm run test:coverage                   # measure every code file
+ *   npm run test:coverage                   # CI only: measure every code file (it runs the integration suite)
  *   node scripts/coverage-record.ts check   # CI: the record must equal the report
- *   node scripts/coverage-record.ts record  # laptop, or the record workflow on a scratch ref
+ *   node scripts/coverage-record.ts record  # the record workflow on a scratch ref (docs/measure-then-commit.md)
  *
  * The check also fails on a code file no suite measured, and on any comment
  * telling coverage to skip a line: a skipped line counts as unrun. It fails
@@ -31,7 +31,9 @@ export interface Measured extends Counts {
 
 export const SUMMARY = 'coverage/coverage-summary.json';
 export const RECORD = 'coverage-record.json';
-const RECORD_COMMAND = 'npm run coverage:record';
+/** Where a record is made: the coverage run holds the integration suite, which runs in CI only (#109). */
+const RECORD_HOW = 'the record workflow, docs/measure-then-commit.md';
+const MEASURE_HOW = 'npm run test:coverage writes it, in CI only, since it runs the integration suite';
 /** The refs the record workflow measures: never a branch, so measuring starts no other run. */
 const SCRATCH_REF = /^refs\/(?:floors|visual)\/./;
 
@@ -126,14 +128,14 @@ export function compare(record: Map<string, Counts>, measured: Map<string, Measu
     const was = record.get(file);
     const now = measured.get(file);
     if (was === undefined) {
-      problems.push(`${file}: measured but not in the record; record it (${RECORD_COMMAND})`);
+      problems.push(`${file}: measured but not in the record; record it (${RECORD_HOW})`);
     } else if (now === undefined) {
       problems.push(`${file}: in the record but not measured; a deleted file is dropped by recording, an unmeasured one fails`);
     } else {
       for (const [key, label] of KINDS) {
         if (now[key] > was[key]) problems.push(`${file}: ${label} rose from ${was[key]} to ${now[key]}`);
         if (now[key] < was[key]) {
-          problems.push(`${file}: ${label} fell from ${was[key]} to ${now[key]}; record the gain (${RECORD_COMMAND})`);
+          problems.push(`${file}: ${label} fell from ${was[key]} to ${now[key]}; record the gain (${RECORD_HOW})`);
         }
       }
     }
@@ -225,12 +227,9 @@ export function main(args: string[]): number {
   }
   // In CI only the record workflow may record, on a scratch ref, handing the file back as an artifact (#30).
   if (mode === 'record' && process.env.CI && !SCRATCH_REF.test(process.env.RECORD_RUN ?? '')) {
-    fail('record never runs in CI but the record workflow on a scratch ref; record there or on the laptop');
+    fail('record never runs in CI but the record workflow on a scratch ref; record there, docs/measure-then-commit.md');
   }
-  const measured = untestedCounts(
-    JSON.parse(read(root, SUMMARY, `no coverage summary at ${SUMMARY}; run npm run test:coverage first`)),
-    root,
-  );
+  const measured = untestedCounts(JSON.parse(read(root, SUMMARY, `no coverage summary at ${SUMMARY}; ${MEASURE_HOW}`)), root);
   process.stdout.write(`${formatTotals(measured)}\n`);
   if (mode === 'record') {
     const old = existsSync(join(root, RECORD)) ? parseRecord(readFileSync(join(root, RECORD), 'utf8')) : new Map<string, Counts>();
@@ -240,7 +239,7 @@ export function main(args: string[]): number {
     for (const change of changes) process.stdout.write(`coverage-record: ${change}\n`);
     return 0;
   }
-  const record = parseRecord(read(root, RECORD, `no record at ${RECORD}; run ${RECORD_COMMAND} on the laptop`));
+  const record = parseRecord(read(root, RECORD, `no record at ${RECORD}; make it with ${RECORD_HOW}`));
   const problems = compare(record, measured);
   const files = codeFiles(root);
   for (const file of files) {
