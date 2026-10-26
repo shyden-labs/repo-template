@@ -18,13 +18,19 @@ Vitest with `@vitest/coverage-v8`, pinned to Vitest's exact version (a test
 fails if they drift; Dependabot moves them together). Vitest always leaves test
 files, setup files and its config out of coverage and does not let a project
 change that, so `scripts/coverage-provider.ts` subclasses the V8 provider and
-replaces only that exclude list. Coverage is off in the 1 s unit step
-(`npm run test:unit`) and runs as its own command:
+replaces only that exclude list.
+
+Coverage is off in the 1 s unit step (`npm run test:unit`) and runs as its
+own command, in CI only: it runs the integration suite too, and the laptop
+runs only unit tests, formatters, linters and type checks (Shyden,
+2026-10-09). The record workflow records, and the laptop folds its record
+into the commit (`docs/measure-then-commit.md`):
 
 ```sh
-npm run test:coverage          # writes coverage/lcov.info and coverage/coverage-summary.json
-npm run coverage:record        # laptop, or the record workflow: writes coverage-record.json
+npm run test:coverage                   # CI: writes coverage/lcov.info and coverage/coverage-summary.json
 node scripts/coverage-record.ts check   # CI's coverage job
+npm run coverage:record                 # the record workflow, on a scratch ref: writes coverage-record.json
+node scripts/fold-record.ts <run-id>    # the laptop: folds that run's record into the commit
 ```
 
 ## The record
@@ -36,8 +42,8 @@ be blocked even though nothing got worse.
 
 - No file's count may rise. A file at zero stays at zero.
 - The record must **equal** what was measured, so a gain is recorded in the
-  pull request that earns it. Run `npm run coverage:record` and commit the
-  file with the change.
+  pull request that earns it: record it with the record workflow and fold
+  it into the commit with the change.
 - The recorder refuses any rise. In CI it runs only in the record workflow,
   on a scratch ref, and hands the file back as an artifact
   (`docs/measure-then-commit.md`); no check run can record.
@@ -49,8 +55,8 @@ be blocked even though nothing got worse.
   suite's coverage is joined into the record. That is a gap to close, never a
   file to exclude.
 
-Before a repository's first record, run the coverage command more than once
-and compare the summaries. A line whose coverage changes from run to run gets
+Before a repository's first record, start the record workflow more than once
+on the same commit and compare the records. A line whose coverage changes from run to run gets
 a fixed test, never a looser record.
 
 100% is the goal: every count at zero. A changed line that no test ran fails

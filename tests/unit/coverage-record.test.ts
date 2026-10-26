@@ -136,14 +136,14 @@ describe('compare', () => {
 
   it('fails a gain left unrecorded', () => {
     expect(compare(new Map([['a.ts', counts(3, 2)]]), new Map([['a.ts', measured(1, 0)]]))).toEqual([
-      'a.ts: untested statements fell from 3 to 1; record the gain (npm run coverage:record)',
-      'a.ts: untested branch arms fell from 2 to 0; record the gain (npm run coverage:record)',
+      'a.ts: untested statements fell from 3 to 1; record the gain (the record workflow, docs/measure-then-commit.md)',
+      'a.ts: untested branch arms fell from 2 to 0; record the gain (the record workflow, docs/measure-then-commit.md)',
     ]);
   });
 
   it('fails a measured file the record does not hold', () => {
     expect(compare(new Map(), new Map([['b.ts', measured(0, 0)]]))).toEqual([
-      'b.ts: measured but not in the record; record it (npm run coverage:record)',
+      'b.ts: measured but not in the record; record it (the record workflow, docs/measure-then-commit.md)',
     ]);
   });
 
@@ -341,13 +341,15 @@ describe('main', () => {
   it('check fails closed when the report is missing', () => {
     record(1);
     expect(() => main(['check'])).toThrow(
-      'coverage-record: no coverage summary at coverage/coverage-summary.json; run npm run test:coverage first',
+      'coverage-record: no coverage summary at coverage/coverage-summary.json; npm run test:coverage writes it, in CI only, since it runs the integration suite',
     );
   });
 
   it('check fails closed when the record is missing', () => {
     summary(3);
-    expect(() => main(['check'])).toThrow('coverage-record: no record at coverage-record.json; run npm run coverage:record on the laptop');
+    expect(() => main(['check'])).toThrow(
+      'coverage-record: no record at coverage-record.json; make it with the record workflow, docs/measure-then-commit.md',
+    );
   });
 
   it('record writes the measured counts and prints each change', () => {
@@ -377,7 +379,7 @@ describe('main', () => {
     vi.stubEnv('CI', 'true');
     vi.stubEnv('RECORD_RUN', undefined);
     expect(() => main(['record'])).toThrow(
-      'coverage-record: record never runs in CI but the record workflow on a scratch ref; record there or on the laptop',
+      'coverage-record: record never runs in CI but the record workflow on a scratch ref; record there, docs/measure-then-commit.md',
     );
   });
 

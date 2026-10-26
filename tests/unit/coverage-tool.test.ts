@@ -93,6 +93,46 @@ describe('CI', () => {
   });
 });
 
+// The coverage run holds the integration suite, and the laptop runs only unit
+// tests, formatters, linters and type checks (Shyden 2026-10-09), so the docs
+// send measuring and recording to CI (#109).
+describe('the docs measure and record coverage in CI, never on the laptop', () => {
+  it('says so in README step 10', () => {
+    expect(readFileSync('README.md', 'utf8')).toContain(
+      '10. **Keep coverage recorded.** Coverage is measured in CI, never on the laptop: `npm run test:coverage` also runs the integration suite. Push your commit to a scratch ref, start the record workflow (`record.yml`) on it, fold its record into the commit with `node scripts/fold-record.ts <run-id>`, then push once; `docs/measure-then-commit.md` has the steps.',
+    );
+  });
+
+  it('says where each command runs in docs/coverage.md', () => {
+    expect(readFileSync('docs/coverage.md', 'utf8')).toContain(
+      [
+        'Coverage is off in the 1 s unit step (`npm run test:unit`) and runs as its',
+        'own command, in CI only: it runs the integration suite too, and the laptop',
+        'runs only unit tests, formatters, linters and type checks (Shyden,',
+        '2026-10-09). The record workflow records, and the laptop folds its record',
+        'into the commit (`docs/measure-then-commit.md`):',
+        '',
+        '```sh',
+        'npm run test:coverage                   # CI: writes coverage/lcov.info and coverage/coverage-summary.json',
+        "node scripts/coverage-record.ts check   # CI's coverage job",
+        'npm run coverage:record                 # the record workflow, on a scratch ref: writes coverage-record.json',
+        "node scripts/fold-record.ts <run-id>    # the laptop: folds that run's record into the commit",
+        '```',
+      ].join('\n'),
+    );
+  });
+
+  it('records a gain through the record workflow in docs/coverage.md', () => {
+    expect(readFileSync('docs/coverage.md', 'utf8')).toContain(
+      [
+        '- The record must **equal** what was measured, so a gain is recorded in the',
+        '  pull request that earns it: record it with the record workflow and fold',
+        '  it into the commit with the change.',
+      ].join('\n'),
+    );
+  });
+});
+
 describe('Dependabot moves the pair together', () => {
   const npmBlock = () => {
     const text = yaml('.github/dependabot.yml');
