@@ -2,7 +2,12 @@
 # always shows develop's head and nobody has to remember a deploy. A project
 # replaces the last step with its own deploy, acting only on the areas the
 # merge changed (`changed-files.txt`); until it does, the run fails and names
-# that step. A repository that hosts nothing deletes this file and
+# that step. Every pull request runs the same job as a rehearsal (#35 AC3), so
+# its lines run on the pull request's own commit: it uses `dev-rehearsal`, an
+# environment that holds no credential, with DEPLOY_REHEARSAL=true, so it
+# deploys nothing. A pull request runs its own copy of this file, so what
+# keeps the dev credential out of one is `dev` letting only `develop` deploy
+# (#117), not this file. A repository that hosts nothing deletes this file and
 # `tests/unit/deploy-dev.test.ts`, and says why in its README.
 #
 # Third-party actions are pinned to full SHAs with a `# vX.Y.Z` comment, as in
@@ -11,12 +16,15 @@ name: deploy-dev
 on:
   push:
     branches: [develop]
+  pull_request:
   workflow_dispatch:
 
 # A deploy stopped halfway leaves dev in an undefined state, so a newer merge
-# waits for the running deploy instead of cancelling it.
+# waits for the running deploy instead of cancelling it. A newer pending run
+# cancels the older pending one, and a cancelled step reads as unrun (#35), so
+# each pull request rehearses in its own group, never in develop's.
 concurrency:
-  group: deploy-dev
+  group: ${{ github.event_name == 'pull_request' && format('deploy-dev-rehearsal-{0}', github.event.pull_request.number) || 'deploy-dev' }}
   cancel-in-progress: false
 
 permissions:
@@ -35,18 +43,20 @@ jobs:
     # job fails until the last step is filled in.
     if: ${{ github.repository != 'shyden-labs/repo-template' }}
     runs-on: ubuntu-26.04
-    # The dev credential lives in this environment, restricted to `develop`,
-    # never as a repository secret.
-    environment: dev
+    # The dev credential lives in `dev`, which must let only `develop` deploy
+    # (#117), never as a repository secret. A pull request rehearses in
+    # `dev-rehearsal`, which GitHub creates on first use and which holds nothing.
+    environment: ${{ github.event_name == 'pull_request' && 'dev-rehearsal' || 'dev' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       # What this deploy covers: the files the push changed, or every file on
       # a hand-started run or a branch's first push (no earlier commit to diff).
+      # A pull request has no `before`, so its rehearsal diffs against its base.
       - name: List the files this merge changed
         env:
-          BEFORE: ${{ github.event.before }}
+          BEFORE: ${{ github.event.before || github.event.pull_request.base.sha }}
         run: |
           if [ -n "$BEFORE" ] && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
             git diff --name-only "$BEFORE" "$GITHUB_SHA" > changed-files.txt
@@ -60,8 +70,10 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Deploy the changed areas to dev
+        env:
+          DEPLOY_REHEARSAL: ${{ github.event_name == 'pull_request' }}
         run: |
-          echo "::error title=deploy-dev is not filled in::Replace this step with the project's own dev deploy, acting only on the areas in changed-files.txt (README, Using it, step 8)."
+          echo "::error title=deploy-dev is not filled in::Replace this step with the project's own dev deploy, acting only on the areas in changed-files.txt, and deploying nothing when DEPLOY_REHEARSAL is true (README, Using it, step 8)."
           exit 1
       # Each run step's line trace, for the workflow-line record (issue #35); kept after a failure too.
       - if: ${{ !cancelled() }}
