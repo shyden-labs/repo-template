@@ -7,6 +7,8 @@ import {
   fetchEvidence,
   githubApi,
   main,
+  runsGoing,
+  unrunRise,
   workflowCoverage,
   workflowFiles,
   workflowLcov,
@@ -338,6 +340,90 @@ describe('workflowLcov', () => {
   });
 });
 
+describe('runsGoing', () => {
+  const SHA = 'c'.repeat(40);
+  const RUNS = `/repos/o/r/actions/runs?head_sha=${SHA}&per_page=100`;
+  /** A stand-in API answering every call with `page`, and recording each as `json <path>` or `bytes <path>`: each test pins it to the one runs list. */
+  const stand = (page: unknown) => {
+    const asked: string[] = [];
+    const answer = (kind: string) => (path: string) => {
+      asked.push(`${kind} ${path}`);
+      return Promise.resolve(page as Uint8Array);
+    };
+    return { asked, api: { json: answer('json'), bytes: answer('bytes') } };
+  };
+  const run = (id: number, path: string, status: string) => ({ id, path: `.github/workflows/${path}`, status });
+
+  it('names each run on the commit that has not completed, by file, id and status', async () => {
+    const runs = [
+      run(1, 'ci.yml', 'completed'),
+      run(2, 'mutations.yml', 'in_progress'),
+      run(3, 'deploy-dev.yml', 'queued'),
+      run(4, 'logs.yml', 'waiting'),
+      { id: 5, path: 'dynamic/dependabot/dependabot-updates', status: 'in_progress' },
+    ];
+    const { asked, api } = stand({ total_count: 5, workflow_runs: runs });
+    expect(await runsGoing(api, 'o/r', SHA, 9)).toEqual([
+      '.github/workflows/mutations.yml run 2 in_progress',
+      '.github/workflows/deploy-dev.yml run 3 queued',
+      '.github/workflows/logs.yml run 4 waiting',
+    ]);
+    expect(asked).toEqual([`json ${RUNS}`]);
+  });
+
+  it('leaves out the run it is told to skip', async () => {
+    const { asked, api } = stand({ total_count: 1, workflow_runs: [run(9, 'workflow-coverage.yml', 'in_progress')] });
+    expect(await runsGoing(api, 'o/r', SHA, 9)).toEqual([]);
+    expect(asked).toEqual([`json ${RUNS}`]);
+  });
+
+  it('refuses a list longer than the page it read', async () => {
+    const { asked, api } = stand({ total_count: 2, workflow_runs: [run(1, 'ci.yml', 'completed')] });
+    await expect(runsGoing(api, 'o/r', SHA, 9)).rejects.toThrow(
+      `workflow-coverage: ${RUNS} lists 2 workflow_runs; one page of 100 was read`,
+    );
+    expect(asked).toEqual([`json ${RUNS}`]);
+  });
+});
+
+describe('unrunRise', () => {
+  /** A file's coverage from its lines: `true` ran, `false` unrun, numbered from 1. */
+  const of = (...ran: boolean[]) => new Map(ran.map((r, i) => [i + 1, r]));
+  const A = '.github/workflows/a.yml';
+  const Z = '.github/workflows/z.yml';
+
+  it('names nothing when every file leaves as many lines unrun as its base', () => {
+    expect(unrunRise(new Map([[A, of(true, false)]]), new Map([[A, of(false, true, true)]]))).toEqual([]);
+  });
+
+  it('names nothing when a file leaves fewer lines unrun than its base', () => {
+    expect(unrunRise(new Map([[A, of(true, true)]]), new Map([[A, of(false, false)]]))).toEqual([]);
+  });
+
+  it('names each file leaving more lines unrun than its base, in path order, with the head’s unrun lines', () => {
+    const head = new Map([
+      [Z, of(false, true, false)],
+      [A, of(false, false)],
+    ]);
+    const base = new Map([
+      [A, of(false, true)],
+      [Z, of(true, false, true, true)],
+    ]);
+    expect(unrunRise(head, base)).toEqual([
+      { file: A, head: 2, base: 1, unrun: [1, 2] },
+      { file: Z, head: 2, base: 1, unrun: [1, 3] },
+    ]);
+  });
+
+  it('counts a file the base lacks from no unrun line', () => {
+    expect(unrunRise(new Map([[A, of(true, false)]]), new Map())).toEqual([{ file: A, head: 1, base: 0, unrun: [2] }]);
+  });
+
+  it('names nothing for a file the head lacks', () => {
+    expect(unrunRise(new Map(), new Map([[A, of(false)]]))).toEqual([]);
+  });
+});
+
 describe('the real runs on dc5302f', () => {
   // ci.yml and deploy-dev.yml as they were at dc5302f, and its two runs (39693590851, 39693590892), cut to the fields read.
   const dir = new URL('fixtures/workflow-coverage/dc5302f/', import.meta.url);
@@ -435,6 +521,14 @@ describe('fetchEvidence', () => {
       },
     ]);
     expect(evidence.runs[0]?.traces.get('deploy-dev/__run_2')?.split('\n')[1]).toBe('2');
+  });
+
+  it('skips the run it is told to, reading none of its jobs or artifacts', async () => {
+    const going = { id: 11, path: '.github/workflows/workflow-coverage.yml', status: 'in_progress' };
+    const { asked, api: stand } = api({ ...answers(), [RUNS]: runsPage(RUN, going) });
+    const evidence = await fetchEvidence(stand, REPO, SHA, new Map(), 11);
+    expect(asked).toEqual([RUNS, JOBS, ARTIFACTS, '/repos/o/r/actions/artifacts/5/zip']);
+    expect(evidence.runs.map((r) => r.id)).toEqual([9]);
   });
 
   it.each<[string, Record<string, unknown>, string]>([

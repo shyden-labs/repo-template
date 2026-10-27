@@ -111,6 +111,7 @@ describe('no workflow approves an install script past allowScripts', () => {
       'workflows/mutations.yml',
       'workflows/record.yml',
       'workflows/sonarcloud.yml',
+      'workflows/workflow-coverage.yml',
     ]);
   });
 

@@ -96,10 +96,55 @@ The deploy job also runs on every pull request, as a rehearsal in the
 own runs skip that job (#43), so deploy-dev.yml reads as unrun on both sides of
 a comparison there; a repository made from the template runs it.
 
+## The required check (`scripts/workflow-coverage-check.ts`)
+
+    node scripts/workflow-coverage-check.ts <head-sha> <base-sha> <base-root>
+
+`.github/workflows/workflow-coverage.yml` runs it on every pull request as the
+job `workflow-coverage`; make that a required check on `develop` and `main`
+(README step 3). Shyden's rulings of 2026-10-27 (AC5): compare live, and use
+a job that waits.
+
+1. It checks out the PR's head, not its merge commit, finds the commit the
+   head branched from (`git merge-base` with the base branch) and checks that
+   out beside it.
+2. It waits for every run on both commits to complete, its own run aside,
+   polling every 15 seconds and printing what it waits for. At 40 minutes it
+   fails, naming each run still going: that is mutations.yml's 30-minute job
+   limit plus ten minutes for a runner (assumed). The job's own limit is 45.
+3. It measures both commits as above, prints each workflow file's unrun count
+   on each side, and fails, naming the head's unrun lines, when any file
+   leaves more lines unrun on the head than on the base. A file the base
+   lacks starts from none. Counts are compared, not lines, because a line's
+   number moves whenever the file is edited.
+
+Workflow files get no entry in `coverage-record.json`: folding a record
+amends the commit, so a recorded figure could never equal the runs on the
+commit that carries it. Trace artifacts are kept 90 days, so a base made
+up to 90 days before the PR can still be read; an older one fails, naming the
+expired artifact.
+
+What follows from comparing with the base:
+
+- **A step that runs only on push** (`if: github.event_name == 'push'`) runs
+  on the base, a develop commit, and never on a PR head, so every PR fails
+  until the step also runs on PRs. The template has none.
+- **The check's own lines** read unrun on both sides: its run is still going
+  while it measures, so it skips it. A PR that adds lines to
+  workflow-coverage.yml fails (Shyden 2026-10-27, accepted).
+- **A run GitHub has not yet listed** when the check first looks reads as
+  missing. Missing runs on the head can only add unrun lines, so the check
+  fails rather than passes. It is not expected (assumed, not measured):
+  GitHub makes every run of an event before any job starts, and the check
+  first lists runs after its checkout and `npm ci`. A red check naming a whole
+  workflow unrun on the head is the sign: file it with the run ids. The base's
+  runs are a merged commit's, long finished.
+- **A new hand-started workflow** cannot run on the PR before it is on
+  develop, so its lines read unrun until AC4.
+
 ### Still to come (#35)
 
 - Hand-started workflows a PR changes, and those that ran on its base, run on
   its scratch branch `coverage/<branch>/<short-sha>` (AC4).
-- Joining that lcov to the code coverage record (blocked by #30).
 - A real-bash suite for the trace, which waits for #66: until every suite's
   coverage joins the record, a non-unit test file reads as unmeasured.

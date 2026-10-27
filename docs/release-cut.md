@@ -93,7 +93,7 @@ only after the first release carrying #86 has reached `main`.
 
 The rules are set by the operator (rulesets need admin rights):
 
-    node scripts/branch-rules-setup.ts <owner/repo> build-and-test coverage mutations
+    node scripts/branch-rules-setup.ts <owner/repo> build-and-test coverage mutations workflow-coverage
 
-Then read back `rules/branches/develop` (the three checks, strict) and
-`rules/branches/main` (the three checks and `release-cut`, not strict).
+Then read back `rules/branches/develop` (the four checks, strict) and
+`rules/branches/main` (the four checks and `release-cut`, not strict).

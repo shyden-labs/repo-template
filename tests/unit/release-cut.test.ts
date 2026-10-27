@@ -565,7 +565,7 @@ describe('docs/release-cut.md', () => {
   });
 
   it('says how to apply the rules and what to read back', () => {
-    expect(doc()).toContain('node scripts/branch-rules-setup.ts <owner/repo> build-and-test coverage mutations');
+    expect(doc()).toContain('node scripts/branch-rules-setup.ts <owner/repo> build-and-test coverage mutations workflow-coverage');
   });
 
   it('is in the README file table with the script, the workflow and the setup script', () => {
