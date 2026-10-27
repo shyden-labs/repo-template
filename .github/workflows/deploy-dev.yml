@@ -29,6 +29,11 @@ defaults:
 
 jobs:
   deploy-dev:
+    # The template itself hosts nothing, so its own develop skips the deploy
+    # rather than failing on every merge (#43, Shyden 2026-10-27). A repository
+    # made from the template has another name, so it runs this job, and the
+    # job fails until the last step is filled in.
+    if: ${{ github.repository != 'shyden-labs/repo-template' }}
     runs-on: ubuntu-26.04
     # The dev credential lives in this environment, restricted to `develop`,
     # never as a repository secret.
