@@ -91,10 +91,15 @@ whatever runs it waits until every run on the commit has completed.
 First figure, dc5302f: 92 of 270 workflow lines ran (ci.yml 50 of 50,
 deploy-dev.yml 42 of 43, the four workflows with no run on that commit 0).
 
+The deploy job also runs on every pull request, as a rehearsal in the
+`dev-rehearsal` environment, which holds no credential (AC3). The template's
+own runs skip that job (#43), so deploy-dev.yml reads as unrun on both sides of
+a comparison there; a repository made from the template runs it.
+
 ### Still to come (#35)
 
-- Running the deploy job on pull requests as a rehearsal (AC3, waits on #43)
-  and hand-started workflows a PR changes on its scratch ref (AC4).
+- Hand-started workflows a PR changes, and those that ran on its base, run on
+  its scratch branch `coverage/<branch>/<short-sha>` (AC4).
 - Joining that lcov to the code coverage record (blocked by #30).
 - A real-bash suite for the trace, which waits for #66: until every suite's
   coverage joins the record, a non-unit test file reads as unmeasured.
