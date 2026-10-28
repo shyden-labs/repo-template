@@ -87,6 +87,21 @@ describe('triggers', () => {
   it('refuses an `on:` block with no triggers, naming the file', () => {
     expect(() => triggers('on:\njobs:\n', 'w.yml')).toThrow(/w\.yml: on: names no trigger/);
   });
+
+  it('refuses an inline list not closed on its line, naming the file', () => {
+    expect(() => triggers('on: [push,\n  pull_request]\njobs:\n', 'w.yml')).toThrow(/w\.yml: on: is a list not closed on its line/);
+  });
+
+  it('refuses an empty inline list, naming the file', () => {
+    expect(() => triggers('on: []\njobs:\n', 'w.yml')).toThrow(/w\.yml: on: names no trigger/);
+  });
+
+  it.each([
+    ['a sequence item', 'on:\n  - push\njobs:\n'],
+    ['a line indented less than the first trigger', 'on:\n    push:\n  pull_request:\njobs:\n'],
+  ])('refuses %s under on:, naming the file and the line', (_kind, text) => {
+    expect(() => triggers(text, 'w.yml')).toThrow(/w\.yml: on: holds a line it does not read: /);
+  });
 });
 
 describe('planDispatch', () => {

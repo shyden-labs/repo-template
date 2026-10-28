@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { PATIENCE, main, waitForRuns, type Clock } from '../../scripts/workflow-coverage-check.ts';
+import { PATIENCE, main, realClock, waitForRuns, type Clock } from '../../scripts/workflow-coverage-check.ts';
 
 /**
  * The live workflow-coverage check (issue #35, AC5; Shyden 2026-10-27, "a job
@@ -26,18 +26,31 @@ function fakeClock(): Clock & { waits: number[] } {
   };
 }
 
+describe('realClock', () => {
+  it('reads the wall clock', () => {
+    const before = Date.now();
+    const now = realClock.now();
+    expect([now >= before, now <= Date.now()]).toEqual([true, true]);
+  });
+
+  it('waits on a real timer, then resolves', async () => {
+    const before = Date.now();
+    await realClock.sleep(2);
+    expect(Date.now() - before).toBeGreaterThanOrEqual(1);
+  });
+});
+
 describe('waitForRuns', () => {
   const patience = { ceilingMs: 100_000, intervalMs: 30_000 };
+  /** A logger that keeps each line in `log`. */
+  const into = (log: string[]) => (line: string) => {
+    log.push(line);
+  };
 
   it('returns at once, waiting not at all, when nothing is going', async () => {
     const clock = fakeClock();
     const log: string[] = [];
-    await waitForRuns(
-      () => Promise.resolve([]),
-      clock,
-      patience,
-      (line) => log.push(line),
-    );
+    await waitForRuns(() => Promise.resolve([]), clock, patience, into(log));
     expect({ waits: clock.waits, log }).toEqual({ waits: [], log: [] });
   });
 
@@ -46,10 +59,11 @@ describe('waitForRuns', () => {
     const log: string[] = [];
     const answers = [['ci.yml run 1 in_progress', 'mutations.yml run 2 queued'], ['ci.yml run 1 in_progress'], []];
     await waitForRuns(
-      () => Promise.resolve(answers.shift() ?? ['asked once too often']),
+      // Asked once too often, shift() gives nothing and the wait throws: `left` then never reads 0.
+      () => Promise.resolve(answers.shift() as string[]),
       clock,
       patience,
-      (line) => log.push(line),
+      into(log),
     );
     expect({ waits: clock.waits, log, left: answers.length }).toEqual({
       waits: [30_000, 30_000],
@@ -150,6 +164,7 @@ describe('main', () => {
     ['GITHUB_TOKEN', '', 'GITHUB_TOKEN is empty: the runs and artifacts are read with it'],
     ['GITHUB_RUN_ID', '', 'GITHUB_RUN_ID is not a run id: the check skips its own run with it'],
     ['GITHUB_RUN_ID', '7x', 'GITHUB_RUN_ID is not a run id: the check skips its own run with it'],
+    ['GITHUB_RUN_ID', undefined, 'GITHUB_RUN_ID is not a run id: the check skips its own run with it'],
     ['GITHUB_EVENT_PATH', '', 'GITHUB_EVENT_PATH is empty: the check reads from it whether the pull request comes from a fork'],
   ])('refuses %s set to %j', async (name, value, message) => {
     vi.stubEnv('GITHUB_REPOSITORY', 'o/r');
@@ -158,6 +173,11 @@ describe('main', () => {
     vi.stubEnv('GITHUB_EVENT_PATH', eventFile('o/r'));
     vi.stubEnv(name, value);
     await expect(main([HEAD, BASE, 'base', 'feature'])).rejects.toThrow(`workflow-coverage-check: ${message}`);
+  });
+
+  it('runs on the real clock when given none, waiting not at all when nothing is going', async () => {
+    const { baseRoot, stand } = setUp({ 'ci.yml': ONE_STEP }, { 'ci.yml': ONE_STEP });
+    expect(await main([HEAD, BASE, baseRoot, 'feature'], stand)).toBe(0);
   });
 
   it('passes when no file leaves more lines unrun than on the base, after asking both commits for runs', async () => {

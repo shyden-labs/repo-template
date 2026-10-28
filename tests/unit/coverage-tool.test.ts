@@ -87,6 +87,13 @@ describe('CI', () => {
         '          cache: npm',
         '      - run: npm ci',
         '      - run: npm run test:coverage',
+        // The joined report, kept so an unrun line can be found and the changed-line check (#36) can read it (#129).
+        '      - uses: actions/upload-artifact@<sha>',
+        '        with:',
+        '          name: coverage-lcov',
+        '          path: coverage/lcov.info',
+        '          if-no-files-found: error',
+        '          retention-days: 90',
         '      - run: node scripts/coverage-record.ts check',
       ].join('\n'),
     );

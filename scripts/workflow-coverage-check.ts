@@ -126,7 +126,8 @@ export async function main(args: string[], fetchImpl: typeof fetch = fetch, cloc
   if (branch === '') fail('the head branch is empty; pass "$GITHUB_HEAD_REF"');
   const repo = process.env.GITHUB_REPOSITORY || fail('GITHUB_REPOSITORY is empty: name the repository as owner/name');
   const token = process.env.GITHUB_TOKEN || fail('GITHUB_TOKEN is empty: the runs and artifacts are read with it');
-  const runId = process.env.GITHUB_RUN_ID ?? '';
+  // Unset reads as "undefined", which the pattern refuses like any other non-number.
+  const runId = String(process.env.GITHUB_RUN_ID);
   if (!/^\d+$/.test(runId)) fail('GITHUB_RUN_ID is not a run id: the check skips its own run with it');
   const self = Number(runId);
   const eventPath =
