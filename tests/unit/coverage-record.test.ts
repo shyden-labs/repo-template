@@ -352,9 +352,16 @@ describe('main', () => {
     );
   });
 
+  /** The record workflow's env: CI, on a scratch ref (#30). */
+  const inRecordWorkflow = () => {
+    vi.stubEnv('CI', 'true');
+    vi.stubEnv('RECORD_RUN', 'refs/floors/66-x/abc1234');
+  };
+
   it('record writes the measured counts and prints each change', () => {
     summary(4);
     record(1);
+    inRecordWorkflow();
     expect(main(['record'])).toBe(0);
     expect(readFileSync(join(root, 'coverage-record.json'), 'utf8')).toBe('{\n  "scripts/a.ts": { "statements": 0, "branches": 0 }\n}\n');
     expect(out.join('')).toContain('coverage-record: scripts/a.ts: untested statements 1 -> 0\n');
@@ -362,6 +369,7 @@ describe('main', () => {
 
   it('record starts a record where there is none', () => {
     summary(4);
+    inRecordWorkflow();
     expect(main(['record'])).toBe(0);
     expect(out.join('')).toContain('scripts/a.ts: newly recorded at 0 untested statements, 0 untested branch arms');
   });
@@ -369,9 +377,25 @@ describe('main', () => {
   it('record says so when nothing changed', () => {
     summary(3);
     record(1);
+    inRecordWorkflow();
     expect(main(['record'])).toBe(0);
     expect(out.join('')).toContain('coverage-record: no change; the record already equals the report\n');
   });
+
+  // #66 AC3: the record joins the integration suite, which runs in CI only
+  // (global rule 2026-10-09), so a laptop's summary cannot hold it.
+  it.each([[undefined], ['refs/floors/66-x/abc1234']])(
+    'record refuses on the laptop (RECORD_RUN %j), naming the record workflow',
+    (ref) => {
+      summary(4);
+      record(1);
+      vi.stubEnv('RECORD_RUN', ref);
+      expect(() => main(['record'])).toThrow(
+        'coverage-record: record runs only in the record workflow on a scratch ref: a laptop cannot see the CI-only suites the record joins (integration); start record.yml, docs/measure-then-commit.md',
+      );
+      expect(readFileSync(join(root, 'coverage-record.json'), 'utf8')).not.toContain('"statements": 0');
+    },
+  );
 
   it('record refuses to run in CI, where nothing may raise or move the record', () => {
     summary(4);
