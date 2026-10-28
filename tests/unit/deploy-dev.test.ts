@@ -48,12 +48,16 @@ describe('deploy-dev', () => {
 
   // The template hosts nothing, so its own develop skips the deploy (#43,
   // Shyden 2026-10-27), and a repository made from it, under any other name,
-  // runs it. One job only: the pull request rehearsal is this same job (#35
-  // AC3), so the condition covers it and its steps cannot drift from the deploy.
-  it('has one job, deploy-dev, skipped only in the template itself', () => {
+  // runs it. The template's pull requests still rehearse (#121, Shyden
+  // 2026-10-28), so the rehearsal is proved before a project copies it. One
+  // job only: the pull request rehearsal is this same job (#35 AC3), so the
+  // condition covers it and its steps cannot drift from the deploy.
+  it('has one job, deploy-dev, skipped in the template itself except to rehearse a pull request', () => {
     const jobs = topLevel(workflow(), 'jobs').split('\n');
     expect(jobs.filter((line) => /^ {2}\S/.test(line))).toEqual(['  deploy-dev:']);
-    expect(jobs.filter((line) => /^ {4}if:/.test(line))).toEqual(['    if: ${{ github.repository != shyden-labs/repo-template }}']);
+    expect(jobs.filter((line) => /^ {4}if:/.test(line))).toEqual([
+      '    if: ${{ github.repository != shyden-labs/repo-template || github.event_name == pull_request }}',
+    ]);
   });
 
   // No other job key may skip it or pass it on failure (`continue-on-error`).
@@ -65,14 +69,21 @@ describe('deploy-dev', () => {
     expect(keys).toEqual(['if', 'runs-on', 'environment', 'steps']);
   });
 
+  // Only the template's rehearsal passes the placeholder: the template has
+  // nothing to deploy (#121). Anywhere else, or on a real deploy, it fails
+  // until the project fills it in.
   it('still fails in a repository made from the template until it fills in its deploy', () => {
     const jobs = topLevel(workflow(), 'jobs').split('\n');
     const step = jobs.indexOf('      - name: Deploy the changed areas to dev');
-    expect(jobs.slice(step, step + 6)).toEqual([
+    expect(jobs.slice(step, step + 10)).toEqual([
       '      - name: Deploy the changed areas to dev',
       '        env:',
       '          DEPLOY_REHEARSAL: ${{ github.event_name == pull_request }}',
       '        run: |',
+      '          if [ $GITHUB_REPOSITORY = shyden-labs/repo-template ] && [ $DEPLOY_REHEARSAL = true ]; then',
+      '            echo The template hosts nothing, so its rehearsal deploys nothing.',
+      '            exit 0',
+      '          fi',
       '          echo ::error title=deploy-dev is not filled in::Replace this step with the projects own dev deploy, acting only on the areas in changed-files.txt, and deploying nothing when DEPLOY_REHEARSAL is true (README, Using it, step 8).',
       '          exit 1',
     ]);

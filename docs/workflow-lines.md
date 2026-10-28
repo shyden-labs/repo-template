@@ -92,9 +92,12 @@ First figure, dc5302f: 92 of 270 workflow lines ran (ci.yml 50 of 50,
 deploy-dev.yml 42 of 43, the four workflows with no run on that commit 0).
 
 The deploy job also runs on every pull request, as a rehearsal in the
-`dev-rehearsal` environment, which holds no credential (AC3). The template's
-own runs skip that job (#43), so deploy-dev.yml reads as unrun on both sides of
-a comparison there; a repository made from the template runs it.
+`dev-rehearsal` environment, which holds no credential (AC3). The template
+rehearses too: its own develop skips the deploy (#43), but its pull requests
+run the job, and there the placeholder deploy step passes, since the template
+hosts nothing (#121, Shyden 2026-10-28). Until #121, the template skipped the
+rehearsal as well, so it never ran there and deploy-dev.yml read as unrun on
+both sides of a comparison.
 
 ## The required check (`scripts/workflow-coverage-check.ts`)
 
