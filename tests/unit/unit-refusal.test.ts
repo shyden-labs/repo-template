@@ -9,7 +9,7 @@ import http2 from 'node:http2';
 import { createRequire } from 'node:module';
 import net from 'node:net';
 import tls from 'node:tls';
-import { REFUSED, installRefusals } from '../setup/refusals.ts';
+import { REFUSED, installRefusals, testName } from '../setup/refusals.ts';
 
 /**
  * A unit test starts no process and opens no connection (#92,
@@ -19,7 +19,8 @@ import { REFUSED, installRefusals } from '../setup/refusals.ts';
  * could take.
  */
 
-const reached = () => vi.fn(() => 'reached');
+// Stand-ins a refusal replaces, so their bodies never run: a mocked return, not a function literal left unrun.
+const reached = () => vi.fn().mockReturnValue('reached');
 
 function standIns() {
   return {
@@ -87,6 +88,16 @@ const ENTRIES: [entry: string, at: (m: StandIns) => object, key: string, reason:
 
 const call = (owner: object, key: string): unknown => (Reflect.get(owner, key) as () => unknown)();
 
+describe('testName', () => {
+  it('names the running test', () => {
+    expect(testName({ currentTestName: 'a > one' })).toBe('a > one');
+  });
+
+  it('says no test is running while files load and suites collect', () => {
+    expect(testName({})).toBe('(outside a test)');
+  });
+});
+
 describe('installRefusals, on stand-in modules', () => {
   it.each(ENTRIES)('refuses %s, naming the test and the entry, and never reaches the real one', (entry, at, key, reason) => {
     const m = standIns();
@@ -99,19 +110,19 @@ describe('installRefusals, on stand-in modules', () => {
   });
 
   it('returns every entry it refused, in order', () => {
-    expect(installRefusals(standIns(), () => 't')).toEqual(ENTRIES.map(([entry]) => entry));
+    expect(installRefusals(standIns(), vi.fn().mockReturnValue('t'))).toEqual(ENTRIES.map(([entry]) => entry));
   });
 
   it('records what it refused on the globals, under its mark', () => {
     const m = standIns();
-    installRefusals(m, () => 't');
+    installRefusals(m, vi.fn().mockReturnValue('t'));
     expect(m.globals[REFUSED]).toEqual(ENTRIES.map(([entry]) => entry));
   });
 
   it('leaves alone every dns function that looks up nothing', () => {
     const m = standIns();
     const kept = [m.dns.getServers, m.dns.Resolver.prototype.setServers, m.dns.promises.getServers];
-    installRefusals(m, () => 't');
+    installRefusals(m, vi.fn().mockReturnValue('t'));
     expect([m.dns.getServers, m.dns.Resolver.prototype.setServers, m.dns.promises.getServers]).toEqual(kept);
   });
 
@@ -119,7 +130,7 @@ describe('installRefusals, on stand-in modules', () => {
     const m = standIns();
     installRefusals(m, () => 'first');
     const refused = m.childProcess.execFileSync;
-    expect(installRefusals(m, () => 'second')).toEqual([]);
+    expect(installRefusals(m, vi.fn().mockReturnValue('second'))).toEqual([]);
     expect(m.childProcess.execFileSync).toBe(refused);
     expect(() => call(m.childProcess, 'execFileSync')).toThrow('"first" called child_process.execFileSync');
   });
@@ -134,7 +145,7 @@ describe('installRefusals, on stand-in modules', () => {
 
   it('refuses a class constructed with new', () => {
     const m = standIns();
-    installRefusals(m, () => 't');
+    installRefusals(m, vi.fn().mockReturnValue('t'));
     const WebSocketRefused = m.globals.WebSocket as new (url: string) => unknown;
     expect(() => new WebSocketRefused('ws://127.0.0.1')).toThrow('called WebSocket');
   });
@@ -142,13 +153,13 @@ describe('installRefusals, on stand-in modules', () => {
   it('fails closed when an entry it must refuse is missing', () => {
     const m = standIns();
     Reflect.deleteProperty(m.tls, 'connect');
-    expect(() => installRefusals(m, () => 't')).toThrow('cannot refuse tls.connect: it is not a function here');
+    expect(() => installRefusals(m, vi.fn().mockReturnValue('t'))).toThrow('cannot refuse tls.connect: it is not a function here');
   });
 
   it('fails closed when a dns population holds no lookup', () => {
     const m = standIns();
     Reflect.deleteProperty(m.dns.Resolver.prototype, 'resolveTxt');
-    expect(() => installRefusals(m, () => 't')).toThrow('found no lookup, resolve or reverse function on dns.Resolver#');
+    expect(() => installRefusals(m, vi.fn().mockReturnValue('t'))).toThrow('found no lookup, resolve or reverse function on dns.Resolver#');
   });
 });
 
@@ -288,7 +299,7 @@ describe('the refusals in this run', () => {
 
   it('refuses dns.lookup', () => {
     expect(() => {
-      dns.lookup('localhost', () => undefined);
+      dns.lookup('localhost', vi.fn());
     }).toThrow(refusedLive('dns.lookup'));
   });
 
