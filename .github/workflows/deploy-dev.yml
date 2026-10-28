@@ -38,10 +38,12 @@ defaults:
 jobs:
   deploy-dev:
     # The template itself hosts nothing, so its own develop skips the deploy
-    # rather than failing on every merge (#43, Shyden 2026-10-27). A repository
-    # made from the template has another name, so it runs this job, and the
-    # job fails until the last step is filled in.
-    if: ${{ github.repository != 'shyden-labs/repo-template' }}
+    # rather than failing on every merge (#43, Shyden 2026-10-27). Its pull
+    # requests still rehearse, so the rehearsal is proved here before any
+    # project copies it (#121, Shyden 2026-10-28). A repository made from the
+    # template has another name, so it runs this job, and the job fails until
+    # the last step is filled in.
+    if: ${{ github.repository != 'shyden-labs/repo-template' || github.event_name == 'pull_request' }}
     runs-on: ubuntu-26.04
     # The dev credential lives in `dev`, which must let only `develop` deploy
     # (#117), never as a repository secret. A pull request rehearses in
@@ -73,6 +75,10 @@ jobs:
         env:
           DEPLOY_REHEARSAL: ${{ github.event_name == 'pull_request' }}
         run: |
+          if [ "$GITHUB_REPOSITORY" = shyden-labs/repo-template ] && [ "$DEPLOY_REHEARSAL" = true ]; then
+            echo "The template hosts nothing, so its rehearsal deploys nothing."
+            exit 0
+          fi
           echo "::error title=deploy-dev is not filled in::Replace this step with the project's own dev deploy, acting only on the areas in changed-files.txt, and deploying nothing when DEPLOY_REHEARSAL is true (README, Using it, step 8)."
           exit 1
       # Each run step's line trace, for the workflow-line record (issue #35); kept after a failure too.
