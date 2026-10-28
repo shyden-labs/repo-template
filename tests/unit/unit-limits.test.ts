@@ -132,6 +132,26 @@ describe('judgeOwnCpu', () => {
     expect(ctx.task.meta.ownCpuMicroseconds).toBe(100_000);
   });
 
+  // Before #131 a placeholder clock read 0 here: a pass that measured nothing.
+  it('refuses to judge a test whose CPU clock never started, rather than read 0', () => {
+    const s = standInHooks();
+    judgeOwnCpu(s.hooks, fixedClock(1));
+    const ctx = testContext('unstarted');
+    expect(() => only(s.afterEach)(ctx)).toThrow(
+      'unit test "suite > unstarted" ended with no CPU clock started: its own CPU was not measured',
+    );
+    expect(ctx.task.meta.ownCpuMicroseconds).toBeUndefined();
+  });
+
+  it('never times a test on the clock the test before it started', () => {
+    const s = standInHooks();
+    judgeOwnCpu(s.hooks, fixedClock(1));
+    const first = testContext('first');
+    only(s.beforeEach)(first);
+    only(s.afterEach)(first);
+    expect(() => only(s.afterEach)(testContext('second'))).toThrow('unit test "suite > second" ended with no CPU clock started');
+  });
+
   it('fails a test over the limit, naming it, and still stamps its CPU', () => {
     const s = standInHooks();
     judgeOwnCpu(s.hooks, fixedClock(150_000));
