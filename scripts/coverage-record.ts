@@ -226,8 +226,14 @@ export function main(args: string[]): number {
   if ((mode !== 'check' && mode !== 'record') || rest.length > 0) {
     throw new Error('usage: node scripts/coverage-record.ts check|record');
   }
-  // In CI only the record workflow may record, on a scratch ref, handing the file back as an artifact (#30).
-  if (mode === 'record' && process.env.CI && !SCRATCH_REF.test(process.env.RECORD_RUN ?? '')) {
+  // Only the record workflow records, in CI on a scratch ref, handing the file back as an artifact (#30).
+  // A laptop cannot: the record joins the integration suite, which runs in CI only (#66).
+  if (mode === 'record' && !process.env.CI) {
+    fail(
+      'record runs only in the record workflow on a scratch ref: a laptop cannot see the CI-only suites the record joins (integration); start record.yml, docs/measure-then-commit.md',
+    );
+  }
+  if (mode === 'record' && !SCRATCH_REF.test(process.env.RECORD_RUN ?? '')) {
     fail('record never runs in CI but the record workflow on a scratch ref; record there, docs/measure-then-commit.md');
   }
   const measured = untestedCounts(JSON.parse(read(root, SUMMARY, `no coverage summary at ${SUMMARY}; ${MEASURE_HOW}`)), root);

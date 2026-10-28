@@ -39,6 +39,7 @@
   "tests/unit/cli.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/coverage-branches-start-nothing.test.ts": { "statements": 1, "branches": 1 },
   "tests/unit/coverage-dispatch.test.ts": { "statements": 0, "branches": 0 },
+  "tests/unit/coverage-joins-every-suite.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/coverage-provider.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/coverage-record.test.ts": { "statements": 0, "branches": 0 },
   "tests/unit/coverage-tool.test.ts": { "statements": 0, "branches": 0 },
