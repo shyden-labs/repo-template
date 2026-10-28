@@ -132,6 +132,26 @@ describe('judgeOwnCpu', () => {
     expect(ctx.task.meta.ownCpuMicroseconds).toBe(100_000);
   });
 
+  // Before #131 a placeholder clock read 0 here: a pass that measured nothing.
+  it('refuses to judge a test whose CPU clock never started, rather than read 0', () => {
+    const s = standInHooks();
+    judgeOwnCpu(s.hooks, fixedClock(1));
+    const ctx = testContext('unstarted');
+    expect(() => only(s.afterEach)(ctx)).toThrow(
+      'unit test "suite > unstarted" ended with no CPU clock started: its own CPU was not measured',
+    );
+    expect(ctx.task.meta.ownCpuMicroseconds).toBeUndefined();
+  });
+
+  it('never times a test on the clock the test before it started', () => {
+    const s = standInHooks();
+    judgeOwnCpu(s.hooks, fixedClock(1));
+    const first = testContext('first');
+    only(s.beforeEach)(first);
+    only(s.afterEach)(first);
+    expect(() => only(s.afterEach)(testContext('second'))).toThrow('unit test "suite > second" ended with no CPU clock started');
+  });
+
   it('fails a test over the limit, naming it, and still stamps its CPU', () => {
     const s = standInHooks();
     judgeOwnCpu(s.hooks, fixedClock(150_000));
@@ -277,7 +297,8 @@ describe('report', () => {
   });
 });
 
-type StandInTest = { state: string; fullName: string; meta: Record<string, unknown>; duration: number };
+/** `duration` undefined: Vitest gave the test no diagnostic, which its type allows. */
+type StandInTest = { state: string; fullName: string; meta: Record<string, unknown>; duration: number | undefined };
 
 function standInModule(id: string, meta: Record<string, unknown>, tests: StandInTest[]): TestModule {
   return {
@@ -290,13 +311,20 @@ function standInModule(id: string, meta: Record<string, unknown>, tests: StandIn
             fullName: t.fullName,
             meta: () => t.meta,
             result: () => ({ state: t.state }),
-            diagnostic: () => ({ duration: t.duration }),
+            diagnostic: () => (t.duration === undefined ? undefined : { duration: t.duration }),
           };
         }
       },
     },
   } as unknown as TestModule;
 }
+
+// The helper that reads one registered callback refuses a judge that registers none or two.
+describe('only', () => {
+  it.each([[[]], [[vi.fn(), vi.fn()]]])('refuses %# callbacks registered', (registered) => {
+    expect(() => only(registered as Call[])).toThrow(`expected one callback, found ${registered.length}`);
+  });
+});
 
 describe('summarise', () => {
   const modules = [
@@ -313,6 +341,15 @@ describe('summarise', () => {
       'Own CPU per test: 1 measured, 1 unmeasured; 0 over 100.0 ms, 0 over 70.0 ms',
       '  5.0 ms CPU, 6 ms wall  tests/unit/a.test.ts > a > one',
     ]);
+  });
+
+  it('reports 0 ms wall for a measured test Vitest gave no diagnostic', () => {
+    const bare = [
+      standInModule('tests/unit/c.test.ts', {}, [
+        { state: 'passed', fullName: 'c > one', meta: { ownCpuMicroseconds: 1_000 }, duration: undefined },
+      ]),
+    ];
+    expect(summarise(bare)[1]).toBe('  1.0 ms CPU, 0 ms wall  tests/unit/c.test.ts > c > one');
   });
 
   it("reports each file's load, counting a file that loaded with none", () => {

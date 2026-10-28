@@ -70,6 +70,11 @@ function entries(m: Refusable): Entry[] {
  * entry that is missing fails the install, so a refusal can never lapse
  * unseen when Node changes.
  */
+/** Who a refusal names: the running test, or, while files load and suites collect, no test at all. */
+export function testName(state: { currentTestName?: string }): string {
+  return state.currentTestName ?? '(outside a test)';
+}
+
 export function installRefusals(m: Refusable, who: () => string): string[] {
   if (Reflect.has(m.globals, REFUSED)) return [];
   const planned = entries(m);

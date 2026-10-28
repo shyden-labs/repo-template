@@ -58,7 +58,8 @@ export function judgeOwnCpu(
   hooks: { beforeEach: Hook<[{ task: TestTask }]>; afterEach: Hook<[{ task: TestTask }]> },
   clock: CpuClock = startOwnCpu,
 ): void {
-  let stop: () => number = () => 0;
+  // No clock until a test starts: a test that ends without one is refused, never read as 0 (#131).
+  let stop: (() => number) | undefined;
   hooks.beforeEach(({ task }) => {
     if (task.concurrent) {
       throw new Error(
@@ -68,7 +69,11 @@ export function judgeOwnCpu(
     stop = clock();
   });
   hooks.afterEach(({ task }) => {
+    if (stop === undefined) {
+      throw new Error(`unit test "${task.fullTestName}" ended with no CPU clock started: its own CPU was not measured`);
+    }
     const used = stop();
+    stop = undefined; // the next test starts its own clock, or is refused
     task.meta.ownCpuMicroseconds = used;
     const breach = cpuBreach(used, task.fullTestName);
     if (breach) throw new Error(breach);

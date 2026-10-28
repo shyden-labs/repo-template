@@ -5,9 +5,9 @@ import { syncBuiltinESMExports } from 'node:module';
 import net from 'node:net';
 import tls from 'node:tls';
 import { expect } from 'vitest';
-import { installRefusals } from './refusals.ts';
+import { installRefusals, testName } from './refusals.ts';
 
-installRefusals({ childProcess, net, tls, dgram, dns, globals: globalThis }, () => expect.getState().currentTestName ?? '(outside a test)');
+installRefusals({ childProcess, net, tls, dgram, dns, globals: globalThis }, () => testName(expect.getState()));
 // A named or namespace import of a built-in reads Node's ESM copy of its
 // exports; this brings that copy in line with the refusals.
 syncBuiltinESMExports();
