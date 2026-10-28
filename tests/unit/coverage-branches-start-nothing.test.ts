@@ -126,6 +126,8 @@ describe('the guard', () => {
     ['develop listed', on('  push:\n    branches: [develop]')],
     ['release/* listed', on('  push:\n    branches:\n      - release/*')],
     ['coverage/* listed, one level only', on('  push:\n    branches: [coverage/*]')],
+    // The list ends at the next key under push:, which is read as no branch.
+    ['develop listed, then a paths filter', on('  push:\n    branches:\n      - develop\n    paths:\n      - coverage/**')],
     ['no push at all', on('  pull_request:')],
   ])('passes %s', (_kind, text) => {
     expect(startsOnScratch('w.yml', text)).toEqual([]);

@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { PATIENCE, main, waitForRuns, type Clock } from '../../scripts/workflow-coverage-check.ts';
+import { PATIENCE, main, realClock, waitForRuns, type Clock } from '../../scripts/workflow-coverage-check.ts';
 
 /**
  * The live workflow-coverage check (issue #35, AC5; Shyden 2026-10-27, "a job
@@ -25,6 +25,20 @@ function fakeClock(): Clock & { waits: number[] } {
     },
   };
 }
+
+describe('realClock', () => {
+  it('reads the wall clock', () => {
+    const before = Date.now();
+    const now = realClock.now();
+    expect([now >= before, now <= Date.now()]).toEqual([true, true]);
+  });
+
+  it('waits on a real timer, then resolves', async () => {
+    const before = Date.now();
+    await realClock.sleep(2);
+    expect(Date.now() - before).toBeGreaterThanOrEqual(1);
+  });
+});
 
 describe('waitForRuns', () => {
   const patience = { ceilingMs: 100_000, intervalMs: 30_000 };
@@ -158,6 +172,11 @@ describe('main', () => {
     vi.stubEnv('GITHUB_EVENT_PATH', eventFile('o/r'));
     vi.stubEnv(name, value);
     await expect(main([HEAD, BASE, 'base', 'feature'])).rejects.toThrow(`workflow-coverage-check: ${message}`);
+  });
+
+  it('runs on the real clock when given none, waiting not at all when nothing is going', async () => {
+    const { baseRoot, stand } = setUp({ 'ci.yml': ONE_STEP }, { 'ci.yml': ONE_STEP });
+    expect(await main([HEAD, BASE, baseRoot, 'feature'], stand)).toBe(0);
   });
 
   it('passes when no file leaves more lines unrun than on the base, after asking both commits for runs', async () => {
