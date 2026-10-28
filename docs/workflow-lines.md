@@ -142,12 +142,31 @@ What follows from comparing with the base:
   first lists runs after its checkout and `npm ci`. A red check naming a whole
   workflow unrun on the head is the sign: file it with the run ids. The base's
   runs are a merged commit's, long finished.
-- **A new hand-started workflow** cannot run on the PR before it is on
-  develop, so its lines read unrun until AC4.
+- **Hand-started workflows run on the PR's own commit** (AC4, part 6):
+  every one that ran on the base by hand or by schedule, and every one the PR
+  changes, is started on the scratch branch `coverage/<branch>/<short-sha>`
+  before the PR is pushed (docs/measure-then-commit.md, step 5). The check
+  reads the same plan (`scripts/coverage-dispatch.ts`) and waits until each
+  has a run on the head, naming the command that starts it. deploy-dev is
+  never started: its PR rehearsal covers it. A hand-started workflow that
+  names an environment is refused until it is listed beside deploy-dev, and
+  one that needs a dispatch input or has no `workflow_dispatch` is refused,
+  naming it.
+  A started run gets this repository's secrets, so a fork's pull request
+  that would need one fails at once, and a Dependabot commit is started only
+  when its workflows change pins alone (Shyden 2026-10-28, "Fence it";
+  docs/measure-then-commit.md).
+- **A new hand-started workflow** cannot be started before it is on develop
+  (measured: GitHub answers 404). One whose only triggers are
+  `workflow_dispatch`, `schedule` or `workflow_call` is left out of the
+  comparison and printed as not measurable until on develop (Shyden
+  2026-10-28, ruling 2). Its lines are first measured when a later PR
+  changes it or it runs on a base.
+- **The template's logs suite is empty**, so in `shyden-labs/repo-template`
+  alone `vitest.logs.config.ts` passes an empty suite; a repository made from
+  the template still fails on one (ruling 1).
 
 ### Still to come (#35)
 
-- Hand-started workflows a PR changes, and those that ran on its base, run on
-  its scratch branch `coverage/<branch>/<short-sha>` (AC4).
 - A real-bash suite for the trace, which waits for #66: until every suite's
   coverage joins the record, a non-unit test file reads as unmeasured.

@@ -14,15 +14,15 @@ const workflow = () => withoutPinnedShas(withoutYamlQuotes(withoutYamlComments(r
 const steps = () => yamlBlock(workflow(), 'steps', '    ');
 
 describe('record.yml', () => {
-  it('runs only by hand, given the scratch ref to measure', () => {
+  it('runs only by hand, given the scratch ref to measure, or on a coverage branch with none (#35 part 6)', () => {
     expect(yamlBlock(workflow(), 'on')).toBe(
       [
         'on:',
         '  workflow_dispatch:',
         '    inputs:',
         '      ref:',
-        '        description: The scratch ref holding the commit: refs/floors/<branch>/<sha> or refs/visual/<branch>/<sha>',
-        '        required: true',
+        '        description: The scratch ref holding the commit: refs/floors/<branch>/<sha> or refs/visual/<branch>/<sha>; none when started on a coverage/<branch>/<sha> branch',
+        '        required: false',
         '        type: string',
       ].join('\n'),
     );
@@ -51,12 +51,12 @@ describe('record.yml', () => {
     ]);
   });
 
-  it('accepts only refs/floors/* and refs/visual/*, refusing the rest by name', () => {
+  it('accepts only refs/floors/*, refs/visual/* and a coverage/* branch, refusing the rest by name', () => {
     expect(steps()).toContain(
       [
         '          case $REF in',
-        '            refs/floors/?*|refs/visual/?*) echo recording $REF ;;',
-        '            *) echo ::error title=not a scratch ref::record runs only on refs/floors/* or refs/visual/*, never on $REF; exit 1 ;;',
+        '            refs/floors/?*|refs/visual/?*|refs/heads/coverage/?*) echo recording $REF ;;',
+        '            *) echo ::error title=not a scratch ref::record runs only on refs/floors/*, refs/visual/* or a coverage/* branch, never on $REF; exit 1 ;;',
         '          esac',
       ].join('\n'),
     );
@@ -69,7 +69,9 @@ describe('record.yml', () => {
   });
 
   it('checks out the scratch ref without keeping a credential', () => {
-    expect(steps()).toContain(['        with:', '          ref: ${{ inputs.ref }}', '          persist-credentials: false'].join('\n'));
+    expect(steps()).toContain(
+      ['        with:', '          ref: ${{ inputs.ref || github.ref }}', '          persist-credentials: false'].join('\n'),
+    );
   });
 
   it('tells the recorder which scratch ref it records', () => {
@@ -77,7 +79,7 @@ describe('record.yml', () => {
       [
         '      - name: Record coverage',
         '        env:',
-        '          RECORD_RUN: ${{ inputs.ref }}',
+        '          RECORD_RUN: ${{ inputs.ref || github.ref }}',
         '        run: npm run coverage:record',
       ].join('\n'),
     );
@@ -98,5 +100,20 @@ describe('record.yml', () => {
     expect(steps()).toContain(
       ['        with:', '          name: record', '          path: record/', '          if-no-files-found: error'].join('\n'),
     );
+  });
+
+  // Started on a coverage/<branch>/<sha> branch with no input, it records that
+  // branch; started on develop with none, it reads refs/heads/develop and the
+  // first step refuses it (#35 part 6).
+  it('reads the ref it records as the input, else the branch it was started on, at every use', () => {
+    expect(workflow().match(/\$\{\{ inputs\.ref[^}]*\}\}/g)).toEqual(Array(4).fill('${{ inputs.ref || github.ref }}'));
+  });
+
+  // Every line keeps its place, so the workflow-line counts compare like for like with the base.
+  it('holds 58 code lines, as on the base of #35 part 6', () => {
+    const code = readFileSync('.github/workflows/record.yml', 'utf8')
+      .split('\n')
+      .filter((line) => line.trim() !== '' && !line.trimStart().startsWith('#'));
+    expect(code).toHaveLength(58);
   });
 });

@@ -239,19 +239,35 @@ const isNumber = (v: unknown): v is number => typeof v === 'number';
 const isString = (v: unknown): v is string => typeof v === 'string';
 const isConclusion = (v: unknown): v is string | null => v === null || typeof v === 'string';
 
-/**
- * Each run on `sha` that has not completed, as `<path> run <id> <status>`,
- * leaving out `skipRun` (the measuring run itself) and the dynamic runs the
- * reader skips (#35, AC5): the check waits until this names nothing.
- */
-export async function runsGoing(api: Api, repo: string, sha: string, skipRun: number): Promise<string[]> {
+/** A run on a commit, as the runs list names it. */
+export interface ListedRun {
+  id: number;
+  path: string;
+  status: string;
+  /** What started it: `push`, `pull_request`, `workflow_dispatch`, `schedule`, ... */
+  event: string;
+}
+
+/** Every run GitHub made on `sha`, from one page of the runs list. */
+export async function listRuns(api: Api, repo: string, sha: string): Promise<ListedRun[]> {
   const runsPath = `/repos/${repo}/actions/runs?head_sha=${sha}&per_page=${PAGE}`;
-  return onePage(await api.json(runsPath), 'workflow_runs', runsPath).flatMap((item) => {
-    const id = field(item, 'id', isNumber, runsPath);
-    const path = field(item, 'path', isString, runsPath);
-    const status = field(item, 'status', isString, runsPath);
-    return status === 'completed' || id === skipRun || path.startsWith('dynamic/') ? [] : [`${path} run ${id} ${status}`];
-  });
+  return onePage(await api.json(runsPath), 'workflow_runs', runsPath).map((item) => ({
+    id: field(item, 'id', isNumber, runsPath),
+    path: field(item, 'path', isString, runsPath),
+    status: field(item, 'status', isString, runsPath),
+    event: field(item, 'event', isString, runsPath),
+  }));
+}
+
+/**
+ * Each run that has not completed, as `<path> run <id> <status>`, leaving
+ * out `skipRun` (the measuring run itself) and the dynamic runs the reader
+ * skips (#35, AC5): the check waits until this names nothing.
+ */
+export function stillGoing(runs: ListedRun[], skipRun: number): string[] {
+  return runs.flatMap(({ id, path, status }) =>
+    status === 'completed' || id === skipRun || path.startsWith('dynamic/') ? [] : [`${path} run ${id} ${status}`],
+  );
 }
 
 /**
