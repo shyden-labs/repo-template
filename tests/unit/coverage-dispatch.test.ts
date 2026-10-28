@@ -7,6 +7,7 @@ import {
   main,
   pinOnlyDiff,
   planDispatch,
+  reachesBeyondPullRequest,
   startCommand,
   triggers,
   type BaseRun,
@@ -233,7 +234,7 @@ describe('main', () => {
   }
 
   /** The env the CLI reads, the head checked out at the working directory, and a base runs list. */
-  function setUp(head: Record<string, string>, base: Record<string, string>, baseRuns: unknown[] = []) {
+  function setUp(head: Record<string, string>, base: Record<string, string>, baseRuns: unknown[] = [], pulls: unknown = []) {
     vi.stubEnv('GITHUB_REPOSITORY', 'o/r');
     vi.stubEnv('GITHUB_TOKEN', 't');
     vi.spyOn(process, 'cwd').mockReturnValue(rootWith(head));
@@ -242,6 +243,7 @@ describe('main', () => {
     const asked: string[] = [];
     const stand = ((url: string) => {
       asked.push(url);
+      if (url.includes('/pulls')) return Promise.resolve(Response.json(pulls));
       return Promise.resolve(Response.json({ total_count: baseRuns.length, workflow_runs: baseRuns }));
     }) as unknown as typeof fetch;
     return { baseRoot: rootWith(base), printed, asked, stand };
@@ -285,7 +287,10 @@ describe('main', () => {
     );
     expect(await main([HEAD, BASE, baseRoot, 'feature/x'], stand)).toBe(0);
     expect([asked, printed]).toEqual([
-      [`https://api.github.com/repos/o/r/actions/runs?head_sha=${BASE}&per_page=100`],
+      [
+        `https://api.github.com/repos/o/r/commits/${HEAD}/pulls?per_page=100`,
+        `https://api.github.com/repos/o/r/actions/runs?head_sha=${BASE}&per_page=100`,
+      ],
       [
         'gh workflow run logs.yml --ref coverage/feature/x/aaaaaaa\n',
         'gh workflow run record.yml --ref coverage/feature/x/aaaaaaa\n',
@@ -312,9 +317,102 @@ describe('main', () => {
     const more = withPin(NEW_PIN).replace('      - run: echo x', '      - run: echo y');
     const { baseRoot, printed, stand } = setUp({ 'record.yml': more }, { 'record.yml': withPin(OLD_PIN) });
     await expect(main([HEAD, BASE, baseRoot, 'dependabot/npm_and_yarn/x-1.0.0'], stand)).rejects.toThrow(
-      `coverage-dispatch: dependabot/npm_and_yarn/x-1.0.0 changes more than action pins, so its runs are not started with this repository's secrets: ${RECORD}:12 changes more than an action pin: - run: echo y`,
+      `coverage-dispatch: dependabot/npm_and_yarn/x-1.0.0 is not started on a coverage branch: ${RECORD}:12 changes more than an action pin: - run: echo y`,
     );
     expect(printed).toEqual([]);
+  });
+
+  // An unchanged workflow still runs the commit's code (npm ci, the tests), so
+  // it may reach no more than a pull_request run would: no secret, no write.
+  it('refuses a Dependabot branch whose workflow to start reaches a secret, though the workflow is unchanged', async () => {
+    const secret = withPin(OLD_PIN).replace(
+      '      - run: echo x',
+      '      - run: echo x\n        env:\n          T: ${{ secrets.SONAR_TOKEN }}',
+    );
+    const { baseRoot, stand } = setUp({ 'record.yml': secret }, { 'record.yml': secret }, [
+      { id: 3, path: RECORD, status: 'completed', event: 'workflow_dispatch' },
+    ]);
+    await expect(main([HEAD, BASE, baseRoot, 'dependabot/npm_and_yarn/x-1.0.0'], stand)).rejects.toThrow(
+      `coverage-dispatch: dependabot/npm_and_yarn/x-1.0.0 is not started on a coverage branch: ${RECORD}:14 reaches a secret: T: \${{ secrets.SONAR_TOKEN }}`,
+    );
+  });
+
+  it('refuses a commit that heads a pull request from a fork', async () => {
+    const pulls = [{ number: 9, head: { repo: { full_name: 'someone/fork' } } }];
+    const { baseRoot, stand } = setUp({ 'record.yml': changedRecord }, { 'record.yml': record }, [], pulls);
+    await expect(main([HEAD, BASE, baseRoot, 'feature'], stand)).rejects.toThrow(
+      `coverage-dispatch: aaaaaaa heads a pull request from someone/fork: a fork's commit never goes to a coverage branch (#35, Shyden 2026-10-28, "Fence it")`,
+    );
+  });
+
+  it('refuses a commit that heads a pull request from a deleted fork', async () => {
+    const { baseRoot, stand } = setUp({ 'record.yml': changedRecord }, { 'record.yml': record }, [], [{ number: 9, head: { repo: null } }]);
+    await expect(main([HEAD, BASE, baseRoot, 'feature'], stand)).rejects.toThrow(
+      `coverage-dispatch: aaaaaaa heads a pull request from a deleted fork: a fork's commit never goes to a coverage branch`,
+    );
+  });
+
+  it('starts a commit that heads a pull request from this repository', async () => {
+    const pulls = [{ number: 9, head: { repo: { full_name: 'o/r' } } }];
+    const { baseRoot, printed, stand } = setUp({ 'record.yml': changedRecord }, { 'record.yml': record }, [], pulls);
+    expect(await main([HEAD, BASE, baseRoot, 'feature'], stand)).toBe(0);
+    expect(printed).toEqual(['gh workflow run record.yml --ref coverage/feature/aaaaaaa\n']);
+  });
+
+  it('refuses a full page of pull requests rather than read part of the list', async () => {
+    const page = Array.from({ length: 100 }, (_, n) => ({ number: n, head: { repo: { full_name: 'o/r' } } }));
+    const { baseRoot, stand } = setUp({ 'record.yml': record }, { 'record.yml': record }, [], page);
+    await expect(main([HEAD, BASE, baseRoot, 'feature'], stand)).rejects.toThrow(
+      `coverage-dispatch: /repos/o/r/commits/${HEAD}/pulls?per_page=100 lists 100 pull requests; one page of 100 was read`,
+    );
+  });
+
+  it('refuses a pulls answer that is not a list', async () => {
+    const { baseRoot, stand } = setUp({ 'record.yml': record }, { 'record.yml': record }, [], { message: 'x' });
+    await expect(main([HEAD, BASE, baseRoot, 'feature'], stand)).rejects.toThrow(
+      `coverage-dispatch: /repos/o/r/commits/${HEAD}/pulls?per_page=100 answered no list`,
+    );
+  });
+});
+
+describe('reachesBeyondPullRequest', () => {
+  it('finds nothing in a workflow with a read token and no secret', () => {
+    expect(reachesBeyondPullRequest(record, RECORD)).toEqual([]);
+  });
+
+  it('allows the run’s own token by either name', () => {
+    const own = record.replace(
+      '      - run: echo x',
+      '      - run: echo x\n        env:\n          A: ${{ secrets.GITHUB_TOKEN }}\n          B: ${{ github.token }}',
+    );
+    expect(reachesBeyondPullRequest(own, RECORD)).toEqual([]);
+  });
+
+  it('reads a secret named in a comment as nothing', () => {
+    expect(reachesBeyondPullRequest(record.replace('jobs:', '# secrets.SONAR_TOKEN is never used\njobs:'), RECORD)).toEqual([]);
+  });
+
+  it('names a workflow with no top-level permissions, which takes the repository default', () => {
+    expect(reachesBeyondPullRequest(record.replace('permissions:\n  contents: read\n', ''), RECORD)).toEqual([
+      `${RECORD}: names no top-level permissions, so its token takes the repository default`,
+    ]);
+  });
+
+  it.each([['  contents: write'], ['  id-token: write'], ['  actions: write']])('names a write scope %s', (scope) => {
+    expect(reachesBeyondPullRequest(record.replace('  contents: read', scope), RECORD)).toEqual([
+      `${RECORD}:5 asks for a write scope: ${scope.trim()}`,
+    ]);
+  });
+
+  it('names secrets: inherit, which hands a called workflow every secret', () => {
+    const inherit = record.replace('    steps:', '    secrets: inherit\n    steps:');
+    expect(reachesBeyondPullRequest(inherit, RECORD)).toEqual([`${RECORD}:10 reaches a secret: secrets: inherit`]);
+  });
+
+  it('names write-all', () => {
+    expect(reachesBeyondPullRequest(record.replace('permissions:\n  contents: read', 'permissions: write-all'), RECORD)).toEqual([
+      `${RECORD}:4 asks for a write scope: permissions: write-all`,
+    ]);
   });
 });
 

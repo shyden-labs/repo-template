@@ -37,6 +37,9 @@ export const NEVER_DISPATCHED: readonly string[] = ['.github/workflows/deploy-de
 /** The events that start a run by hand or by clock: a base run of either means the head runs it too. */
 const HAND_EVENTS = new Set(['workflow_dispatch', 'schedule']);
 
+/** One page of a GitHub list; a longer list fails closed rather than being read in part. */
+const PAGE = 100;
+
 /** Triggers that never fire on a pull request: a new workflow with only these cannot run on it. */
 const NOT_ON_PR = new Set(['workflow_dispatch', 'schedule', 'workflow_call']);
 
@@ -181,6 +184,27 @@ export function pinOnlyDiff(before: string, after: string, file: string): string
   });
 }
 
+/**
+ * What a run started on a coverage branch could reach beyond a pull_request
+ * run from Dependabot or a fork, which gets a read-only token and no secret:
+ * any secret but the run's own token, a write scope, or no top-level
+ * permissions (the token then takes the repository default). A Dependabot
+ * commit's code runs under these workflows, so it is started only when this
+ * names nothing (Shyden 2026-10-28, "Fence it").
+ */
+export function reachesBeyondPullRequest(workflow: string, file: string): string[] {
+  const lines = workflow.split('\n');
+  const found = lines.some((line) => /^permissions:/.test(line))
+    ? []
+    : [`${file}: names no top-level permissions, so its token takes the repository default`];
+  lines.forEach((line, i) => {
+    if (!isCode(line)) return;
+    if (/\bsecrets\b(?!\.GITHUB_TOKEN\b)/.test(line)) found.push(`${file}:${i + 1} reaches a secret: ${line.trim()}`);
+    else if (/:\s*write\b|\bwrite-all\b/.test(line)) found.push(`${file}:${i + 1} asks for a write scope: ${line.trim()}`);
+  });
+  return found;
+}
+
 export async function main(args: string[], fetchImpl: typeof fetch = fetch): Promise<number> {
   const [head, base, baseRoot, branch, ...rest] = args;
   if (head === undefined || base === undefined || baseRoot === undefined || branch === undefined || rest.length > 0)
@@ -189,15 +213,30 @@ export async function main(args: string[], fetchImpl: typeof fetch = fetch): Pro
   if (branch === '') fail('the branch is empty; name the branch the pull request is pushed from');
   const repo = process.env.GITHUB_REPOSITORY || fail('GITHUB_REPOSITORY is empty: name the repository as owner/name');
   const token = process.env.GITHUB_TOKEN || fail('GITHUB_TOKEN is empty: the base commit’s runs are read with it');
-  const baseRuns = await listRuns(githubApi(token, fetchImpl), repo, base);
+  const api = githubApi(token, fetchImpl);
+  const pullsPath = `/repos/${repo}/commits/${head}/pulls?per_page=${PAGE}`;
+  const pulls = await api.json(pullsPath);
+  if (!Array.isArray(pulls)) fail(`${pullsPath} answered no list`);
+  if (pulls.length >= PAGE) fail(`${pullsPath} lists ${pulls.length} pull requests; one page of ${PAGE} was read`);
+  const from: unknown[] = pulls.map((pull: { head?: { repo?: { full_name?: unknown } | null } }) => pull.head?.repo?.full_name);
+  const at = from.findIndex((name) => name !== repo);
+  if (at !== -1) {
+    const name = from[at];
+    fail(
+      `${head.slice(0, 7)} heads a pull request from ${typeof name === 'string' ? name : 'a deleted fork'}: a fork's commit never goes to a coverage branch (#35, Shyden 2026-10-28, "Fence it")`,
+    );
+  }
+  const baseRuns = await listRuns(api, repo, base);
   const headFiles = workflowFiles(process.cwd());
   const baseFiles = workflowFiles(baseRoot);
   const plan = planDispatch(headFiles, baseFiles, baseRuns);
   if (branch.startsWith('dependabot/')) {
     // A planned path is on both sides: planDispatch starts nothing new.
-    const changes = plan.dispatch.flatMap((path) => pinOnlyDiff(baseFiles.get(path) as string, headFiles.get(path) as string, path));
-    if (changes.length > 0)
-      fail(`${branch} changes more than action pins, so its runs are not started with this repository's secrets: ${changes.join('; ')}`);
+    const findings = plan.dispatch.flatMap((path) => [
+      ...pinOnlyDiff(baseFiles.get(path) as string, headFiles.get(path) as string, path),
+      ...reachesBeyondPullRequest(headFiles.get(path) as string, path),
+    ]);
+    if (findings.length > 0) fail(`${branch} is not started on a coverage branch: ${findings.join('; ')}`);
   }
   const out = (line: string) => process.stdout.write(`${line}\n`);
   for (const path of plan.dispatch) out(startCommand(path, branch, head));

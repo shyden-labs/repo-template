@@ -83,15 +83,18 @@ Shyden's commits, the session's own, or a Dependabot commit that
 `coverage-dispatch` accepts ever go to a coverage branch (Shyden
 2026-10-28, "Fence it"):
 
-- **A fork's commit never does.** `workflow-coverage` fails at once on a
-  fork's pull request that would need hand-started runs, naming them;
-  Shyden decides.
+- **A fork's commit never does.** `coverage-dispatch` refuses a commit that
+  GitHub lists as the head of a fork's pull request, and `workflow-coverage`
+  fails at once on a fork's pull request that would need hand-started runs,
+  naming them; Shyden decides.
 - **A Dependabot commit** goes there only when each workflow it would start
-  differs from the base only in pinned `uses:` lines: the same action, a new
-  40-hex SHA and its `# vX.Y.Z`. Run step 5 with its branch name
-  (`dependabot/...`); `coverage-dispatch` refuses anything more, naming the
-  file and line. Its new action code then runs with this repository's
-  secrets during review, not only after merge (accepted).
+  differs from the base only in pinned `uses:` lines (the same action, a new
+  40-hex SHA and its `# vX.Y.Z`), and reaches no more than a pull_request
+  run would: top-level `permissions:` with no write scope, and no secret but
+  the run's own token. Its code (`npm ci`, the tests) runs under those
+  workflows. Run step 5 with its branch name (`dependabot/...`);
+  `coverage-dispatch` refuses anything more, naming the file and line. Its
+  new action code then runs during review, not only after merge (accepted).
 
 A pull request nobody ran step 5 for, such as a Dependabot bump of an action
 in `record.yml` or `logs.yml`, makes `workflow-coverage` wait, printing the
