@@ -42,16 +42,15 @@ describe('realClock', () => {
 
 describe('waitForRuns', () => {
   const patience = { ceilingMs: 100_000, intervalMs: 30_000 };
+  /** A logger that keeps each line in `log`. */
+  const into = (log: string[]) => (line: string) => {
+    log.push(line);
+  };
 
   it('returns at once, waiting not at all, when nothing is going', async () => {
     const clock = fakeClock();
     const log: string[] = [];
-    await waitForRuns(
-      () => Promise.resolve([]),
-      clock,
-      patience,
-      (line) => log.push(line),
-    );
+    await waitForRuns(() => Promise.resolve([]), clock, patience, into(log));
     expect({ waits: clock.waits, log }).toEqual({ waits: [], log: [] });
   });
 
@@ -60,10 +59,11 @@ describe('waitForRuns', () => {
     const log: string[] = [];
     const answers = [['ci.yml run 1 in_progress', 'mutations.yml run 2 queued'], ['ci.yml run 1 in_progress'], []];
     await waitForRuns(
-      () => Promise.resolve(answers.shift() ?? ['asked once too often']),
+      // Asked once too often, shift() gives nothing and the wait throws: `left` then never reads 0.
+      () => Promise.resolve(answers.shift() as string[]),
       clock,
       patience,
-      (line) => log.push(line),
+      into(log),
     );
     expect({ waits: clock.waits, log, left: answers.length }).toEqual({
       waits: [30_000, 30_000],
@@ -164,6 +164,7 @@ describe('main', () => {
     ['GITHUB_TOKEN', '', 'GITHUB_TOKEN is empty: the runs and artifacts are read with it'],
     ['GITHUB_RUN_ID', '', 'GITHUB_RUN_ID is not a run id: the check skips its own run with it'],
     ['GITHUB_RUN_ID', '7x', 'GITHUB_RUN_ID is not a run id: the check skips its own run with it'],
+    ['GITHUB_RUN_ID', undefined, 'GITHUB_RUN_ID is not a run id: the check skips its own run with it'],
     ['GITHUB_EVENT_PATH', '', 'GITHUB_EVENT_PATH is empty: the check reads from it whether the pull request comes from a fork'],
   ])('refuses %s set to %j', async (name, value, message) => {
     vi.stubEnv('GITHUB_REPOSITORY', 'o/r');
