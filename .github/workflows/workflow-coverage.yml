@@ -47,7 +47,7 @@ jobs:
         run: |
           base_sha=$(git merge-base "$HEAD_SHA" "$BASE")
           git worktree add --detach "$RUNNER_TEMP/base" "$base_sha"
-          node scripts/workflow-coverage-check.ts "$HEAD_SHA" "$base_sha" "$RUNNER_TEMP/base"
+          node scripts/workflow-coverage-check.ts "$HEAD_SHA" "$base_sha" "$RUNNER_TEMP/base" "$GITHUB_HEAD_REF"
       # Each run step's line trace, for the workflow-line record (issue #35); kept after a failure too.
       - if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

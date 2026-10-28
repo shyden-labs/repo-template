@@ -383,7 +383,7 @@ describe('main', () => {
     );
   });
 
-  it.each([['refs/floors/32-x/abc1234'], ['refs/visual/32-x/abc1234']])(
+  it.each([['refs/floors/32-x/abc1234'], ['refs/visual/32-x/abc1234'], ['refs/heads/coverage/32-x/abc1234']])(
     'record runs in the record workflow on the scratch ref %s',
     (ref) => {
       summary(4);
@@ -394,13 +394,16 @@ describe('main', () => {
     },
   );
 
-  it.each([['refs/heads/develop'], ['refs/floors/'], ['']])('record still refuses in CI on %j', (ref) => {
-    summary(4);
-    record(1);
-    vi.stubEnv('CI', 'true');
-    vi.stubEnv('RECORD_RUN', ref);
-    expect(() => main(['record'])).toThrow('coverage-record: record never runs in CI but the record workflow');
-  });
+  it.each([['refs/heads/develop'], ['refs/floors/'], ['refs/heads/coverage/'], ['refs/heads/x/coverage/y'], ['']])(
+    'record still refuses in CI on %j',
+    (ref) => {
+      summary(4);
+      record(1);
+      vi.stubEnv('CI', 'true');
+      vi.stubEnv('RECORD_RUN', ref);
+      expect(() => main(['record'])).toThrow('coverage-record: record never runs in CI but the record workflow');
+    },
+  );
 
   it.each([[[]], [['raise']], [['check', 'extra']]])('refuses the arguments %j', (args) => {
     expect(() => main(args)).toThrow('usage: node scripts/coverage-record.ts check|record');

@@ -35,7 +35,8 @@ export const RECORD = 'coverage-record.json';
 const RECORD_HOW = 'the record workflow, docs/measure-then-commit.md';
 const MEASURE_HOW = 'npm run test:coverage writes it, in CI only, since it runs the integration suite';
 /** The refs the record workflow measures: never a branch, so measuring starts no other run. */
-const SCRATCH_REF = /^refs\/(?:floors|visual)\/./;
+/** A scratch ref (issue #30), or the coverage branch a pull request's finished commit runs its hand-started workflows on (#35 part 6). */
+const SCRATCH_REF = /^refs\/(?:floors\/|visual\/|heads\/coverage\/)./;
 
 /** Every TypeScript and JavaScript extension: tests and tool configs are code too. */
 const CODE = /\.(?:[cm]?[jt]s|[jt]sx)$/;

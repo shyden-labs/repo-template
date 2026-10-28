@@ -7,7 +7,8 @@ import {
   fetchEvidence,
   githubApi,
   main,
-  runsGoing,
+  listRuns,
+  stillGoing,
   unrunRise,
   workflowCoverage,
   workflowFiles,
@@ -340,7 +341,7 @@ describe('workflowLcov', () => {
   });
 });
 
-describe('runsGoing', () => {
+describe('listRuns', () => {
   const SHA = 'c'.repeat(40);
   const RUNS = `/repos/o/r/actions/runs?head_sha=${SHA}&per_page=100`;
   /** A stand-in API answering every call with `page`, and recording each as `json <path>` or `bytes <path>`: each test pins it to the one runs list. */
@@ -352,37 +353,55 @@ describe('runsGoing', () => {
     };
     return { asked, api: { json: answer('json'), bytes: answer('bytes') } };
   };
-  const run = (id: number, path: string, status: string) => ({ id, path: `.github/workflows/${path}`, status });
 
-  it('names each run on the commit that has not completed, by file, id and status', async () => {
+  it('lists each run on the commit by id, file, status and event, from one page', async () => {
+    const runs = [
+      { id: 1, path: '.github/workflows/ci.yml', status: 'completed', event: 'push', conclusion: 'success' },
+      { id: 2, path: '.github/workflows/record.yml', status: 'queued', event: 'workflow_dispatch', conclusion: null },
+    ];
+    const { asked, api } = stand({ total_count: 2, workflow_runs: runs });
+    expect(await listRuns(api, 'o/r', SHA)).toEqual([
+      { id: 1, path: '.github/workflows/ci.yml', status: 'completed', event: 'push' },
+      { id: 2, path: '.github/workflows/record.yml', status: 'queued', event: 'workflow_dispatch' },
+    ]);
+    expect(asked).toEqual([`json ${RUNS}`]);
+  });
+
+  it.each(['id', 'path', 'status', 'event'])('refuses a run with no %s', async (key) => {
+    const full = { id: 1, path: '.github/workflows/ci.yml', status: 'completed', event: 'push' };
+    const run = Object.fromEntries(Object.entries(full).filter(([name]) => name !== key));
+    const { api } = stand({ total_count: 1, workflow_runs: [run] });
+    await expect(listRuns(api, 'o/r', SHA)).rejects.toThrow(`workflow-coverage: ${RUNS} lists an entry with no ${key}`);
+  });
+
+  it('refuses a list longer than the page it read', async () => {
+    const run = { id: 1, path: '.github/workflows/ci.yml', status: 'completed', event: 'push' };
+    const { asked, api } = stand({ total_count: 2, workflow_runs: [run] });
+    await expect(listRuns(api, 'o/r', SHA)).rejects.toThrow(`workflow-coverage: ${RUNS} lists 2 workflow_runs; one page of 100 was read`);
+    expect(asked).toEqual([`json ${RUNS}`]);
+  });
+});
+
+describe('stillGoing', () => {
+  const run = (id: number, path: string, status: string) => ({ id, path: `.github/workflows/${path}`, status, event: 'push' });
+
+  it('names each run that has not completed, by file, id and status', () => {
     const runs = [
       run(1, 'ci.yml', 'completed'),
       run(2, 'mutations.yml', 'in_progress'),
       run(3, 'deploy-dev.yml', 'queued'),
       run(4, 'logs.yml', 'waiting'),
-      { id: 5, path: 'dynamic/dependabot/dependabot-updates', status: 'in_progress' },
+      { id: 5, path: 'dynamic/dependabot/dependabot-updates', status: 'in_progress', event: 'dynamic' },
     ];
-    const { asked, api } = stand({ total_count: 5, workflow_runs: runs });
-    expect(await runsGoing(api, 'o/r', SHA, 9)).toEqual([
+    expect(stillGoing(runs, 9)).toEqual([
       '.github/workflows/mutations.yml run 2 in_progress',
       '.github/workflows/deploy-dev.yml run 3 queued',
       '.github/workflows/logs.yml run 4 waiting',
     ]);
-    expect(asked).toEqual([`json ${RUNS}`]);
   });
 
-  it('leaves out the run it is told to skip', async () => {
-    const { asked, api } = stand({ total_count: 1, workflow_runs: [run(9, 'workflow-coverage.yml', 'in_progress')] });
-    expect(await runsGoing(api, 'o/r', SHA, 9)).toEqual([]);
-    expect(asked).toEqual([`json ${RUNS}`]);
-  });
-
-  it('refuses a list longer than the page it read', async () => {
-    const { asked, api } = stand({ total_count: 2, workflow_runs: [run(1, 'ci.yml', 'completed')] });
-    await expect(runsGoing(api, 'o/r', SHA, 9)).rejects.toThrow(
-      `workflow-coverage: ${RUNS} lists 2 workflow_runs; one page of 100 was read`,
-    );
-    expect(asked).toEqual([`json ${RUNS}`]);
+  it('leaves out the run it is told to skip', () => {
+    expect(stillGoing([run(9, 'workflow-coverage.yml', 'in_progress')], 9)).toEqual([]);
   });
 });
 

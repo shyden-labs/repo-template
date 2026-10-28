@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { withoutYamlComments, withoutYamlQuotes, yamlBlock } from './source-text.ts';
 import unitConfig from '../../vitest.unit.config.ts';
-import logsConfig from '../../vitest.logs.config.ts';
+import logsConfig, { TEMPLATE, logsTest } from '../../vitest.logs.config.ts';
 
 /**
  * Logging and auditing have a test suite of their own, run in CI as a
@@ -33,9 +33,24 @@ describe('the unit suite', () => {
 });
 
 describe('the logs suite', () => {
-  it('collects tests under tests/logs only, and fails when it holds none, so a release gate cannot pass on nothing', () => {
-    // An exact object: `passWithNoTests` (or anything else) added to it is red.
-    expect(logsConfig.test).toEqual({ include: ['tests/logs/**/*.test.ts'] });
+  it.each([['another/repository'], ['shyden-labs/repo-template-copy'], [undefined]])(
+    'collects tests under tests/logs only, and fails when it holds none in %s, so a release gate cannot pass on nothing',
+    (repository) => {
+      // An exact object: `passWithNoTests` (or anything else) added to it is red.
+      expect(logsTest(repository)).toEqual({ include: ['tests/logs/**/*.test.ts'] });
+    },
+  );
+
+  // #35 part 6, Shyden 2026-10-28 ("Template passes empty"): the template has no log checks of its own.
+  it('passes an empty suite in shyden-labs/repo-template alone', () => {
+    expect([TEMPLATE, logsTest('shyden-labs/repo-template')]).toEqual([
+      'shyden-labs/repo-template',
+      { include: ['tests/logs/**/*.test.ts'], passWithNoTests: true },
+    ]);
+  });
+
+  it('takes its settings from the repository CI names', () => {
+    expect(logsConfig.test).toEqual(logsTest(process.env.GITHUB_REPOSITORY));
   });
 
   it('is what npm run test:logs runs', () => {

@@ -7,14 +7,19 @@
 # session folds the artifact into its commit (scripts/fold-record.ts), pushes
 # once and deletes the scratch ref. docs/measure-then-commit.md has the steps.
 #
+# It also runs, with no input, on a scratch branch coverage/<branch>/<sha>
+# holding a pull request's finished commit (#35 part 6): a hand-started run is
+# stamped with its branch's commit, so the workflow-line check reads this run
+# on the pull request's own head. Nothing folds that run's record.
+#
 # Every third-party `uses:` is a full commit SHA with its `# vX.Y.Z` comment.
 name: record
 on:
   workflow_dispatch:
     inputs:
       ref:
-        description: 'The scratch ref holding the commit: refs/floors/<branch>/<sha> or refs/visual/<branch>/<sha>'
-        required: true
+        description: 'The scratch ref holding the commit: refs/floors/<branch>/<sha> or refs/visual/<branch>/<sha>; none when started on a coverage/<branch>/<sha> branch'
+        required: false
         type: string
 
 permissions:
@@ -33,15 +38,15 @@ jobs:
       # through env, never spliced into the script.
       - name: Refuse any ref but a scratch ref
         env:
-          REF: ${{ inputs.ref }}
+          REF: ${{ inputs.ref || github.ref }}
         run: |
           case "$REF" in
-            refs/floors/?*|refs/visual/?*) echo "recording $REF" ;;
-            *) echo "::error title=not a scratch ref::record runs only on refs/floors/* or refs/visual/*, never on $REF"; exit 1 ;;
+            refs/floors/?*|refs/visual/?*|refs/heads/coverage/?*) echo "recording $REF" ;;
+            *) echo "::error title=not a scratch ref::record runs only on refs/floors/*, refs/visual/* or a coverage/* branch, never on $REF"; exit 1 ;;
           esac
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ inputs.ref || github.ref }}
           persist-credentials: false
       # No cache: this runs a commit no review has seen, and a cache it saved
       # would be restored by develop's own runs.
@@ -52,11 +57,11 @@ jobs:
       - run: npm run test:coverage
       - name: Record coverage
         env:
-          RECORD_RUN: ${{ inputs.ref }}
+          RECORD_RUN: ${{ inputs.ref || github.ref }}
         run: npm run coverage:record
       - name: Gather what to commit
         env:
-          REF: ${{ inputs.ref }}
+          REF: ${{ inputs.ref || github.ref }}
         run: |
           mkdir -p record/files
           cp coverage-record.json record/files/

@@ -65,8 +65,19 @@ describe('workflow-coverage.yml', () => {
         '        run: |',
         '          base_sha=$(git merge-base "$HEAD_SHA" "$BASE")',
         '          git worktree add --detach "$RUNNER_TEMP/base" "$base_sha"',
-        '          node scripts/workflow-coverage-check.ts "$HEAD_SHA" "$base_sha" "$RUNNER_TEMP/base"',
+        '          node scripts/workflow-coverage-check.ts "$HEAD_SHA" "$base_sha" "$RUNNER_TEMP/base" "$GITHUB_HEAD_REF"',
       ].join('\n'),
     );
+  });
+
+  // Its own run is still going while it measures, so its lines read unrun on
+  // both sides and a line added here fails the pull request that adds it
+  // (Shyden 2026-10-27, accepted): the head branch comes from GitHub's own
+  // $GITHUB_HEAD_REF, never a new env line (#35 part 6).
+  it('holds 42 code lines, as on the base of #35 part 6', () => {
+    const code = readFileSync('.github/workflows/workflow-coverage.yml', 'utf8')
+      .split('\n')
+      .filter((line) => line.trim() !== '' && !line.trimStart().startsWith('#'));
+    expect(code).toHaveLength(42);
   });
 });

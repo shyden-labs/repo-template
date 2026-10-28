@@ -172,7 +172,7 @@ describe('the workflows', () => {
 describe('README.md', () => {
   it('names the workflow-line modules and their doc in the file table', () => {
     expect(readFileSync('README.md', 'utf8')).toContain(
-      '| `scripts/workflow-lines.ts`, `scripts/workflow-trace.ts`, `scripts/workflow-coverage.ts`, `scripts/workflow-coverage-check.ts`, `.github/workflows/workflow-coverage.yml`, `scripts/zip.ts`, `docs/workflow-lines.md` |',
+      '| `scripts/workflow-lines.ts`, `scripts/workflow-trace.ts`, `scripts/workflow-coverage.ts`, `scripts/workflow-coverage-check.ts`, `scripts/coverage-dispatch.ts`, `.github/workflows/workflow-coverage.yml`, `scripts/zip.ts`, `docs/workflow-lines.md` |',
     );
   });
 });
