@@ -55,7 +55,7 @@ jobs:
           name: workflow-trace-${{ github.job }}
           path: ${{ runner.temp }}/workflow-trace/
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 90
 
   # Coverage runs apart from the 1 s unit step, measuring every code file, and
   # the record must equal what it measured (issue #32).
@@ -77,4 +77,4 @@ jobs:
           name: workflow-trace-${{ github.job }}
           path: ${{ runner.temp }}/workflow-trace/
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 90

@@ -54,7 +54,7 @@ describe('a new repository', () => {
     const text = readme();
     const step = text.slice(text.indexOf('3. **Require up-to-date pull requests'), text.indexOf('4. Add the ecosystems'));
     expect(step).toContain(
-      "Name every check the template's CI runs: `build-and-test coverage mutations`. Then read both branches' rules back (`rules/branches/develop` and `rules/branches/main`): `develop` requires all three, strict; `main` requires them and `release-cut`, not strict (`docs/release-cut.md`).",
+      "Name every check the template's CI runs: `build-and-test coverage mutations workflow-coverage`. Then read both branches' rules back (`rules/branches/develop` and `rules/branches/main`): `develop` requires all four, strict; `main` requires them and `release-cut`, not strict (`docs/release-cut.md`).",
     );
   });
 

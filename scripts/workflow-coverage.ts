@@ -190,6 +190,30 @@ export function workflowLcov(coverage: Map<string, Map<number, boolean>>): strin
     .join('');
 }
 
+/** A workflow file the head leaves more lines unrun in than its base, with the head's unrun lines. */
+export interface Rise {
+  file: string;
+  head: number;
+  base: number;
+  unrun: number[];
+}
+
+/**
+ * Each file whose unrun line count on the head exceeds the base's, in path
+ * order (#35, AC5). Counts are compared, not lines: a line's number moves
+ * whenever the file is edited. A file the base lacks starts from none unrun.
+ */
+export function unrunRise(head: Map<string, Map<number, boolean>>, base: Map<string, Map<number, boolean>>): Rise[] {
+  const unrunOf = (ran: Map<number, boolean>) => [...ran].flatMap(([line, hit]) => (hit ? [] : [line]));
+  return [...head]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .flatMap(([file, ran]) => {
+      const unrun = unrunOf(ran);
+      const was = unrunOf(base.get(file) ?? new Map<number, boolean>()).length;
+      return unrun.length > was ? [{ file, head: unrun.length, base: was, unrun }] : [];
+    });
+}
+
 /** The GitHub REST calls the reader makes: JSON, and the bytes of an artifact's zip. */
 export interface Api {
   json(path: string): Promise<unknown>;
@@ -215,15 +239,40 @@ const isNumber = (v: unknown): v is number => typeof v === 'number';
 const isString = (v: unknown): v is string => typeof v === 'string';
 const isConclusion = (v: unknown): v is string | null => v === null || typeof v === 'string';
 
-/** Every run GitHub made on `sha`, with every attempt's jobs and steps and the traces its artifacts hold. */
-export async function fetchEvidence(api: Api, repo: string, sha: string, workflows: Map<string, string>): Promise<Evidence> {
+/**
+ * Each run on `sha` that has not completed, as `<path> run <id> <status>`,
+ * leaving out `skipRun` (the measuring run itself) and the dynamic runs the
+ * reader skips (#35, AC5): the check waits until this names nothing.
+ */
+export async function runsGoing(api: Api, repo: string, sha: string, skipRun: number): Promise<string[]> {
+  const runsPath = `/repos/${repo}/actions/runs?head_sha=${sha}&per_page=${PAGE}`;
+  return onePage(await api.json(runsPath), 'workflow_runs', runsPath).flatMap((item) => {
+    const id = field(item, 'id', isNumber, runsPath);
+    const path = field(item, 'path', isString, runsPath);
+    const status = field(item, 'status', isString, runsPath);
+    return status === 'completed' || id === skipRun || path.startsWith('dynamic/') ? [] : [`${path} run ${id} ${status}`];
+  });
+}
+
+/**
+ * Every run GitHub made on `sha`, with every attempt's jobs and steps and the
+ * traces its artifacts hold. `skipRun` is the measuring run itself, which is
+ * still going while it reads (#35, AC5).
+ */
+export async function fetchEvidence(
+  api: Api,
+  repo: string,
+  sha: string,
+  workflows: Map<string, string>,
+  skipRun?: number,
+): Promise<Evidence> {
   const runsPath = `/repos/${repo}/actions/runs?head_sha=${sha}&per_page=${PAGE}`;
   const runs: RunEvidence[] = [];
   for (const item of onePage(await api.json(runsPath), 'workflow_runs', runsPath)) {
     const id = field(item, 'id', isNumber, runsPath);
     const path = field(item, 'path', isString, runsPath);
     const status = field(item, 'status', isString, runsPath);
-    if (path.startsWith('dynamic/')) continue;
+    if (path.startsWith('dynamic/') || id === skipRun) continue;
     const jobsPath = `/repos/${repo}/actions/runs/${id}/jobs?filter=all&per_page=${PAGE}`;
     const jobs = onePage(await api.json(jobsPath), 'jobs', jobsPath).map((job) => ({
       name: field(job, 'name', isString, jobsPath),

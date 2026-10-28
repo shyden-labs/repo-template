@@ -122,7 +122,7 @@ const splitPins = (uses: Use[]) => {
 describe('the CI supply chain is pinned', () => {
   it('pins each action at one SHA in every workflow, judged over every pinned use', () => {
     const uses = externalUses();
-    expect({ pinned: uses.length, split: splitPins(uses) }).toEqual({ pinned: 25, split: [] });
+    expect({ pinned: uses.length, split: splitPins(uses) }).toEqual({ pinned: 28, split: [] });
   });
 
   it('names an action whose bump reached one workflow and missed another', () => {
@@ -307,7 +307,7 @@ const setupNodeSteps = (file: string, source: string): { where: string; wrong: s
 describe('the template runs one Node and one runner, pinned exactly', () => {
   it(`every job runs on ${RUNNER}, judged over every runs-on read`, () => {
     const runners = workflowFiles().flatMap((f) => runnersIn(f, workflow(f)));
-    expect({ read: runners.length, floating: floating(runners) }).toEqual({ read: 8, floating: [] });
+    expect({ read: runners.length, floating: floating(runners) }).toEqual({ read: 9, floating: [] });
   });
 
   it('reads one runs-on for every job the workflow parser finds, per file', () => {
@@ -315,7 +315,7 @@ describe('the template runs one Node and one runner, pinned exactly', () => {
     expect({
       files: files.length,
       mismatched: files.filter((f) => runnersIn(f, workflow(f)).length !== layout(workflow(f)).jobs.length),
-    }).toEqual({ files: 7, mismatched: [] });
+    }).toEqual({ files: 8, mismatched: [] });
   });
 
   const job = (runsOn: string) => ['jobs:', '  build:', `    runs-on:${runsOn}`, '    steps:', '      - run: true', ''].join('\n');
@@ -346,7 +346,7 @@ describe('the template runs one Node and one runner, pinned exactly', () => {
 
   it('every setup-node step reads .nvmrc and names no Node of its own, judged over every step read', () => {
     const steps = workflowFiles().flatMap((f) => setupNodeSteps(f, workflow(f)));
-    expect({ read: steps.length, wrong: steps.filter(({ wrong }) => wrong.length > 0) }).toEqual({ read: 7, wrong: [] });
+    expect({ read: steps.length, wrong: steps.filter(({ wrong }) => wrong.length > 0) }).toEqual({ read: 8, wrong: [] });
   });
 
   it('reads every setup-node step a plain search of each file finds', () => {
@@ -354,7 +354,7 @@ describe('the template runs one Node and one runner, pinned exactly', () => {
     expect({
       files: files.length,
       mismatched: files.filter((f) => setupNodeSteps(f, workflow(f)).length !== workflow(f).split(/actions\/setup-node@/i).length - 1),
-    }).toEqual({ files: 7, mismatched: [] });
+    }).toEqual({ files: 8, mismatched: [] });
   });
 
   const steps = (...lines: string[]) => ['    steps:', ...lines, ''].join('\n');

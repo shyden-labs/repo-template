@@ -140,16 +140,16 @@ const UPLOAD = [
   '          name: workflow-trace-${{ github.job }}',
   '          path: ${{ runner.temp }}/workflow-trace/',
   '          if-no-files-found: error',
-  '          retention-days: 7',
+  '          retention-days: 90',
 ].join('\n');
 
 describe('the workflows', () => {
-  it('are the seven the template ships', () => {
-    expect(workflows.length).toBe(7);
+  it('are the eight the template ships', () => {
+    expect(workflows.length).toBe(8);
   });
 
-  it('hold the eight jobs the template ships', () => {
-    expect(jobs.length).toBe(8);
+  it('hold the nine jobs the template ships', () => {
+    expect(jobs.length).toBe(9);
   });
 
   it.each(workflows)('%s runs every step under the tracing shell', (file) => {
@@ -172,7 +172,7 @@ describe('the workflows', () => {
 describe('README.md', () => {
   it('names the workflow-line modules and their doc in the file table', () => {
     expect(readFileSync('README.md', 'utf8')).toContain(
-      '| `scripts/workflow-lines.ts`, `scripts/workflow-trace.ts`, `scripts/workflow-coverage.ts`, `scripts/zip.ts`, `docs/workflow-lines.md` |',
+      '| `scripts/workflow-lines.ts`, `scripts/workflow-trace.ts`, `scripts/workflow-coverage.ts`, `scripts/workflow-coverage-check.ts`, `.github/workflows/workflow-coverage.yml`, `scripts/zip.ts`, `docs/workflow-lines.md` |',
     );
   });
 });

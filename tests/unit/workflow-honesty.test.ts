@@ -26,6 +26,7 @@ describe('every workflow', () => {
       'mutations.yml',
       'record.yml',
       'sonarcloud.yml',
+      'workflow-coverage.yml',
     ]);
   });
 
