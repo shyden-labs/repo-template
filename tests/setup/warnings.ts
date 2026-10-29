@@ -23,7 +23,17 @@ export const failOnWarnings: Plugin = {
   },
 };
 
-/** The `warning` listener each suite's setup registers: a node warning fails the run. */
+/** Where a warning came from: the first frame of its stack outside node's own internals, so a red pull request names the package (#143). */
+function source(warning: Error): string {
+  const frame = (warning.stack ?? '')
+    .split('\n')
+    .slice(1)
+    .map((line) => line.trim())
+    .find((line) => line.startsWith('at ') && !line.includes('(node:') && !line.startsWith('at node:'));
+  return frame === undefined ? '' : ` (${frame})`;
+}
+
+/** The `warning` listener each suite's setup registers: a node warning fails the run, naming where it came from. */
 export function failOnNodeWarning(warning: Error): never {
-  throw failure(`${warning.name}: ${warning.message}`);
+  throw failure(`${warning.name}: ${warning.message}${source(warning)}`);
 }

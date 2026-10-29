@@ -40,6 +40,7 @@ describe('record.yml', () => {
     ).toEqual([
       '      - name: Refuse any ref but a scratch ref',
       '      - uses: actions/checkout@<sha>',
+      '      - id: node',
       '      - uses: actions/setup-node@<sha>',
       '      - run: npm ci',
       '      - run: npm run test:coverage',
@@ -64,7 +65,12 @@ describe('record.yml', () => {
 
   it('sets up node with no cache, so a run of an unreviewed commit cannot poison what develop restores', () => {
     expect(steps()).toContain(
-      ['      - uses: actions/setup-node@<sha>', '        with:', '          node-version-file: .nvmrc', '      - run: npm ci'].join('\n'),
+      [
+        '      - uses: actions/setup-node@<sha>',
+        '        with:',
+        '          node-version: ${{ steps.node.outputs.version }}',
+        '      - run: npm ci',
+      ].join('\n'),
     );
   });
 
@@ -110,10 +116,11 @@ describe('record.yml', () => {
   });
 
   // Every line keeps its place, so the workflow-line counts compare like for like with the base.
-  it('holds 58 code lines, as on the base of #35 part 6', () => {
+  // 58 on the base of #35 part 6, and 5 more for #143's Node read step.
+  it('holds 63 code lines', () => {
     const code = readFileSync('.github/workflows/record.yml', 'utf8')
       .split('\n')
       .filter((line) => line.trim() !== '' && !line.trimStart().startsWith('#'));
-    expect(code).toHaveLength(58);
+    expect(code).toHaveLength(63);
   });
 });

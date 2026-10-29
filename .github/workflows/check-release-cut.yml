@@ -34,9 +34,15 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      # The exact Node, from the one file Dependabot bumps (#143).
+      - id: node
+        run: |
+          version=$(sed -nE 's/^FROM node:([0-9]+\.[0-9]+\.[0-9]+)$/\1/p' .github/node/Dockerfile)
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version-file: '.nvmrc'
+          node-version: ${{ steps.node.outputs.version }}
       # The head ref is text the pull request's author chose: it reaches the shell through env, never through an expression.
       - name: Judge the release cut and post its status
         env:
