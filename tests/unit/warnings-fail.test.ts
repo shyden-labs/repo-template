@@ -1,0 +1,76 @@
+import { describe, it, expect } from 'vitest';
+import unit from '../../vitest.unit.config.ts';
+import integration from '../../vitest.integration.config.ts';
+import logs from '../../vitest.logs.config.ts';
+import coverage from '../../vitest.coverage.config.ts';
+import { NODE_WARNINGS, UNIT_REFUSAL, UNIT_SETUP } from '../setup/files.ts';
+import { failOnNodeWarning, failOnWarnings } from '../setup/warnings.ts';
+
+/**
+ * Warnings are build failures (global rule; issue #138). A vite warning, such
+ * as a dynamic import it cannot analyse, fails the file that caused it,
+ * through a plugin that wraps the logger vitest hands vite. A node warning
+ * (process.emitWarning) fails the run, through a listener each suite's setup
+ * registers. Every suite's config carries both.
+ */
+
+type Logger = Record<'warn' | 'warnOnce', (message: string) => void>;
+
+/**
+ * Hands the plugin a logger the way vite does once its config is resolved.
+ * It starts empty: the plugin supplies both methods, so no stand-in is left unrun.
+ */
+function resolved(): Logger {
+  const config = { logger: {} as Logger };
+  (failOnWarnings.configResolved as (resolvedConfig: { logger: Logger }) => void)(config);
+  return config.logger;
+}
+
+describe('failOnWarnings', () => {
+  it.each(['warn', 'warnOnce'] as const)("turns vite's logger.%s into a failure naming the warning", (level) => {
+    expect(() => {
+      resolved()[level]('invalid import "../../${config}"');
+    }).toThrow('a warning is a build failure (global rule; #138): invalid import "../../${config}"');
+  });
+});
+
+describe('failOnNodeWarning', () => {
+  it('fails naming the warning and its name', () => {
+    expect(() => failOnNodeWarning(Object.assign(new Error('Buffer() is deprecated'), { name: 'DeprecationWarning' }))).toThrow(
+      'a warning is a build failure (global rule; #138): DeprecationWarning: Buffer() is deprecated',
+    );
+  });
+
+  it('is listening in this very run, so the setup really registered it', () => {
+    expect(process.listeners('warning')).toContain(failOnNodeWarning);
+  });
+});
+
+/** Each suite's config, and each project of the coverage run, as vitest reads it. */
+const configs: [string, { plugins?: unknown[]; test: { setupFiles?: string[] } }][] = [
+  ['unit', unit],
+  ['integration', integration],
+  ['logs', logs],
+  ...coverage.test.projects.map((project): [string, { plugins?: unknown[]; test: { setupFiles?: string[] } }] => [
+    `coverage project ${project.test.name}`,
+    project,
+  ]),
+];
+
+describe('every suite fails on warnings', () => {
+  it('reads every suite and every coverage project', () => {
+    expect(configs.map(([name]) => name)).toEqual(['unit', 'integration', 'logs', 'coverage project unit', 'coverage project integration']);
+  });
+
+  it.each(configs)('%s carries the vite plugin', (_name, config) => {
+    expect(config.plugins).toContain(failOnWarnings);
+  });
+
+  it.each(configs)('%s registers the node warning listener', (_name, config) => {
+    expect(config.test.setupFiles).toContain(NODE_WARNINGS);
+  });
+
+  it('keeps the unit refusal first, so nothing a file loads runs before it', () => {
+    expect([UNIT_SETUP[0], UNIT_SETUP.includes(NODE_WARNINGS)]).toEqual([UNIT_REFUSAL, true]);
+  });
+});

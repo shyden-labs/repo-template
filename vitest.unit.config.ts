@@ -1,5 +1,6 @@
 import type { ViteUserConfig } from 'vitest/config';
 import { UNIT_SETUP } from './tests/setup/files.ts';
+import { failOnWarnings } from './tests/setup/warnings.ts';
 
 // The unit suite: tests under tests/unit only. The logs suite
 // (vitest.logs.config.ts, docs/logs-suite.md) runs before a release, not here.
@@ -10,6 +11,7 @@ import { UNIT_SETUP } from './tests/setup/files.ts';
 // `defineConfig` only types the object, and importing `vitest/config` at run
 // time cost every test file that reads this config ~100 ms of CPU to load.
 export default {
+  plugins: [failOnWarnings],
   test: {
     include: ['tests/unit/**/*.test.ts'],
     setupFiles: UNIT_SETUP,

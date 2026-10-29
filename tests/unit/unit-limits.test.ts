@@ -388,6 +388,7 @@ describe('the setup files', () => {
   it('refuses first, starts the load clock after the CPU judge and judges the load last', () => {
     expect(UNIT_SETUP).toEqual([
       'tests/setup/unit-refusal.ts',
+      'tests/setup/node-warnings.ts',
       'tests/setup/unit-cpu.ts',
       'tests/setup/load.ts',
       'tests/setup/unit-load-limit.ts',
@@ -411,6 +412,7 @@ describe('the unit config', () => {
   it('loads every setup shim, in order', () => {
     expect(unit.test.setupFiles).toEqual([
       'tests/setup/unit-refusal.ts',
+      'tests/setup/node-warnings.ts',
       'tests/setup/unit-cpu.ts',
       'tests/setup/load.ts',
       'tests/setup/unit-load-limit.ts',
@@ -423,8 +425,8 @@ describe('the unit config', () => {
 });
 
 describe('the other configs', () => {
-  it('keeps limits out of the integration suite: its one limit is the CI step', () => {
-    expect(Object.keys(integration.test)).toEqual(['include']);
+  it('keeps limits out of the integration suite: its one limit is the CI step, its one setup the warning listener', () => {
+    expect(integration.test).toEqual({ include: ['tests/integration/**/*.test.ts'], setupFiles: ['tests/setup/node-warnings.ts'] });
   });
 });
 

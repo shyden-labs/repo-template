@@ -3,6 +3,8 @@
 
 /** Refuses every process start and connection; first, so nothing a file loads runs before it. */
 export const UNIT_REFUSAL = 'tests/setup/unit-refusal.ts';
+/** Fails the run on a node warning (#138); every suite's setup carries it. */
+export const NODE_WARNINGS = 'tests/setup/node-warnings.ts';
 /** Judges each test's own CPU. */
 export const UNIT_CPU = 'tests/setup/unit-cpu.ts';
 /** Measures each file's load; it stamps the figure the reporter and the load judge read. */
@@ -10,6 +12,6 @@ export const LOAD = 'tests/setup/load.ts';
 /** Judges each file's load; it runs after LOAD, whose clock starts just before the file is imported. */
 export const UNIT_LOAD_LIMIT = 'tests/setup/unit-load-limit.ts';
 
-export const UNIT_SETUP = [UNIT_REFUSAL, UNIT_CPU, LOAD, UNIT_LOAD_LIMIT];
+export const UNIT_SETUP = [UNIT_REFUSAL, NODE_WARNINGS, UNIT_CPU, LOAD, UNIT_LOAD_LIMIT];
 /** The judges a coverage run leaves out: instrumented code runs slower than the limits allow. */
 export const UNIT_JUDGES = [UNIT_CPU, UNIT_LOAD_LIMIT];

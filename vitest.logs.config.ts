@@ -1,4 +1,6 @@
 import type { ViteUserConfig } from 'vitest/config';
+import { NODE_WARNINGS } from './tests/setup/files.ts';
+import { failOnWarnings } from './tests/setup/warnings.ts';
 
 // The logs suite (docs/logs-suite.md): the checks of the code that writes,
 // keeps or replays logs and audit trails. It runs in CI before a release
@@ -22,5 +24,6 @@ export function logsTest(repository: string | undefined) {
 }
 
 export default {
-  test: logsTest(process.env.GITHUB_REPOSITORY),
+  plugins: [failOnWarnings],
+  test: { ...logsTest(process.env.GITHUB_REPOSITORY), setupFiles: [NODE_WARNINGS] },
 } satisfies ViteUserConfig;

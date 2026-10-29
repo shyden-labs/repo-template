@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import coverage from '../../vitest.coverage.config.ts';
 import unit from '../../vitest.unit.config.ts';
+import integration from '../../vitest.integration.config.ts';
+import logs from '../../vitest.logs.config.ts';
 import { SUITES } from '../../scripts/mutate.ts';
 
 /**
@@ -40,18 +42,35 @@ function unjoined(projects: Project[], suites: Record<string, string[]>, exempt:
   return found;
 }
 
+/**
+ * Every suite config, imported statically: vite warns on a dynamic import it
+ * cannot analyse, and a warning is a failure (#138). A config SUITES names
+ * that is missing here fails by name below, so the list cannot fall behind.
+ */
+const CONFIGS: Record<string, { test: { include: string[] } }> = {
+  'vitest.integration.config.ts': integration,
+  'vitest.logs.config.ts': logs,
+};
 const projects = coverage.test.projects as Project[];
 /** Each suite's own include, read from the config `SUITES` names for it, never written out here. */
-const includes: Record<string, string[]> = Object.fromEntries(
-  await Promise.all(
-    Object.entries(SUITES).map(async ([name, { config }]) => {
-      const loaded = (await import(`../../${config}`)) as { default: { test: { include: string[] } } };
-      return [name, loaded.default.test.include] as const;
+function includesOf(suites: Record<string, { config: string }>, configs: typeof CONFIGS): Record<string, string[]> {
+  return Object.fromEntries(
+    Object.entries(suites).map(([name, { config }]) => {
+      const loaded = configs[config];
+      if (loaded === undefined) throw new Error(`${name}: SUITES names ${config}, which CONFIGS does not import`);
+      return [name, loaded.test.include] as const;
     }),
-  ),
-);
+  );
+}
+const includes = includesOf(SUITES, CONFIGS);
 
 describe('the coverage run joins every suite', () => {
+  it('fails by name on a suite whose config this file does not import', () => {
+    expect(() => includesOf({ smoke: { config: 'vitest.smoke.config.ts' } }, CONFIGS)).toThrow(
+      'smoke: SUITES names vitest.smoke.config.ts, which CONFIGS does not import',
+    );
+  });
+
   it('reads every suite SUITES names, and the coverage run’s projects', () => {
     expect([Object.keys(SUITES).sort(), projects.map((p) => p.test.name)]).toEqual([
       ['integration', 'logs'],
