@@ -2,6 +2,7 @@ import type { ViteUserConfig } from 'vitest/config';
 import unit from './vitest.unit.config.ts';
 import integration from './vitest.integration.config.ts';
 import { UNIT_JUDGES } from './tests/setup/files.ts';
+import { failOnWarnings } from './tests/setup/warnings.ts';
 
 // The coverage run (`npm run test:coverage`, docs/coverage.md): the unit and
 // integration suites in one run, each on its own files, so a test or script
@@ -14,6 +15,7 @@ export default {
   test: {
     projects: [
       {
+        plugins: [failOnWarnings],
         test: {
           name: 'unit',
           include: unit.test.include,
@@ -21,7 +23,7 @@ export default {
           setupFiles: unit.test.setupFiles.filter((file) => !UNIT_JUDGES.includes(file)),
         },
       },
-      { test: { name: 'integration', ...integration.test } },
+      { plugins: [failOnWarnings], test: { name: 'integration', ...integration.test } },
     ],
   },
 } satisfies ViteUserConfig;

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { withoutPinnedShas, withoutYamlComments, withoutYamlQuotes } from './source-text.ts';
 import coverageConfig from '../../vitest.coverage.config.ts';
+import { failOnWarnings } from '../setup/warnings.ts';
 
 /**
  * One coverage tool, wired the same way in every repo made from the template
@@ -56,15 +57,20 @@ describe('the commands', () => {
   it('measures the unit and integration suites together, each on its own files', () => {
     expect(coverageConfig.test.projects).toEqual([
       // The refusals, without the unit limits' judges and 1 s timeouts, which instrumented code would trip (#92).
+      // Each fails on a warning (#138): the vite plugin, and the node listener in its setup.
       {
+        plugins: [failOnWarnings],
         test: {
           name: 'unit',
           include: ['tests/unit/**/*.test.ts'],
           pool: 'forks',
-          setupFiles: ['tests/setup/unit-refusal.ts', 'tests/setup/load.ts'],
+          setupFiles: ['tests/setup/unit-refusal.ts', 'tests/setup/node-warnings.ts', 'tests/setup/load.ts'],
         },
       },
-      { test: { name: 'integration', include: ['tests/integration/**/*.test.ts'] } },
+      {
+        plugins: [failOnWarnings],
+        test: { name: 'integration', include: ['tests/integration/**/*.test.ts'], setupFiles: ['tests/setup/node-warnings.ts'] },
+      },
     ]);
   });
 

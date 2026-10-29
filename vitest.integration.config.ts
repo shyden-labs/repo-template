@@ -1,4 +1,6 @@
 import type { ViteUserConfig } from 'vitest/config';
+import { NODE_WARNINGS } from './tests/setup/files.ts';
+import { failOnWarnings } from './tests/setup/warnings.ts';
 
 // The integration suite (docs/unit-limits.md, #92): a case that cannot fit the
 // unit limits (1 s, 0.1 s of its own CPU, 0.1 s to load its file, no process,
@@ -6,5 +8,6 @@ import type { ViteUserConfig } from 'vitest/config';
 // Its one limit is the CI step's (.github/workflows/ci.yml), none inside. It
 // holds no passWithNoTests: an empty suite fails. Typed only (#92).
 export default {
-  test: { include: ['tests/integration/**/*.test.ts'] },
+  plugins: [failOnWarnings],
+  test: { include: ['tests/integration/**/*.test.ts'], setupFiles: [NODE_WARNINGS] },
 } satisfies ViteUserConfig;

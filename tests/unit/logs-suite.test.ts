@@ -49,8 +49,8 @@ describe('the logs suite', () => {
     ]);
   });
 
-  it('takes its settings from the repository CI names', () => {
-    expect(logsConfig.test).toEqual(logsTest(process.env.GITHUB_REPOSITORY));
+  it('takes its settings from the repository CI names, and fails on a node warning (#138)', () => {
+    expect(logsConfig.test).toEqual({ ...logsTest(process.env.GITHUB_REPOSITORY), setupFiles: ['tests/setup/node-warnings.ts'] });
   });
 
   it('is what npm run test:logs runs', () => {
