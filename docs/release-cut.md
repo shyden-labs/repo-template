@@ -78,8 +78,8 @@ merged after a later one has nothing left to bring.
   never taken for the status. Its token can write statuses and nothing else.
 - **What it cannot stop.** A required check is matched by name unless its
   source app is pinned, so a pull request (a fork's included) can add a job
-  named `release-cut` and satisfy it, as it can `build-and-test`, `coverage`
-  and `mutations` today. Nothing lands without the operator merging, and the
+  named `release-cut` and satisfy it, as it can `build-and-test` and `coverage`
+  today. Nothing lands without the operator merging, and the
   operator merges only release pull requests they cut from `release/*`.
   Pinning every required check's source is issue #90.
 
@@ -93,7 +93,7 @@ only after the first release carrying #86 has reached `main`.
 
 The rules are set by the operator (rulesets need admin rights):
 
-    node scripts/branch-rules-setup.ts <owner/repo> build-and-test coverage mutations workflow-coverage
+    node scripts/branch-rules-setup.ts <owner/repo> build-and-test coverage
 
 Then read back `rules/branches/develop` (the four checks, strict) and
 `rules/branches/main` (the four checks and `release-cut`, not strict).

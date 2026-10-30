@@ -36,7 +36,7 @@ describe('package.json', () => {
 });
 
 describe('ci.yml', () => {
-  it('runs typecheck, lint and format check as named steps of build-and-test, after npm ci and before the unit suite, then the integration suite', () => {
+  it('runs typecheck, lint and format check as named steps of build-and-test, after npm ci and before the unit suite', () => {
     expect(steps(yamlBlock(ci, 'build-and-test', '  '))).toEqual([
       { name: 'The default branch is develop', run: '|' },
       { name: '', run: '' },
@@ -47,18 +47,7 @@ describe('ci.yml', () => {
       { name: 'Lint', run: 'npm run lint' },
       { name: 'Format', run: 'npm run format:check' },
       { name: '', run: 'npm run test:unit' },
-      { name: 'Integration tests', run: 'npm run test:integration' },
-      { name: '', run: '' },
     ]);
-  });
-
-  // The integration suite's one limit is its step's (docs/unit-limits.md), set
-  // from its measured runs: 1 s on PR #102, and a whole minute is the least.
-  it('limits the integration step to one minute', () => {
-    const step = yamlBlock(ci, 'build-and-test', '  ')
-      .split(/\n(?= {6}- )/)
-      .find((block) => /^ {6}- name: Integration tests$/m.test(block));
-    expect(step?.match(/^ {8}timeout-minutes: (\d+)$/m)?.[1]).toBe('1');
   });
 });
 
@@ -98,14 +87,6 @@ describe('tsconfig.json', () => {
       erasableSyntaxOnly: true,
       module: 'nodenext',
     });
-  });
-});
-
-describe('README.md', () => {
-  it('names the static checks and their doc in the file table', () => {
-    expect(readFileSync('README.md', 'utf8')).toContain(
-      '| `tsconfig.json`, `eslint.config.js`, `.prettierrc.json`, `.githooks/pre-push`, `docs/static-checks.md` |',
-    );
   });
 });
 

@@ -2,14 +2,10 @@ import type { ViteUserConfig } from 'vitest/config';
 import { UNIT_SETUP } from './tests/setup/files.ts';
 import { failOnWarnings } from './tests/setup/warnings.ts';
 
-// The unit suite: tests under tests/unit only. The logs suite
-// (vitest.logs.config.ts, docs/logs-suite.md) runs before a release, not here.
-// Its limits (docs/unit-limits.md, #92): 1 s per test and hook, and the
-// setup shims judge each test's own CPU and each file's load; never raised
-// (hooks/unit-limit-never-raised.py). Each file runs in its own forked
-// process, so one thread's CPU is one file's. A type-only import:
-// `defineConfig` only types the object, and importing `vitest/config` at run
-// time cost every test file that reads this config ~100 ms of CPU to load.
+// The unit suite: tests under tests/unit, 1 s per test and hook, no process or
+// connection (tests/setup/unit-refusal.ts). `npm run test:coverage` runs the
+// same suite with V8 coverage over the TypeScript under scripts/, held to one
+// overall threshold (#149). A type-only import: `defineConfig` only types the object.
 export default {
   plugins: [failOnWarnings],
   test: {
@@ -17,7 +13,11 @@ export default {
     setupFiles: UNIT_SETUP,
     testTimeout: 1_000,
     hookTimeout: 1_000,
-    pool: 'forks',
-    reporters: ['default', './tests/setup/limits-reporter.ts'],
+    coverage: {
+      provider: 'v8',
+      include: ['scripts/**/*.ts'],
+      reporter: ['text-summary', 'lcov'],
+      thresholds: { lines: 100, branches: 100, functions: 100, statements: 100 },
+    },
   },
 } satisfies ViteUserConfig;

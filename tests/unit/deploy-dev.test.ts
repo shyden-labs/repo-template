@@ -84,16 +84,8 @@ describe('deploy-dev', () => {
       '            echo The template hosts nothing, so its rehearsal deploys nothing.',
       '            exit 0',
       '          fi',
-      '          echo ::error title=deploy-dev is not filled in::Replace this step with the projects own dev deploy, acting only on the areas in changed-files.txt, and deploying nothing when DEPLOY_REHEARSAL is true (README, Using it, step 8).',
+      '          echo ::error title=deploy-dev is not filled in::Replace this step with the projects own dev deploy, acting only on the areas in changed-files.txt, and deploying nothing when DEPLOY_REHEARSAL is true (README, Using it, step 7).',
       '          exit 1',
     ]);
-  });
-});
-
-describe('a new repository', () => {
-  it('is told to fill in its dev deploy, or to say why it hosts nothing', () => {
-    expect(readFileSync('README.md', 'utf8')).toContain(
-      '8. **Fill in `.github/workflows/deploy-dev.yml`.** Every merge into `develop` deploys to dev by this trigger; replace its last step with your own deploy, acting only on the areas in `changed-files.txt`. Every pull request runs the same job as a rehearsal in the `dev-rehearsal` environment, which holds no credential, with `DEPLOY_REHEARSAL` set to `true`: there your deploy checks and builds but deploys nothing. Until then it fails, naming that step. A repository that hosts nothing deletes the workflow and `tests/unit/deploy-dev.test.ts`, and says why in its README.',
-    );
   });
 });

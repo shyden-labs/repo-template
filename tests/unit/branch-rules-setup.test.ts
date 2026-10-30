@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 import {
   desiredRuleset,
   main,
@@ -307,12 +306,6 @@ describe('auditDevEnvironment', () => {
     [[{ id: 4, name: 'develop', type: 'tag' }], 'develop (tag)'],
   ])('names a custom list of %j', (policies, named) => {
     expect(auditDevEnvironment(CUSTOM, policies)).toEqual([`dev: lets ${named} deploy, not develop alone`]);
-  });
-
-  it('is in README step 3, which a new repository follows', () => {
-    expect(readFileSync('README.md', 'utf8')).toContain(
-      'Last, it gives the `dev` environment, which holds the dev credential, a deployment branch policy naming `develop` alone, and reads it back',
-    );
   });
 });
 

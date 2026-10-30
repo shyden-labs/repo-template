@@ -12,8 +12,7 @@ import tls from 'node:tls';
 import { REFUSED, installRefusals, testName } from '../setup/refusals.ts';
 
 /**
- * A unit test starts no process and opens no connection (#92,
- * docs/unit-limits.md). The refusals are installed by tests/setup/unit-refusal.ts
+ * A unit test starts no process and opens no connection (#92). The refusals are installed by tests/setup/unit-refusal.ts
  * before every unit file; here they are first installed on stand-in modules,
  * one test per entry, then tried live in this very run by every route a test
  * could take.
@@ -104,7 +103,7 @@ describe('installRefusals, on stand-in modules', () => {
     const real = Reflect.get(at(m), key) as ReturnType<typeof reached>;
     installRefusals(m, () => 'suite > t');
     expect(() => call(at(m), key)).toThrow(
-      `unit test refused: "suite > t" called ${entry}. ${reason} Stand the dependency in, or move the case to tests/integration (#92).`,
+      `unit test refused: "suite > t" called ${entry}. ${reason} Stand the dependency in, or move the case to an integration suite (#92).`,
     );
     expect(real).not.toHaveBeenCalled();
   });

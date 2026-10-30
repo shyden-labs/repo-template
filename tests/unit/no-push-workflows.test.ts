@@ -4,9 +4,7 @@ import { withoutYamlComments } from './source-text.ts';
 
 /**
  * No workflow writes to the repository except the deploy and release ones
- * (issue #30; Shyden 2026-10-20: never force-push, and no CI bot pushes). A
- * workflow that measures a commit returns an artifact; the session folds it
- * into its still-unpushed commit (`scripts/fold-record.ts`) and pushes once.
+ * (issue #30; Shyden 2026-10-20: never force-push, and no CI bot pushes).
  * Read from comment-stripped text, so a comment naming `git push` neither
  * trips the guard nor satisfies it.
  */
@@ -40,7 +38,7 @@ const judged = workflows.filter((f) => !MAY_WRITE.test(f));
 describe('no workflow writes to the repository', () => {
   it('judges every workflow but the deploy and release ones', () => {
     expect({ judged, allowed: workflows.filter((f) => MAY_WRITE.test(f)) }).toEqual({
-      judged: ['check-release-cut.yml', 'ci.yml', 'logs.yml', 'mutations.yml', 'record.yml', 'sonarcloud.yml', 'workflow-coverage.yml'],
+      judged: ['check-release-cut.yml', 'ci.yml', 'sonarcloud.yml'],
       allowed: ['deploy-dev.yml'],
     });
   });

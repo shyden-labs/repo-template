@@ -8,7 +8,7 @@ import { defineConfig } from 'eslint/config';
 import tseslint from 'typescript-eslint';
 
 export default defineConfig(
-  { ignores: ['coverage/', 'node_modules/', 'test-results/', 'playwright-report/'] },
+  { ignores: ['coverage/', 'node_modules/'] },
   js.configs.recommended,
   tseslint.configs.strictTypeChecked,
   { languageOptions: { parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname } } },
