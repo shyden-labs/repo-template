@@ -456,6 +456,26 @@ const steps = () =>
     .split(/\n(?= {6}- )/)
     .slice(1)
     .map((step) => step.replace(/^ {4}steps:\n/, ''));
+/**
+ * Every line the shell runs: a one-line `run:` value, and each line of a block
+ * `run: |` or `run: >` body (the lines indented deeper than its key), so an
+ * expression written into a block's body is judged too.
+ */
+const shellLines = (text: string): string[] => {
+  const lines = text.split('\n');
+  const indent = (line: string) => line.length - line.trimStart().length;
+  return lines.flatMap((line, i) => {
+    const run = /^(\s*)(?:- )?run: (.*)$/.exec(line);
+    if (run === null) return [];
+    const value = (run[2] as string).trim();
+    if (!/^[|>][-+]?$/.test(value)) return [value];
+    const body: string[] = [];
+    for (let j = i + 1; j < lines.length && ((lines[j] as string).trim() === '' || indent(lines[j] as string) > indent(line)); j++) {
+      if ((lines[j] as string).trim() !== '') body.push((lines[j] as string).trim());
+    }
+    return body;
+  });
+};
 const usesLines = (text: string): string[] =>
   text
     .split('\n')
@@ -498,15 +518,22 @@ describe('check-release-cut.yml', () => {
     );
   });
 
-  it('sets up node from .nvmrc and installs nothing, since the check imports only node and its own scripts', () => {
-    expect(steps()[1]).toBe(
-      ['      - uses: actions/setup-node@<sha>', '        with:', "          node-version-file: '.nvmrc'"].join('\n'),
-    );
+  it('reads the exact Node from the one file Dependabot bumps (#143), then sets it up and installs nothing, since the check imports only node and its own scripts', () => {
+    expect([steps()[1], steps()[2]]).toEqual([
+      [
+        '      - id: node',
+        '        run: |',
+        "          version=$(sed -nE 's/^FROM node:([0-9]+\\.[0-9]+\\.[0-9]+)$/\\1/p' .github/node/Dockerfile)",
+        '          test -n "$version"',
+        '          echo "version=$version" >> "$GITHUB_OUTPUT"',
+      ].join('\n'),
+      ['      - uses: actions/setup-node@<sha>', '        with:', '          node-version: ${{ steps.node.outputs.version }}'].join('\n'),
+    ]);
   });
 
   // The head ref is text the pull request's author chose: it reaches the shell through env, never through an expression.
   it('hands the head repository, head ref, head SHA, pull request number and token to the check through env', () => {
-    expect(steps()[2]).toBe(
+    expect(steps()[3]).toBe(
       [
         '      - name: Judge the release cut and post its status',
         '        env:',
@@ -520,16 +547,33 @@ describe('check-release-cut.yml', () => {
     );
   });
 
-  it('puts no expression inside any shell line', () => {
-    const runs = workflow('check-release-cut.yml')
-      .split('\n')
-      .filter((line) => /^\s*(- )?run: \S/.test(line));
-    expect({ runs: runs.length, withExpressions: runs.filter((line) => line.includes('${{')) }).toEqual({ runs: 1, withExpressions: [] });
+  it("puts no expression inside any shell line, a block's body included", () => {
+    const lines = shellLines(workflow('check-release-cut.yml'));
+    expect({ lines: lines.length, withExpressions: lines.filter((line) => line.includes('${{')) }).toEqual({
+      lines: 4,
+      withExpressions: [],
+    });
   });
 
-  it('runs four steps: checkout, node, the check, then the trace upload', () => {
+  it('reads the body of a block run as shell lines, past a blank line inside it, so an expression there is seen', () => {
+    expect(
+      shellLines(
+        [
+          '      - run: |',
+          '          echo "${{ github.head_ref }}"',
+          '',
+          '          true',
+          '      - run: echo done',
+          '      - uses: x',
+        ].join('\n'),
+      ),
+    ).toEqual(['echo "${{ github.head_ref }}"', 'true', 'echo done']);
+  });
+
+  it('runs five steps: checkout, the Node read, node, the check, then the trace upload', () => {
     expect(steps().map((step) => step.split('\n')[0])).toEqual([
       '      - uses: actions/checkout@<sha>',
+      '      - id: node',
       '      - uses: actions/setup-node@<sha>',
       '      - name: Judge the release cut and post its status',
       '      - if: ${{ !cancelled() }}',

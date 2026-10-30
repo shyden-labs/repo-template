@@ -57,3 +57,15 @@ updates:
           - 'patch'
         exclude-patterns:
           - 'actions/cache*'
+
+  # The exact Node CI runs (#143): Dependabot opens one pull request per Node
+  # release, which alone goes red if the release warns. Majors are chosen.
+  - package-ecosystem: 'docker'
+    directory: '/.github/node'
+    target-branch: 'develop'
+    schedule:
+      interval: 'weekly'
+    ignore:
+      - dependency-name: 'node'
+        update-types:
+          - 'version-update:semver-major'

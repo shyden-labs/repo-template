@@ -210,6 +210,7 @@ describe('Dependabot keeps the pins from rotting', () => {
       judged: [
         ['npm', ['vitest', 'patch-updates']],
         ['github-actions', ['actions-subpaths', 'patch-updates']],
+        ['docker', []],
       ],
       leaks: [],
     });
@@ -243,8 +244,9 @@ describe('Dependabot keeps the pins from rotting', () => {
  * One Node and one runner, pinned exactly (issue #63; global rule 2026-10-08
  * sets Node 26.3+, and every project runs the same versions as the rest).
  *
- * `ubuntu-latest` and a bare major in `.nvmrc` elsewhere are floating pins:
- * the image or the Node under CI changes on GitHub's schedule, not ours. Each
+ * `ubuntu-latest` and a bare major Node (the `26` in this repo's `.nvmrc`,
+ * which no workflow reads since #143) are floating pins: the image or the Node under CI changes on
+ * GitHub's schedule, not ours. Node is now `.github/node/Dockerfile` alone. Each
  * reader is an allow-list of the one value written, so every other spelling
  * (a list, an expression, a block of labels, another case) fails, naming it.
  */
@@ -279,13 +281,29 @@ const workflowFiles = () => readdirSync(WORKFLOWS).filter((f) => /\.ya?ml$/.test
 const workflow = (file: string) => readFileSync(join(WORKFLOWS, file), 'utf8');
 
 /**
+ * The read step every Node setup follows (#143): it takes the exact version
+ * from the one file Dependabot bumps, `.github/node/Dockerfile`, and fails the
+ * job when that file holds no exact `FROM node:x.y.z` line, so setup-node
+ * never gets an empty version and falls back to the runner's own Node.
+ */
+const READ_STEP = [
+  '- id: node',
+  '  run: |',
+  "    version=$(sed -nE 's/^FROM node:([0-9]+\\.[0-9]+\\.[0-9]+)$/\\1/p' .github/node/Dockerfile)",
+  '    test -n "$version"',
+  '    echo "version=$version" >> "$GITHUB_OUTPUT"',
+];
+const TAKES_THE_READ = /^\s+node-version:\s*\$\{\{\s*steps\.node\.outputs\.version\s*\}\}\s*$/;
+
+/**
  * Every `actions/setup-node` step in one workflow, named with what is wrong:
- * it must read `node-version-file: .nvmrc` and name no `node-version:` of its
- * own, or that workflow runs a Node of its own choosing. A step runs from its
- * `- ` line to the next line indented no deeper, so a later step's key is
- * never credited to it.
+ * it must take `node-version` from the read step, read no version file, and
+ * come right after the read step, written exactly, or that workflow runs a
+ * Node of its own choosing. A step runs from its `- ` line to the next line
+ * indented no deeper, so a later step's key is never credited to it.
  */
 const setupNodeSteps = (file: string, source: string): { where: string; wrong: string[] }[] => {
+  const raw = withoutYamlComments(source).split('\n');
   const lines = withoutYamlQuotes(withoutYamlComments(source)).split('\n');
   const indent = (line: string) => line.length - line.trimStart().length;
   return lines.flatMap((line, i) => {
@@ -296,12 +314,31 @@ const setupNodeSteps = (file: string, source: string): { where: string; wrong: s
     let end = start + 1;
     while (end < lines.length && (lines[end] as string).trim() !== '' && indent(lines[end] as string) > dash) end++;
     const step = lines.slice(start, end);
+    let before = start - 1;
+    while (before > 0 && !((raw[before] as string).trimStart().startsWith('- ') && indent(raw[before] as string) === dash)) before--;
+    const previous = raw
+      .slice(before, start)
+      .filter((l) => l.trim() !== '')
+      .map((l) => l.slice(dash));
     const wrong = [
-      ...(step.some((l) => /^\s+node-version-file:\s*\.nvmrc\s*$/.test(l)) ? [] : ['does not read .nvmrc']),
-      ...(step.some((l) => /^\s+node-version:/.test(l)) ? ['names its own node-version'] : []),
+      ...(step.some((l) => TAKES_THE_READ.test(l)) ? [] : ["does not take the read step's version"]),
+      ...(step.some((l) => /^\s+node-version-file:/.test(l)) ? ['reads a version file'] : []),
+      ...(JSON.stringify(previous) === JSON.stringify(READ_STEP) ? [] : ['does not follow the read step']),
     ];
     return [{ where: `${file} step at ${line.trim().slice(0, 40)}`, wrong }];
   });
+};
+
+/** The exact Node the Dockerfile pins, or what is wrong with it: one line, `FROM node:26.<minor>.<patch>`, at or above 26.3.0. */
+const nodePin = (text: string): { version: string } | { wrong: string } => {
+  const lines = text.split('\n');
+  if (lines.at(-1) === '') lines.pop();
+  if (lines.length !== 1) return { wrong: `holds ${lines.length} lines, not one` };
+  const line = lines[0] as string;
+  const pin = /^FROM node:26\.(\d+)\.(\d+)$/.exec(line);
+  if (pin === null) return { wrong: `${line} is not FROM node:26.<minor>.<patch>` };
+  if (Number(pin[1]) < 3) return { wrong: `${line} is below 26.3.0` };
+  return { version: `26.${pin[1] as string}.${pin[2] as string}` };
 };
 
 describe('the template runs one Node and one runner, pinned exactly', () => {
@@ -344,7 +381,7 @@ describe('the template runs one Node and one runner, pinned exactly', () => {
     ]);
   });
 
-  it('every setup-node step reads .nvmrc and names no Node of its own, judged over every step read', () => {
+  it("every setup-node step takes the read step's version and follows it, judged over every step read", () => {
     const steps = workflowFiles().flatMap((f) => setupNodeSteps(f, workflow(f)));
     expect({ read: steps.length, wrong: steps.filter(({ wrong }) => wrong.length > 0) }).toEqual({ read: 8, wrong: [] });
   });
@@ -358,75 +395,140 @@ describe('the template runs one Node and one runner, pinned exactly', () => {
   });
 
   const steps = (...lines: string[]) => ['    steps:', ...lines, ''].join('\n');
+  const READ = READ_STEP.map((line) => `      ${line}`);
+  const SETUP = [`      - uses: actions/setup-node@${SHA}`, '        with:', '          node-version: ${{ steps.node.outputs.version }}'];
   const wrongIn = (text: string) => setupNodeSteps('ci.yml', text).map(({ wrong }) => wrong);
 
   it.each([
     [
       'names its own Node',
-      steps(`      - uses: actions/setup-node@${SHA}`, '        with:', '          node-version: 24'),
-      [['does not read .nvmrc', 'names its own node-version']],
+      steps(...READ, `      - uses: actions/setup-node@${SHA}`, '        with:', '          node-version: 26'),
+      [["does not take the read step's version"]],
     ],
     [
-      'reads .nvmrc and names a Node too',
+      'reads .nvmrc',
+      steps(...READ, `      - uses: actions/setup-node@${SHA}`, '        with:', "          node-version-file: '.nvmrc'"),
+      [["does not take the read step's version", 'reads a version file']],
+    ],
+    [
+      'takes the read and reads a file too',
+      steps(...READ, ...SETUP, '          node-version-file: .node-version'),
+      [['reads a version file']],
+    ],
+    ['has no read step before it', steps('      - uses: actions/checkout@x', ...SETUP), [['does not follow the read step']]],
+    [
+      'follows a read step changed by one character',
+      steps(...READ.map((l) => l.replace('test -n', 'test -z')), ...SETUP),
+      [['does not follow the read step']],
+    ],
+    ['has a step between the read and itself', steps(...READ, '      - run: true', ...SETUP), [['does not follow the read step']]],
+    [
+      'has no with: at all',
+      steps(...READ, `      - uses: actions/setup-node@${SHA}`, '      - run: npm ci'),
+      [["does not take the read step's version"]],
+    ],
+    [
+      'leaves the version to the next step',
       steps(
-        `      - uses: actions/setup-node@${SHA}`,
-        '        with:',
-        "          node-version-file: '.nvmrc'",
-        '          node-version: 24',
-      ),
-      [['names its own node-version']],
-    ],
-    ['has no with: at all', steps(`      - uses: actions/setup-node@${SHA}`, '      - run: npm ci'), [['does not read .nvmrc']]],
-    [
-      'reads another file',
-      steps(`      - uses: actions/setup-node@${SHA}`, '        with:', '          node-version-file: .node-version'),
-      [['does not read .nvmrc']],
-    ],
-    [
-      'leaves .nvmrc to the next step',
-      steps(
+        ...READ,
         `      - uses: actions/setup-node@${SHA}`,
         `      - uses: actions/cache@${SHA}`,
         '        with:',
-        '          node-version-file: .nvmrc',
+        '          node-version: ${{ steps.node.outputs.version }}',
       ),
-      [['does not read .nvmrc']],
+      [["does not take the read step's version"]],
     ],
     [
       'is spelled in capitals',
-      steps(`      - uses: ACTIONS/SETUP-NODE@${SHA}`, '        with:', '          node-version: 24'),
-      [['does not read .nvmrc', 'names its own node-version']],
+      steps(...READ, `      - uses: ACTIONS/SETUP-NODE@${SHA}`, '        with:', '          node-version: 24'),
+      [["does not take the read step's version"]],
     ],
     [
-      'has .nvmrc only in a comment',
+      'takes the version only in a comment',
       steps(
+        ...READ,
         `      - uses: actions/setup-node@${SHA}`,
         '        with:',
-        '          # node-version-file: .nvmrc',
+        '          # node-version: ${{ steps.node.outputs.version }}',
         '          node-version: 26',
       ),
-      [['does not read .nvmrc', 'names its own node-version']],
+      [["does not take the read step's version"]],
     ],
   ])('names a setup-node step that %s', (_, text, wrong) => {
     expect(wrongIn(text)).toEqual(wrong);
   });
 
-  it('accepts a named setup-node step reading .nvmrc', () => {
+  it('accepts a named setup-node step right after the read step, with a comment between', () => {
     expect(
       wrongIn(
         steps(
+          '      # The exact Node (#143).',
+          ...READ,
           '      - name: Node',
           `        uses: actions/setup-node@${SHA}`,
           '        with:',
-          "          node-version-file: '.nvmrc'",
-          '      - run: npm ci',
+          '          node-version: ${{ steps.node.outputs.version }}',
+          "          cache: 'npm'",
         ),
       ),
     ).toEqual([[]]);
   });
 
-  it('.nvmrc holds 26, the major every project runs', () => {
-    expect(readFileSync('.nvmrc', 'utf8')).toBe('26\n');
+  // No version is written here: a second copy would turn every Dependabot pull request red until edited by hand (reference-supply-chain.md, 2026-10-30).
+  it('reads an exact Node 26 from the one file Dependabot bumps, whatever patch Dependabot moved it to', () => {
+    const pin = nodePin(readFileSync('.github/node/Dockerfile', 'utf8'));
+    // A refused file prints `wrong: <its reason>` here, with no branch left unrun on a valid file.
+    expect(
+      Object.entries(pin)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join('\n'),
+    ).toMatch(/^version: 26\.\d+\.\d+$/);
+  });
+
+  it.each([
+    ['a bare major', 'FROM node:26\n', 'FROM node:26 is not FROM node:26.<minor>.<patch>'],
+    ['a major and minor', 'FROM node:26.12\n', 'FROM node:26.12 is not FROM node:26.<minor>.<patch>'],
+    ['lts', 'FROM node:lts\n', 'FROM node:lts is not FROM node:26.<minor>.<patch>'],
+    ['latest', 'FROM node:latest\n', 'FROM node:latest is not FROM node:26.<minor>.<patch>'],
+    ['a digest', 'FROM node@sha256:abc\n', 'FROM node@sha256:abc is not FROM node:26.<minor>.<patch>'],
+    ['another image', 'FROM nodejs:26.12.1\n', 'FROM nodejs:26.12.1 is not FROM node:26.<minor>.<patch>'],
+    ['a suffixed tag', 'FROM node:26.12.1-alpine\n', 'FROM node:26.12.1-alpine is not FROM node:26.<minor>.<patch>'],
+    ['another major', 'FROM node:27.0.0\n', 'FROM node:27.0.0 is not FROM node:26.<minor>.<patch>'],
+    ['a version below 26.3.0', 'FROM node:26.2.9\n', 'FROM node:26.2.9 is below 26.3.0'],
+    ['two lines', 'FROM node:26.12.1\nFROM node:26.13.0\n', 'holds 2 lines, not one'],
+    ['nothing', '', 'holds 0 lines, not one'],
+  ])('refuses a Dockerfile holding %s', (_, text, wrong) => {
+    expect(nodePin(text)).toEqual({ wrong });
+  });
+
+  it('accepts a pin with no final newline', () => {
+    expect(nodePin('FROM node:26.3.0')).toEqual({ version: '26.3.0' });
+  });
+
+  it('is in the README file table and in step 16, which a new repository follows', () => {
+    const readme = readFileSync('README.md', 'utf8');
+    expect(readme).toContain(
+      "| `.github/node/Dockerfile` | CI's one exact Node version, in the one file Dependabot's `docker` entry bumps, so Node changes only through a pull request (issue #143). |",
+    );
+    expect(readme).toContain(
+      "16. **Keep CI's Node in `.github/node/Dockerfile` alone.** It is one line, `FROM node:<major>.<minor>.<patch>`, and no workflow reads any other Node version.",
+    );
+  });
+
+  it('has Dependabot bump the Dockerfile within major 26, on develop', () => {
+    expect(configBody()).toContain(
+      [
+        "  - package-ecosystem: 'docker'",
+        "    directory: '/.github/node'",
+        "    target-branch: 'develop'",
+        '    schedule:',
+        "      interval: 'weekly'",
+        '    ignore:',
+        "      - dependency-name: 'node'",
+        '        update-types:',
+        "          - 'version-update:semver-major'",
+      ].join('\n'),
+    );
   });
 
   interface Manifest {

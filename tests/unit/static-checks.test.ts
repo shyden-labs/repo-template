@@ -40,6 +40,7 @@ describe('ci.yml', () => {
     expect(steps(yamlBlock(ci, 'build-and-test', '  '))).toEqual([
       { name: 'The default branch is develop', run: '|' },
       { name: '', run: '' },
+      { name: '', run: '|' },
       { name: '', run: '' },
       { name: '', run: 'npm ci' },
       { name: 'Typecheck', run: 'npm run typecheck' },

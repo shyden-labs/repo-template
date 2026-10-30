@@ -87,9 +87,16 @@ describe('CI', () => {
         '    runs-on: ubuntu-26.04',
         '    steps:',
         '      - uses: actions/checkout@<sha>',
+        // The exact Node, from the one file Dependabot bumps (#143).
+        '      - id: node',
+        '        run: |',
+        // yaml() strips quotes, so the read step's quoting reads as none here.
+        '          version=$(sed -nE s/^FROM node:([0-9]+\\.[0-9]+\\.[0-9]+)$/\\1/p .github/node/Dockerfile)',
+        '          test -n $version',
+        '          echo version=$version >> $GITHUB_OUTPUT',
         '      - uses: actions/setup-node@<sha>',
         '        with:',
-        '          node-version-file: .nvmrc',
+        '          node-version: ${{ steps.node.outputs.version }}',
         '          cache: npm',
         '      - run: npm ci',
         '      - run: npm run test:coverage',
