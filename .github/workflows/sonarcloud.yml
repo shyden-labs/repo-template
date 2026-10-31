@@ -72,6 +72,9 @@ jobs:
             -Dsonar.organization=${{ inputs.organization }}
             -Dsonar.projectKey=${{ inputs.project-key }}
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+            -Dsonar.tests=tests
+            -Dsonar.exclusions=tests/**
+            -Dsonar.coverage.exclusions=eslint.config.js,vitest.unit.config.ts
       - name: Read the quality gate of this scan
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

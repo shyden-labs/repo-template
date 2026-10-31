@@ -13,6 +13,9 @@ Then, asked how: every project adopts SonarCloud, blocking.
   fails the job). It then scans and reads the quality gate of that scan's
   analysis, with `scripts/sonar-verdict.ts`. It is green only on `OK`; `ERROR`
   fails, naming each failed condition with its value and threshold.
+- The scan treats `tests/` as tests, not source, and leaves the config files
+  the unit suite does not measure out of coverage (issue #164). A project with
+  other unmeasured files adds them to `sonar.coverage.exclusions`.
 - A verdict it cannot read fails closed, naming why:
   - a missing report (the scan did not run)
   - an API error
