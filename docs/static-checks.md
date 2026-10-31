@@ -1,6 +1,6 @@
 # Static checks: typecheck, lint, format
 
-Every code file is typechecked, linted and format-checked (issue #61). A
+Every code file is typechecked, linted and format-checked (issue shyden-labs/repo-template#61). A
 finding fails the build: CI's required `build-and-test` job runs each one as a
 named step, after the install (`scripts/npm-ci.ts`) and before the unit suite, and `.githooks/pre-push`
 runs the same three before every push.

@@ -336,14 +336,14 @@ describe('main', () => {
     expect(() => main(ARGS)).toThrow('the board "Board" read no pages: nothing judged');
   });
 
-  // Issue #72: GitHub served 0 of a 466-item board, and this printed "nothing is open".
+  // Issue shyden-labs/repo-template#72: GitHub served 0 of a 466-item board, and this printed "nothing is open".
   it('refuses a short read rather than saying nothing is open', () => {
     serve([{ data: { node: { title: 'Board', items: { totalCount: 466, nodes: [] } } } }]);
     expect(() => main(ARGS)).toThrow('the board "Board" holds 466 items and 0 were read: a short read, nothing judged');
     expect(out).toEqual([]);
   });
 
-  // Issue #75: an empty board is expected (new, or every item archived); it is named, never "nothing is open".
+  // Issue shyden-labs/repo-template#75: an empty board is expected (new, or every item archived); it is named, never "nothing is open".
   it('names a board of 0 items rather than saying nothing is open, and exits 0', () => {
     serve(boardOf());
     expect(main(ARGS)).toBe(0);

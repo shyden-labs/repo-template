@@ -2,7 +2,7 @@
  * Fails, naming each, while an open issue on the board is In Progress and
  * nothing is working it: no open pull request names it (`#<n>` in its title or
  * body, a closing reference, or a head branch starting `<n>-`) and no remote
- * branch starts `<n>-` without a closed pull request (issue #10; operator 2026-10-13: "if a ticket is not in
+ * branch starts `<n>-` without a closed pull request (issue shyden-labs/repo-template#10; operator 2026-10-13: "if a ticket is not in
  * progress then it should not be marked as in progress"). Run it in the
  * repository's required PR checks with a token that can read the board:
  *
@@ -55,17 +55,36 @@ function startsWithIssue(branch: string, n: number): boolean {
   return branch.startsWith(`${n}-`);
 }
 
+export interface ClosedPullRequest {
+  number: number;
+  mergedAt?: string | null;
+}
+
+/**
+ * Whether a branch stopped working its ticket: a pull request of it closed
+ * unmerged, and none merged (operator 2026-10-13: "Branch counts until its PR
+ * closes"). A branch whose pull request merged keeps counting until its ticket
+ * closes (global ruling 2026-10-16, issue shyden-labs/repo-template#114). Fails closed on an entry with no
+ * `mergedAt`, which could otherwise read as unmerged.
+ */
+export function isDeadBranch(branch: string, closed: ClosedPullRequest[]): boolean {
+  const missing = closed.find((p) => p.mergedAt === undefined);
+  if (missing !== undefined) {
+    throw new Error(`closed pull request #${missing.number} of ${branch} has no mergedAt field; refusing to judge it`);
+  }
+  return closed.length > 0 && !closed.some((p) => p.mergedAt !== null);
+}
+
 /**
  * The In Progress issues that nothing claims. An open pull request naming the
- * issue always claims it; a remote branch claims it only while that branch has no
- * closed pull request, merged or not (operator 2026-10-13: "Branch counts until its
- * PR closes"), so a leftover branch cannot hide an abandoned ticket.
+ * issue always claims it; a remote branch claims it unless it is dead (see
+ * `isDeadBranch`), so a leftover branch cannot hide an abandoned ticket.
  */
-export function findOrphanIssues(issues: number[], prs: OpenPullRequest[], branches: string[], closedHeads: string[]): number[] {
+export function findOrphanIssues(issues: number[], prs: OpenPullRequest[], branches: string[], deadHeads: string[]): number[] {
   return issues.filter(
     (n) =>
       !prs.some((p) => mentions(p.title, n) || mentions(p.body, n) || p.closes.includes(n) || startsWithIssue(p.headRefName, n)) &&
-      !branches.some((b) => startsWithIssue(b, n) && !closedHeads.includes(b)),
+      !branches.some((b) => startsWithIssue(b, n) && !deadHeads.includes(b)),
   );
 }
 
@@ -113,16 +132,32 @@ export function main(args: string[]): number {
     .flat()
     .map((b) => b.name);
   if (branches.length === 0) throw new Error('the repository listed no branches; refusing to judge orphans blind');
-  // A branch counts only while it has no closed pull request: ask for each branch that names an issue.
+  // A branch counts until a pull request of it closes unmerged: read every closed one of each branch naming an issue.
   const candidates = branches.filter((b) => issues.some((n) => startsWithIssue(b, n)));
-  const closedHeads = candidates.filter(
-    (b) => (gh(['pr', 'list', '-R', repo, '--state', 'closed', '--head', b, '--limit', '1', '--json', 'number']) as unknown[]).length > 0,
-  );
+  const deadHeads = candidates.filter((b) => {
+    const closed = gh([
+      'pr',
+      'list',
+      '-R',
+      repo,
+      '--state',
+      'closed',
+      '--head',
+      b,
+      '--limit',
+      String(PR_LIMIT),
+      '--json',
+      'number,mergedAt',
+    ]) as ClosedPullRequest[];
+    if (closed.length >= PR_LIMIT)
+      throw new Error(`gh pr list hit its limit of ${PR_LIMIT} closed pull requests of ${b}; the list may be cut short`);
+    return isDeadBranch(b, closed);
+  });
   process.stdout.write(
     `board-orphans: ${prs.length} open pull request(s), ${branches.length} branch(es) searched; ` +
-      `${closedHeads.length} of ${candidates.length} candidate branch(es) have a closed pull request\n`,
+      `${deadHeads.length} of ${candidates.length} candidate branch(es) closed without a merge\n`,
   );
-  const orphans = findOrphanIssues(issues, prs, branches, closedHeads);
+  const orphans = findOrphanIssues(issues, prs, branches, deadHeads);
   for (const n of orphans) {
     process.stderr.write(
       `board-orphans: #${n} is In Progress, but no open pull request and no branch is working it. ` +

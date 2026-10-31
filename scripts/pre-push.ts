@@ -1,5 +1,5 @@
 /**
- * The static checks on every commit being pushed (issue #65), run by
+ * The static checks on every commit being pushed (issue shyden-labs/repo-template#65), run by
  * `.githooks/pre-push`:
  *
  *   node scripts/pre-push.ts <remote> <url>     (git's updates on stdin)

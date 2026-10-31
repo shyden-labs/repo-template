@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { withoutYamlComments } from './source-text.ts';
 
 /**
- * Every project files a ticket the same way (issue #20; Shyden 2026-10-16:
+ * Every project files a ticket the same way (issue shyden-labs/repo-template#20; Shyden 2026-10-16:
  * "the whole procedure"): one form whose boxes are all required, in one order,
  * under a note that gives the filing steps. `scripts/file-story.ts` follows
  * the same steps.
@@ -54,7 +54,7 @@ describe('the story form', () => {
     ['raise a blocker', 'A blocker takes at least the level of what waits on it.'],
     ['link each blocker', '5. Add a **Blocked by** link for each issue it waits on: a “Depends on” section is context, not the record.'],
     ['set the parent', '6. Set its epic as its **parent**.'],
-    // The note is a block scalar, so its "#N" is text, not a comment (#54).
+    // The note is a block scalar, so its "#N" is text, not a comment (shyden-labs/repo-template#54).
     [
       'never close by keyword',
       '7. Write `Refs #N` in commits and pull requests, never a closing keyword; close it by hand once every criterion is verified.',

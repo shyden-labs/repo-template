@@ -4,7 +4,7 @@ import { withoutYamlComments } from './source-text.ts';
 
 /**
  * No workflow writes to the repository except the deploy and release ones
- * (issue #30; Shyden 2026-10-20: never force-push, and no CI bot pushes).
+ * (issue shyden-labs/repo-template#30; Shyden 2026-10-20: never force-push, and no CI bot pushes).
  * Read from comment-stripped text, so a comment naming `git push` neither
  * trips the guard nor satisfies it.
  */

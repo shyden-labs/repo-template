@@ -12,7 +12,7 @@ import tls from 'node:tls';
 import { REFUSED, installRefusals, testName } from '../setup/refusals.ts';
 
 /**
- * A unit test starts no process and opens no connection (#92). The refusals are installed by tests/setup/unit-refusal.ts
+ * A unit test starts no process and opens no connection (shyden-labs/repo-template#92). The refusals are installed by tests/setup/unit-refusal.ts
  * before every unit file; here they are first installed on stand-in modules,
  * one test per entry, then tried live in this very run by every route a test
  * could take.

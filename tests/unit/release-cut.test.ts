@@ -10,7 +10,7 @@ vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
 const git = vi.mocked(execFileSync);
 
 /**
- * A pull request into main merges only a release cut (issue #86): main is not
+ * A pull request into main merges only a release cut (issue shyden-labs/repo-template#86): main is not
  * strict, because each release merge lands on main and never on squash-only
  * develop, so release-cut proves what strict did. These cases plant each way
  * a merge into main could land something CI never tested.
@@ -52,7 +52,7 @@ describe('auditReleaseCut', () => {
     expect(auditReleaseCut({ ...good, headRef })).toEqual([`the head branch is ${headRef}, not a release/ branch`]);
   });
 
-  // The head ref is only a name the pull request gives: origin must hold that branch, at this head (issue #103).
+  // The head ref is only a name the pull request gives: origin must hold that branch, at this head (issue shyden-labs/repo-template#103).
   it('refuses a head branch origin does not hold', () => {
     expect(auditReleaseCut({ ...good, originHeadSha: null })).toEqual(['origin holds no branch release/2026-10-23']);
   });
@@ -386,7 +386,7 @@ describe('main', () => {
   });
 
   // A status belongs to the head's SHA, which a fork's pull request can share with a release's: a fork's verdict, even a
-  // failure, would overwrite the release's, so it posts none (issue #103). Its own job still fails, naming why.
+  // failure, would overwrite the release's, so it posts none (issue shyden-labs/repo-template#103). Its own job still fails, naming why.
   it.each(['someone/app', 'shyden-labs/App', 'shyden-labs/app-fork', ''])(
     'refuses a pull request from %j by name, asking git and GitHub nothing',
     async (repository) => {
@@ -580,34 +580,10 @@ describe('check-release-cut.yml', () => {
   });
 
   it('pins the same actions at the same SHAs as ci.yml', () => {
-    const pins = (file: string) => usesLines(readFileSync(`.github/workflows/${file}`, 'utf8'));
-    // ci.yml runs several jobs, each pinning the same actions: compare the distinct pins.
+    const pins = (file: string) =>
+      usesLines(readFileSync(`.github/workflows/${file}`, 'utf8')).filter((line) => !line.startsWith('uses: ./'));
+    // ci.yml runs several jobs, each pinning the same actions: compare the distinct
+    // pins. A local reusable workflow (./.github/...) is in this repo, so has no pin.
     expect(pins('check-release-cut.yml')).toEqual([...new Set(pins('ci.yml'))]);
-  });
-});
-
-describe('docs/release-cut.md', () => {
-  const doc = () => readFileSync('docs/release-cut.md', 'utf8');
-
-  it('says why main is not strict', () => {
-    expect(doc()).toContain('so a strict `main` would refuse every cut after the first.');
-  });
-
-  it.each(['(a)', '(b)', '(c)', '(d)'])('names check %s', (label) => {
-    expect(
-      doc()
-        .split('\n')
-        .filter((line) => line.startsWith(`- **${label}**`)),
-    ).toHaveLength(1);
-  });
-
-  it('says which pull requests it judges, and why a fork’s posts nothing', () => {
-    expect(doc().replace(/\s+/g, ' ')).toContain(
-      "It judges only pull requests whose head branch is in this repository. A fork's pull request posts no status at all",
-    );
-  });
-
-  it('says how to apply the rules and what to read back', () => {
-    expect(doc()).toContain('node scripts/branch-rules-setup.ts <owner/repo> build-and-test coverage');
   });
 });

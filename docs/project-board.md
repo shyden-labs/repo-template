@@ -39,7 +39,7 @@ need.
 ## Filing a ticket
 
 Every project files a ticket the same way (Shyden, 2026-10-16: "the whole
-procedure"; issue #20). The story form (`.github/ISSUE_TEMPLATE/story.yml`)
+procedure"; issue shyden-labs/repo-template#20). The story form (`.github/ISSUE_TEMPLATE/story.yml`)
 asks for the Story, Context, Acceptance criteria, Announce and Definition of
 done, all required. Then:
 
@@ -84,7 +84,7 @@ node scripts/board-next.ts <board-node-id> "<board title>"
 
 It refuses, naming them, while any open issue has no Priority.
 
-**A blocker inherits, it is not P1** (operator 2026-10-13, #6). A ticket that
+**A blocker inherits, it is not P1** (operator 2026-10-13, shyden-labs/repo-template#6). A ticket that
 blocks others is raised to at least the Priority of the highest open issue
 waiting on it, and `board-next` refuses, naming each pair, while an open
 blocker sits below an issue it blocks. A blocker that is not on the board
@@ -146,10 +146,14 @@ once; when a ticket is picked up, its branch is named `<issue>-<slug>`.
 `scripts/board-orphans.ts <board-node-id> "<board title>" <owner/repo>` fails,
 naming each, while an open issue is In Progress and no open pull request names it
 (`#<n>` in its title or body, a closing reference, or a head branch starting
-`<n>-`) and no remote branch starts `<n>-`. A branch counts only while it has no
-closed pull request, merged or not (operator: *"Branch counts until its PR
-closes"*), so a leftover branch cannot hide an abandoned ticket. It fails closed when it cannot read the
-board, the pull requests or the branches. Run it in the repository's required PR
+`<n>-`) and no remote branch starts `<n>-`. A branch stops counting once a pull
+request of it closes without merging (operator: *"Branch counts until its PR
+closes"*), so a leftover branch cannot hide an abandoned ticket. A branch whose
+pull request merged keeps counting until its ticket closes (global ruling
+2026-10-16), so merged work waiting for its hand close is not an orphan. Every
+closed pull request of the branch is read with its `mergedAt`. It fails closed when
+it cannot read the board, the pull requests or the branches, or when a closed pull
+request comes back without `mergedAt`. Run it in the repository's required PR
 checks, with a token that can read the board (`GITHUB_TOKEN` cannot read an
 organisation's project: use the repository's GitHub App token).
 

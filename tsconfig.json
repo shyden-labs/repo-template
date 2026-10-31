@@ -1,5 +1,5 @@
 {
-  "//": "Checks every .ts and .js file; Node runs them by stripping types, so nothing is emitted and only erasable syntax is allowed (issue #61).",
+  "//": "Checks every .ts and .js file; Node runs them by stripping types, so nothing is emitted and only erasable syntax is allowed (issue shyden-labs/repo-template#61).",
   "compilerOptions": {
     "target": "es2024",
     "module": "nodenext",

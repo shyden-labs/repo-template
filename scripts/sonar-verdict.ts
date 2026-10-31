@@ -1,6 +1,6 @@
 /**
  * Reads SonarCloud's quality-gate verdict for the analysis THIS run's scan
- * made, and passes only on OK (issue #27; Shyden 2026-10-18: "don't pass if it
+ * made, and passes only on OK (issue shyden-labs/repo-template#27; Shyden 2026-10-18: "don't pass if it
  * doesn't run", "make sure we check the results and fail the workflow if it
  * fails"):
  *

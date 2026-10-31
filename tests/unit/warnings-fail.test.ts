@@ -4,7 +4,7 @@ import { NODE_WARNINGS, UNIT_REFUSAL, UNIT_SETUP } from '../setup/files.ts';
 import { failOnNodeWarning, failOnWarnings } from '../setup/warnings.ts';
 
 /**
- * Warnings are build failures (global rule; issue #138). A vite warning, such
+ * Warnings are build failures (global rule; issue shyden-labs/repo-template#138). A vite warning, such
  * as a dynamic import it cannot analyse, fails the file that caused it,
  * through a plugin that wraps the logger vitest hands vite. A node warning
  * (process.emitWarning) fails the run, through a listener each suite's setup

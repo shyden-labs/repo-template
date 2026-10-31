@@ -1,19 +1,19 @@
 /**
- * Comment stripping for the guards that assert against source text. #24.
+ * Comment stripping for the guards that assert against source text. shyden-labs/repo-template#24.
  *
  * Several suites in this repo read a file as TEXT and assert that something
  * appears in it, or does not. Every one of them is exposed to the same defect,
  * and this repo has now shipped it three times:
  *
- * 1. #23 — `supply-chain.test.ts` asserted `dependabot.yml` contained
+ * 1. shyden-labs/repo-template#23 — `supply-chain.test.ts` asserted `dependabot.yml` contained
  *    `"actions/cache*"`, and the file's own explanatory NOTE spelled that
  *    pattern out verbatim. No group was configured at all; the suite was
  *    green.
- * 2. #21 Stage 4 — `pipeline-wiring.test.ts`'s first dev-sanity check searched
+ * 2. shyden-labs/repo-template#21 Stage 4 — `pipeline-wiring.test.ts`'s first dev-sanity check searched
  *    raw text, and pointing the run step at a different config left it green,
  *    because that file's own comment explaining the fix contained the filename
  *    it was looking for.
- * 3. #35 — the pre-push hook guard asserted the hook source contained
+ * 3. shyden-labs/repo-template#35 — the pre-push hook guard asserted the hook source contained
  *    `npm run test:unit`. It passed while the hook did NOT run it: the string
  *    survived inside the failure hint the hook prints telling you how to run
  *    it by hand.
@@ -37,7 +37,7 @@
  * for config bodies where a `#` is always commentary.
  *
  * A block scalar (`key: |` or `key: >`, with any chomping or indentation
- * indicator) and a quoted value are text, not comments (#54): a workflow's
+ * indicator) and a quoted value are text, not comments (shyden-labs/repo-template#54): a workflow's
  * `run: |` shell, or a form's note that writes `Refs #N`, is kept whole. A
  * block scalar runs until a line indented no deeper than its key (for a list
  * item, the key's column after the dash). A quote opens only at the start of a
@@ -51,7 +51,7 @@ export function withoutYamlComments(text: string): string {
 
 /**
  * The same text, one entry per line of the file: a blank or comment-only line
- * is kept as '', so an index plus one is the file's own line number (#78).
+ * is kept as '', so an index plus one is the file's own line number (shyden-labs/repo-template#78).
  */
 export function yamlLinesWithoutComments(text: string): string[] {
   const out: string[] = [];
@@ -117,7 +117,7 @@ function yamlLineWithoutComment(line: string): string {
 export const withoutYamlQuotes = (text: string): string => text.replace(/['"]/g, '');
 
 /**
- * Text with every full commit SHA after `@` read as `@<sha>` (issue #51), so
+ * Text with every full commit SHA after `@` read as `@<sha>` (issue shyden-labs/repo-template#51), so
  * a test of a workflow's shape is not broken by a sound Dependabot bump. Only
  * exactly 40 lower-case hex digits count: a tag or a short SHA stays as it is
  * and never passes as a pin. Whether each action IS pinned, and at one SHA in
@@ -160,7 +160,7 @@ export const withoutCommentLines = (text: string, marker = '#'): string =>
  * wrong place satisfying an assertion, a stripper that mangles the right place
  * is the same bug wearing the opposite coat — so this scans rather than
  * matches. Quotes and escapes are tracked, and so are regex literals and
- * `${…}` inside template literals (#40): a regex such as `/x\/\//` or a
+ * `${…}` inside template literals (shyden-labs/repo-template#40): a regex such as `/x\/\//` or a
  * backtick in a string inside `${…}` otherwise reads as a comment or ends the
  * template, and every comment after it survives.
  *
