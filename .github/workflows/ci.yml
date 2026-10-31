@@ -36,7 +36,7 @@ jobs:
         with:
           node-version: ${{ steps.node.outputs.version }}
           cache: 'npm'
-      - run: npm ci
+      - run: node scripts/npm-ci.ts
       # The static checks (issue #61); .githooks/pre-push runs the same three before every push.
       - name: Typecheck
         run: npm run typecheck
@@ -62,5 +62,5 @@ jobs:
         with:
           node-version: ${{ steps.node.outputs.version }}
           cache: 'npm'
-      - run: npm ci
+      - run: node scripts/npm-ci.ts
       - run: npm run test:coverage
