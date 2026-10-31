@@ -37,6 +37,9 @@ jobs:
           node-version: ${{ steps.node.outputs.version }}
           cache: 'npm'
       - run: node scripts/npm-ci.ts
+      # Any known vulnerability, of any severity and dev dependencies included, fails the build (#156).
+      - name: Audit
+        run: npm audit --audit-level=low
       # The static checks (issue #61); .githooks/pre-push runs the same three before every push.
       - name: Typecheck
         run: npm run typecheck
