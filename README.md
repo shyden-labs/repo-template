@@ -10,6 +10,7 @@ settings already in place, and nothing it doesn't need on day one (#149).
 | `.github/workflows/ci.yml` | On every pull request and every push to `develop`: install, typecheck, lint, format check and unit tests (`build-and-test`), then coverage as one overall threshold over the TypeScript under `scripts/` (`coverage`). Its first step fails unless the default branch is `develop`. |
 | `.github/dependabot.yml` | Version updates for npm, GitHub Actions and the Node pin, each targeting `develop`. |
 | `.github/node/Dockerfile` | CI's one exact Node version (`FROM node:<major>.<minor>.<patch>`), bumped by Dependabot as a pull request of its own (#143). |
+| `scripts/npm-ci.ts` | Every workflow installs through it: `npm ci` that fails on any warning npm prints, naming each line (#140). |
 | `.github/workflows/sonarcloud.yml`, `scripts/sonar-verdict.ts`, `docs/sonarcloud.md` | A reusable SonarCloud scan whose quality gate blocks the pull request. |
 | `.github/workflows/check-release-cut.yml`, `scripts/release-cut.ts`, `docs/release-cut.md` | Proves each pull request into `main` lands exactly a release cut CI tested. |
 | `.github/workflows/deploy-dev.yml` | The dev deploy stub: every merge into `develop` deploys to dev; every pull request rehearses it. |
