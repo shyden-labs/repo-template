@@ -23,7 +23,7 @@ describe('withoutYamlComments', () => {
     expect(withoutYamlComments(text)).toBe(stripped);
   });
 
-  // Block scalars and quoted values hold text, not comments (#54).
+  // Block scalars and quoted values hold text, not comments (shyden-labs/repo-template#54).
   it.each([
     [
       'a literal block scalar',
@@ -62,7 +62,7 @@ describe('withoutYamlComments', () => {
   });
 });
 
-// One entry per line of the file, so a guard can name the file's own line number (#78).
+// One entry per line of the file, so a guard can name the file's own line number (shyden-labs/repo-template#78).
 describe('yamlLinesWithoutComments', () => {
   it('keeps a blank, a comment-only and a whitespace-only line as empty, in place', () => {
     expect(yamlLinesWithoutComments(['a: 1', '', '# gone', '  # gone', '   ', 'b: 2 # gone'].join('\n'))).toEqual([
@@ -198,7 +198,7 @@ describe('withoutTsComments', () => {
     expect(withoutTsComments('a / b')).toBe('a / b');
   });
 
-  // Regex literals (#40). Each case puts a comment AFTER the construct: a
+  // Regex literals (shyden-labs/repo-template#40). Each case puts a comment AFTER the construct: a
   // stripper that misreads the construct shows it only where a comment sits.
   it.each([
     ['ends in an escaped slash before a slash (measured 2026-10-22)', 'const b = /x\\/\\//; f(); // c', 'const b = /x\\/\\//; f(); \n'],
@@ -227,7 +227,7 @@ describe('withoutTsComments', () => {
     expect(withoutTsComments('x = /a\n// c\ny')).toBe('x = /a\n\ny');
   });
 
-  // Template literals with ${} (#40).
+  // Template literals with ${} (shyden-labs/repo-template#40).
   it.each([
     ['a comment inside ${} (measured 2026-10-22)', 'const t = `${ g() /* note */ }`; // c', 'const t = `${ g()  }`; \n'],
     ['a backtick in a string inside ${} (measured 2026-10-22)', 'const d = `${ "`" }`; // c\nkeep();', 'const d = `${ "`" }`; \nkeep();'],

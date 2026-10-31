@@ -1,4 +1,4 @@
-// Warnings are build failures (global rule; issue #138). Every suite's config
+// Warnings are build failures (global rule; issue shyden-labs/repo-template#138). Every suite's config
 // carries `failOnWarnings`, and its setup registers `failOnNodeWarning`.
 // No imports at run time: each test file that reads a config loads this too.
 import type { Plugin } from 'vite';
@@ -23,7 +23,7 @@ export const failOnWarnings: Plugin = {
   },
 };
 
-/** Where a warning came from: the first frame of its stack outside node's own internals, so a red pull request names the package (#143). */
+/** Where a warning came from: the first frame of its stack outside node's own internals, so a red pull request names the package (shyden-labs/repo-template#143). */
 function source(warning: Error): string {
   const frame = (warning.stack ?? '')
     .split('\n')

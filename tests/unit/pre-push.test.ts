@@ -18,7 +18,7 @@ const read = vi.mocked(readFileSync);
 
 /**
  * The pre-push hook checks the commits being pushed, not the working tree
- * (issue #65): an error committed under a fixed but uncommitted working tree,
+ * (issue shyden-labs/repo-template#65): an error committed under a fixed but uncommitted working tree,
  * or sitting in an earlier commit of the push, is refused. Each pushed commit
  * is checked out into its own temporary worktree, where format, lint and
  * typecheck run.

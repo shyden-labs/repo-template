@@ -39,7 +39,7 @@ need.
 ## Filing a ticket
 
 Every project files a ticket the same way (Shyden, 2026-10-16: "the whole
-procedure"; issue #20). The story form (`.github/ISSUE_TEMPLATE/story.yml`)
+procedure"; issue shyden-labs/repo-template#20). The story form (`.github/ISSUE_TEMPLATE/story.yml`)
 asks for the Story, Context, Acceptance criteria, Announce and Definition of
 done, all required. Then:
 
@@ -84,7 +84,7 @@ node scripts/board-next.ts <board-node-id> "<board title>"
 
 It refuses, naming them, while any open issue has no Priority.
 
-**A blocker inherits, it is not P1** (operator 2026-10-13, #6). A ticket that
+**A blocker inherits, it is not P1** (operator 2026-10-13, shyden-labs/repo-template#6). A ticket that
 blocks others is raised to at least the Priority of the highest open issue
 waiting on it, and `board-next` refuses, naming each pair, while an open
 blocker sits below an issue it blocks. A blocker that is not on the board

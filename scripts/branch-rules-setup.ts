@@ -1,11 +1,11 @@
 /**
  * Gives a repository one ruleset per long-lived branch, `develop` and `main`,
  * each naming its branch, requiring pull requests, the named checks, signed
- * commits, and no deletion or force push (issue #8). `develop` requires the
+ * commits, and no deletion or force push (issue shyden-labs/repo-template#8). `develop` requires the
  * checks run on an up-to-date branch ("strict"); `main` does not, because each
  * release merge lands on `main` and never on squash-only `develop`, so a strict
  * `main` would refuse every cut after the first. `main` requires `release-cut`
- * in its place (issue #86, docs/release-cut.md). Run once per repository, by
+ * in its place (issue shyden-labs/repo-template#86, docs/release-cut.md). Run once per repository, by
  * the operator (rulesets need admin rights), after `develop` becomes the
  * default branch:
  *
@@ -16,10 +16,10 @@
  * 2026-10-13. It creates what is missing, updates what differs, and reads both
  * branches' rules back, failing unless develop is strict and main is not and
  * requires release-cut, and unless develop takes pull requests by squash alone
- * and main by merge commit alone (issue #115). It sets the repository to
+ * and main by merge commit alone (issue shyden-labs/repo-template#115). It sets the repository to
  * delete merged head branches and refuse rebase merges, reads that back, then gives the `dev` environment, which holds the
  * dev credential, a deployment branch policy naming `develop` alone, and reads
- * that back too (issue #117).
+ * that back too (issue shyden-labs/repo-template#117).
  */
 import { execFileSync } from 'node:child_process';
 import { runIfEntry } from './cli.ts';
@@ -47,7 +47,7 @@ export type Branch = 'develop' | 'main';
 const BRANCHES: Branch[] = ['develop', 'main'];
 
 /**
- * How each branch takes pull requests (#115): `develop` by squash alone, so a
+ * How each branch takes pull requests (shyden-labs/repo-template#115): `develop` by squash alone, so a
  * red commit fixed later on a ticket's branch never lands alone; `main` by
  * merge commit alone, so a release cut keeps develop's history whole.
  */
@@ -145,7 +145,7 @@ interface ChecksParameters {
 /** Every way a branch's rules (as `rules/branches/<branch>` reports them) fall short; empty when none. */
 export function auditBranchRules(branch: Branch, rules: Rule[]): string[] {
   const problems: string[] = [];
-  // The repository deletes merged head branches (#28), so a deletable
+  // The repository deletes merged head branches (shyden-labs/repo-template#28), so a deletable
   // develop would go the first time a develop -> main pull request merges.
   if (!rules.some((r) => r.type === 'deletion')) {
     problems.push(`${branch}: no rule forbids deleting it`);
@@ -183,7 +183,7 @@ export function auditBranchRules(branch: Branch, rules: Rule[]): string[] {
   return problems;
 }
 
-/** The repository settings a template copy does not carry, so the script sets them (#28, #115). */
+/** The repository settings a template copy does not carry, so the script sets them (shyden-labs/repo-template#28, shyden-labs/repo-template#115). */
 const REPO_SETTINGS = {
   delete_branch_on_merge: { value: true, problem: 'merged head branches are not deleted' },
   allow_rebase_merge: { value: false, problem: 'rebase merging is allowed' },
@@ -200,7 +200,7 @@ export function auditRepoSettings(repo: RepoSettings): string[] {
     .map(([key, want]) => `${want.problem} (${key} is ${String(repo[key as keyof RepoSettings])})`);
 }
 
-/** The environment that holds the dev credential, and the one branch that may deploy to it (#117). */
+/** The environment that holds the dev credential, and the one branch that may deploy to it (shyden-labs/repo-template#117). */
 export const DEV_ENVIRONMENT = 'dev';
 const DEV_BRANCH = 'develop';
 
@@ -224,7 +224,7 @@ interface DevEnvironment {
 
 /**
  * Every way `dev` (as `environments/dev` and its branch policies report it)
- * lets more than `develop` deploy; empty when none (#117). A pull_request run
+ * lets more than `develop` deploy; empty when none (shyden-labs/repo-template#117). A pull_request run
  * uses the pull request's own workflows, so without this a same-repository
  * branch could name `environment: dev` and read its secrets.
  */
@@ -258,7 +258,7 @@ function devPolicies(repo: string): BranchPolicy[] {
 
 type ListedEnvironment = DevEnvironment & { name: string; protection_rules?: { type: string }[] };
 
-/** Gives `dev` a custom policy naming `develop` alone, then reads it back (#117). Prints `dev: set` or `dev: keep`. */
+/** Gives `dev` a custom policy naming `develop` alone, then reads it back (shyden-labs/repo-template#117). Prints `dev: set` or `dev: keep`. */
 function setDevEnvironment(repo: string): void {
   const env = `repos/${repo}/environments/${DEV_ENVIRONMENT}`;
   const listed = (gh(['api', `repos/${repo}/environments`]) as { environments: ListedEnvironment[] }).environments;
@@ -313,7 +313,7 @@ export function main(args: string[]): number {
     throw new Error(`read back, the rules still fall short:\n  ${problems.join('\n  ')}`);
   }
   // Only now that neither branch can be deleted: a merged pull request's head
-  // branch is deleted with it (#28). A template copies files, not settings.
+  // branch is deleted with it (shyden-labs/repo-template#28). A template copies files, not settings.
   gh([
     'api',
     '-X',

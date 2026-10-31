@@ -1,4 +1,4 @@
-# The SonarCloud quality gate, blocking (issue #27; Shyden 2026-10-18: "don't
+# The SonarCloud quality gate, blocking (issue shyden-labs/repo-template#27; Shyden 2026-10-18: "don't
 # pass if it doesn't run", "make sure we check the results and fail the
 # workflow if it fails"; then every project adopts it, blocking).
 #
@@ -52,7 +52,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      # The exact Node, from the one file Dependabot bumps (#143).
+      # The exact Node, from the one file Dependabot bumps (shyden-labs/repo-template#143).
       - id: node
         run: |
           version=$(sed -nE 's/^FROM node:([0-9]+\.[0-9]+\.[0-9]+)$/\1/p' .github/node/Dockerfile)

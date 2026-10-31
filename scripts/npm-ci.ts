@@ -1,6 +1,6 @@
 /**
  * Every dependency install in CI, failing on any warning npm prints (issue
- * #140; global rule: warnings are build failures):
+ * shyden-labs/repo-template#140; global rule: warnings are build failures):
  *
  *   node scripts/npm-ci.ts
  *

@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
- * The lint config (issue #61): typescript-eslint's strict, type-checked rules
+ * The lint config (issue shyden-labs/repo-template#61): typescript-eslint's strict, type-checked rules
  * over every code file, with two options named and nothing else loosened.
  * typescript-eslint takes about half a second of CPU to load, over a unit
  * file's budget, so it is stood in here; CI's lint step runs the real one over

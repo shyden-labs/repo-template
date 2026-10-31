@@ -3,7 +3,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { withoutCommentLines, withoutYamlComments, withoutYamlQuotes, yamlBlock } from './source-text.ts';
 
 /**
- * The static checks (issue #61): typecheck, lint and format-check run as
+ * The static checks (issue shyden-labs/repo-template#61): typecheck, lint and format-check run as
  * named steps of CI's required build-and-test job and before every push, with
  * no test suite in the hook. Every text is read with its comments stripped,
  * so a check left only in a comment does not count.
@@ -53,7 +53,7 @@ describe('ci.yml', () => {
 });
 
 describe('.githooks/pre-push', () => {
-  // Issue #65: the checks run on each pushed commit, in scripts/pre-push.ts (tested in pre-push.test.ts), never on the working tree.
+  // Issue shyden-labs/repo-template#65: the checks run on each pushed commit, in scripts/pre-push.ts (tested in pre-push.test.ts), never on the working tree.
   it('hands the push, stdin included, to the script that checks each pushed commit, and runs no test suite', () => {
     const commands = withoutCommentLines(readFileSync('.githooks/pre-push', 'utf8'))
       .split('\n')

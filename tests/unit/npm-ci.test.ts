@@ -9,7 +9,7 @@ vi.mock('node:child_process', () => ({ spawnSync: vi.fn() }));
 const spawn = vi.mocked(spawnSync);
 
 /**
- * Every dependency install in CI fails on any warning npm prints (issue #140;
+ * Every dependency install in CI fails on any warning npm prints (issue shyden-labs/repo-template#140;
  * global rule: warnings are build failures). `scripts/npm-ci.ts` runs `npm ci`,
  * passes its output through, and fails naming each warning line, or naming
  * npm's exit when the install itself failed.

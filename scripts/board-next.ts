@@ -24,7 +24,7 @@ import { assertWholeRead, emptyBoardNote } from './board-progress.ts';
 import { PRIORITY_OPTIONS } from './board-setup.ts';
 import { runIfEntry } from './cli.ts';
 
-/** An issue, by repository, so another repository's #3 is not this one's. */
+/** An issue, by repository, so issue 3 of another repository is not this one's. */
 export interface IssueRef {
   /** `owner/name`. */
   repo: string;

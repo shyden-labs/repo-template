@@ -10,7 +10,7 @@ vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
 const git = vi.mocked(execFileSync);
 
 /**
- * A pull request into main merges only a release cut (issue #86): main is not
+ * A pull request into main merges only a release cut (issue shyden-labs/repo-template#86): main is not
  * strict, because each release merge lands on main and never on squash-only
  * develop, so release-cut proves what strict did. These cases plant each way
  * a merge into main could land something CI never tested.
@@ -52,7 +52,7 @@ describe('auditReleaseCut', () => {
     expect(auditReleaseCut({ ...good, headRef })).toEqual([`the head branch is ${headRef}, not a release/ branch`]);
   });
 
-  // The head ref is only a name the pull request gives: origin must hold that branch, at this head (issue #103).
+  // The head ref is only a name the pull request gives: origin must hold that branch, at this head (issue shyden-labs/repo-template#103).
   it('refuses a head branch origin does not hold', () => {
     expect(auditReleaseCut({ ...good, originHeadSha: null })).toEqual(['origin holds no branch release/2026-10-23']);
   });
@@ -386,7 +386,7 @@ describe('main', () => {
   });
 
   // A status belongs to the head's SHA, which a fork's pull request can share with a release's: a fork's verdict, even a
-  // failure, would overwrite the release's, so it posts none (issue #103). Its own job still fails, naming why.
+  // failure, would overwrite the release's, so it posts none (issue shyden-labs/repo-template#103). Its own job still fails, naming why.
   it.each(['someone/app', 'shyden-labs/App', 'shyden-labs/app-fork', ''])(
     'refuses a pull request from %j by name, asking git and GitHub nothing',
     async (repository) => {

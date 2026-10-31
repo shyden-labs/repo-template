@@ -1,4 +1,4 @@
-# Release cuts into `main` (issue #86)
+# Release cuts into `main` (issue shyden-labs/repo-template#86)
 
 `develop` takes every ticket's branch by squash merge. `main` takes only a
 frozen `release/*` cut, by merge commit. That merge commit lands on `main` and
@@ -6,7 +6,7 @@ never on `develop`, since `develop` is squash-only. So after the first
 release, `main` always holds one commit that `develop` and every later cut
 lack.
 
-## Merge methods (issue #115)
+## Merge methods (issue shyden-labs/repo-template#115)
 
 `scripts/branch-rules-setup.ts` sets three merge settings and reads each back:
 
@@ -60,7 +60,7 @@ how many commits it judged. git failing to answer fails the check rather
 than reading as a pass: no merge ref (GitHub builds none for a pull request
 that conflicts with `main`), or a missing branch.
 
-## Which pull requests it judges (issue #103)
+## Which pull requests it judges (issue shyden-labs/repo-template#103)
 
 It judges only pull requests whose head branch is in this repository. A
 fork's pull request posts no status at all: its job fails, naming the fork,
@@ -96,15 +96,15 @@ merged after a later one has nothing left to bring.
   named `release-cut` and satisfy it, as it can `build-and-test` and `coverage`
   today. Nothing lands without the operator merging, and the
   operator merges only release pull requests they cut from `release/*`.
-  Pinning every required check's source is issue #90.
+  Pinning every required check's source is issue shyden-labs/repo-template#90.
 
 ## Applying it
 
 The check runs from the default branch, so it must be there before `main`
 requires it, or no status is ever posted and every release waits. In a new
 repository the default branch holds it from the start. In repo-template,
-while `main` is still the default (until issue #46), require `release-cut`
-only after the first release carrying #86 has reached `main`.
+while `main` is still the default (until issue shyden-labs/repo-template#46), require `release-cut`
+only after the first release carrying shyden-labs/repo-template#86 has reached `main`.
 
 The rules are set by the operator (rulesets need admin rights):
 

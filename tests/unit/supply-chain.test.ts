@@ -68,7 +68,7 @@ const unlabelled = (uses: Use[]) =>
  * These checks read source text, and this file DOCUMENTS the very patterns it
  * is checked for. Matched against the raw text, that prose SATISFIES a guard
  * on its own: shyden.co.uk's note spelled out `patterns: ["actions/cache*"]`
- * and passed its sub-path guard with no group configured (issue #23).
+ * and passed its sub-path guard with no group configured (issue shyden-labs/repo-template#23).
  */
 const configBody = () => withoutYamlComments(readFileSync(DEPENDABOT, 'utf8'));
 
@@ -197,7 +197,7 @@ describe('Dependabot keeps the pins from rotting', () => {
    * Declaring the group is not enough: it has to be the ONLY group that can
    * hold the package. Dependabot scores every group that matches, and a group
    * with no patterns outscores any wildcard, so a catch-all must exclude each
-   * pattern group's patterns (Shyden 2026-10-20; issue #39). Order decides
+   * pattern group's patterns (Shyden 2026-10-20; issue shyden-labs/repo-template#39). Order decides
    * nothing. The model and its planted cases are in dependabot-groups.test.ts.
    */
   it("each pattern group's packages can land in that group alone, judged over every group read", () => {
@@ -240,7 +240,7 @@ describe('Dependabot keeps the pins from rotting', () => {
 });
 
 /**
- * One Node and one runner, pinned exactly (issue #63; global rule 2026-10-08
+ * One Node and one runner, pinned exactly (issue shyden-labs/repo-template#63; global rule 2026-10-08
  * sets Node 26.3+, and every project runs the same versions as the rest).
  *
  * `ubuntu-latest` and a bare major Node are floating pins: the image or the Node under CI changes on
@@ -279,7 +279,7 @@ const workflowFiles = () => readdirSync(WORKFLOWS).filter((f) => /\.ya?ml$/.test
 const workflow = (file: string) => readFileSync(join(WORKFLOWS, file), 'utf8');
 
 /**
- * The read step every Node setup follows (#143): it takes the exact version
+ * The read step every Node setup follows (shyden-labs/repo-template#143): it takes the exact version
  * from the one file Dependabot bumps, `.github/node/Dockerfile`, and fails the
  * job when that file holds no exact `FROM node:x.y.z` line, so setup-node
  * never gets an empty version and falls back to the runner's own Node.
@@ -523,7 +523,7 @@ describe('the template runs one Node and one runner, pinned exactly', () => {
 
   // npm 11 skips every dependency install script that allowScripts does not name, and warns about it. The only
   // install script fsevents has is the `node-gyp rebuild` npm adds for a package published with a binding.gyp,
-  // but its tarball ships no binding.gyp, only a prebuilt universal fsevents.node that loads without it (#70).
+  // but its tarball ships no binding.gyp, only a prebuilt universal fsevents.node that loads without it (shyden-labs/repo-template#70).
   it('allowScripts denies fsevents and approves nothing', () => {
     expect(manifest().allowScripts).toEqual({ fsevents: false });
   });
@@ -549,10 +549,10 @@ describe('the template runs one Node and one runner, pinned exactly', () => {
  * GitHub: "Dependabot raises pull requests for security updates against the
  * default branch only", and `target-branch` steers version updates alone. So
  * with `main` as the default branch every SECURITY fix opens against `main`,
- * outside the develop gate (ShyTalk #2183 sat there for a month). The default
+ * outside the develop gate (ShyTalk's issue 2183 sat there for a month). The default
  * branch must be `develop`, and only CI can see the repository setting, so CI
  * checks it as its FIRST step: a wrong default fails within seconds, before
- * anything is installed (issue #46).
+ * anything is installed (issue shyden-labs/repo-template#46).
  */
 describe('security fixes open against develop', () => {
   const STEP = /^\s*- name:\s*The default branch is develop\s*$/;

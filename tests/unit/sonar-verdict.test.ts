@@ -7,7 +7,7 @@ import { main, parseReportTask, verdict } from '../../scripts/sonar-verdict.ts';
 
 /**
  * SonarCloud's quality gate, read for the analysis this run's scan made
- * (issue #27; Shyden 2026-10-18: "don't pass if it doesn't run", "make sure we
+ * (issue shyden-labs/repo-template#27; Shyden 2026-10-18: "don't pass if it doesn't run", "make sure we
  * check the results and fail the workflow if it fails"). Green only on OK;
  * every other answer, and every answer that cannot be read, fails by name.
  * HTTP and the wait are stood in: nothing reaches the network.

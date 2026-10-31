@@ -1,5 +1,5 @@
 /**
- * Judges a pull request into `main` (issue #86, docs/release-cut.md): `main`
+ * Judges a pull request into `main` (issue shyden-labs/repo-template#86, docs/release-cut.md): `main`
  * takes only a frozen `release/*` cut, by merge commit. `main` is not strict,
  * because each release merge lands on `main` and never on squash-only
  * `develop`, so this check proves instead what strict proved, that what lands
@@ -16,10 +16,10 @@
  * own copy (`pull_request_target`), never the pull request's: it fetches the
  * pull request's merge ref as git data, runs none of its code, and posts its
  * verdict as the `release-cut` commit status on the head, which `main`
- * requires (Shyden's rulings of 2026-10-23 on #86). A status belongs to a
+ * requires (Shyden's rulings of 2026-10-23 on shyden-labs/repo-template#86). A status belongs to a
  * SHA, which a fork's pull request can share with a release's, so a pull
  * request from any other repository is refused before anything is posted
- * (issue #103):
+ * (issue shyden-labs/repo-template#103):
  *
  *   node scripts/release-cut.ts <head repository> <head ref> <40-hex head sha> <pull request number>
  */

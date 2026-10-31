@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { withoutYamlComments, withoutYamlQuotes, yamlBlock as topLevel } from './source-text.ts';
 
 /**
- * A merge into `develop` deploys to dev by a workflow trigger (#12; operator
+ * A merge into `develop` deploys to dev by a workflow trigger (shyden-labs/repo-template#12; operator
  * 2026-10-14). Read from comment-stripped, quote-free text, so a comment
  * describing the trigger cannot stand in for it, and compared exactly, so a
  * widened trigger fails as surely as a missing one.
@@ -20,7 +20,7 @@ describe('deploy-dev', () => {
   });
 
   // A newer pending run in a group cancels the older pending one, and a
-  // cancelled step reads as unrun (#35), so a rehearsal never shares develop's group.
+  // cancelled step reads as unrun (shyden-labs/repo-template#35), so a rehearsal never shares develop's group.
   it('queues a deploy behind the running one, and rehearses each pull request in its own group', () => {
     expect(topLevel(workflow(), 'concurrency')).toBe(
       [
@@ -32,7 +32,7 @@ describe('deploy-dev', () => {
   });
 
   // What keeps the credential out of a pull request is dev letting only develop
-  // deploy (#117); this line only picks an environment a pull request may use.
+  // deploy (shyden-labs/repo-template#117); this line only picks an environment a pull request may use.
   it('deploys from the dev environment, and rehearses in dev-rehearsal, which holds no credential', () => {
     const jobs = topLevel(workflow(), 'jobs').split('\n');
     expect(jobs).toContain('    environment: ${{ github.event_name == pull_request && dev-rehearsal || dev }}');
@@ -46,11 +46,11 @@ describe('deploy-dev', () => {
     );
   });
 
-  // The template hosts nothing, so its own develop skips the deploy (#43,
+  // The template hosts nothing, so its own develop skips the deploy (shyden-labs/repo-template#43,
   // Shyden 2026-10-27), and a repository made from it, under any other name,
-  // runs it. The template's pull requests still rehearse (#121, Shyden
+  // runs it. The template's pull requests still rehearse (shyden-labs/repo-template#121, Shyden
   // 2026-10-28), so the rehearsal is proved before a project copies it. One
-  // job only: the pull request rehearsal is this same job (#35 AC3), so the
+  // job only: the pull request rehearsal is this same job (shyden-labs/repo-template#35 AC3), so the
   // condition covers it and its steps cannot drift from the deploy.
   it('has one job, deploy-dev, skipped in the template itself except to rehearse a pull request', () => {
     const jobs = topLevel(workflow(), 'jobs').split('\n');
@@ -70,7 +70,7 @@ describe('deploy-dev', () => {
   });
 
   // Only the template's rehearsal passes the placeholder: the template has
-  // nothing to deploy (#121). Anywhere else, or on a real deploy, it fails
+  // nothing to deploy (shyden-labs/repo-template#121). Anywhere else, or on a real deploy, it fails
   // until the project fills it in.
   it('still fails in a repository made from the template until it fills in its deploy', () => {
     const jobs = topLevel(workflow(), 'jobs').split('\n');
