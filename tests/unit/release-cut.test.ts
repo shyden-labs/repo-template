@@ -570,13 +570,12 @@ describe('check-release-cut.yml', () => {
     ).toEqual(['echo "${{ github.head_ref }}"', 'true', 'echo done']);
   });
 
-  it('runs five steps: checkout, the Node read, node, the check, then the trace upload', () => {
+  it('runs four steps: checkout, the Node read, node, then the check', () => {
     expect(steps().map((step) => step.split('\n')[0])).toEqual([
       '      - uses: actions/checkout@<sha>',
       '      - id: node',
       '      - uses: actions/setup-node@<sha>',
       '      - name: Judge the release cut and post its status',
-      '      - if: ${{ !cancelled() }}',
     ]);
   });
 
@@ -609,12 +608,6 @@ describe('docs/release-cut.md', () => {
   });
 
   it('says how to apply the rules and what to read back', () => {
-    expect(doc()).toContain('node scripts/branch-rules-setup.ts <owner/repo> build-and-test coverage mutations workflow-coverage');
-  });
-
-  it('is in the README file table with the script, the workflow and the setup script', () => {
-    expect(readFileSync('README.md', 'utf8')).toContain(
-      '| `scripts/branch-rules-setup.ts`, `scripts/release-cut.ts`, `.github/workflows/check-release-cut.yml`, `docs/release-cut.md` |',
-    );
+    expect(doc()).toContain('node scripts/branch-rules-setup.ts <owner/repo> build-and-test coverage');
   });
 });

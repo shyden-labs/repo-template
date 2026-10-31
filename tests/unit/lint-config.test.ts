@@ -60,7 +60,7 @@ describe('eslint.config.js', () => {
     ]);
   });
 
-  it('refuses every empty pattern as the base does: the one Vitest needs is a one-line exemption, not a looser rule', () => {
+  it('refuses every empty pattern as the base does: no exemption, and no looser rule', () => {
     expect(rules.filter(([name]) => name === 'no-empty-pattern')).toEqual([['no-empty-pattern', 'error']]);
   });
 
@@ -69,11 +69,6 @@ describe('eslint.config.js', () => {
   });
 
   it('leaves out only generated folders', () => {
-    expect(config.flatMap((c) => (Object.keys(c).length === 1 ? (c.ignores ?? []) : []))).toEqual([
-      'coverage/',
-      'node_modules/',
-      'test-results/',
-      'playwright-report/',
-    ]);
+    expect(config.flatMap((c) => (Object.keys(c).length === 1 ? (c.ignores ?? []) : []))).toEqual(['coverage/', 'node_modules/']);
   });
 });

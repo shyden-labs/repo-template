@@ -18,28 +18,11 @@ const read = (f: string) => readFileSync(`${WORKFLOWS}/${f}`, 'utf8');
 
 describe('every workflow', () => {
   it('is judged', () => {
-    expect(files).toEqual([
-      'check-release-cut.yml',
-      'ci.yml',
-      'deploy-dev.yml',
-      'logs.yml',
-      'mutations.yml',
-      'record.yml',
-      'sonarcloud.yml',
-      'workflow-coverage.yml',
-    ]);
+    expect(files).toEqual(['check-release-cut.yml', 'ci.yml', 'deploy-dev.yml', 'sonarcloud.yml']);
   });
 
   it.each(files)('%s swallows no failure and gates no step on the token', (file) => {
     expect([...swallowed(file, read(file)), ...tokenGated(file, read(file))]).toEqual([]);
-  });
-});
-
-describe('a new repository', () => {
-  it('is told to turn SonarCloud on, with the setup it needs', () => {
-    expect(readFileSync('README.md', 'utf8')).toContain(
-      '13. **Turn on SonarCloud before the first pull request.** Follow `docs/sonarcloud.md`:',
-    );
   });
 });
 

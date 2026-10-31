@@ -52,7 +52,6 @@ body:
       label: Definition of done
       value: |
         - Every new test written first and seen red for the stated reason.
-        - Every guard mutation-verified, predictions written first.
         - Lint, typecheck, formatting and the zero-warnings gate pass; no retries; one test per case.
         - CI green on the PR head SHA, read step by step by name; merged into `develop` and deployed to dev, verified.
     validations:

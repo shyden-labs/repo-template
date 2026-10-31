@@ -37,7 +37,7 @@ git's `core.hooksPath` at `.githooks`. The hook runs no test suite: run
   measured: over every code and config file, 140 changed the fewest lines
   (1,623, against 1,625 at 160, 2,016 at 120 and 3,176 at 100).
   `.prettierignore` leaves out files that tools write (`package-lock.json`,
-  `coverage-record.json`) and Markdown, which is prose kept as written.
+  `coverage/`) and Markdown, which is prose kept as written.
 
 ## When a check finds something
 
@@ -45,14 +45,8 @@ Fix it in the code. A disable comment, a `@ts-ignore` or an `as any` hides the
 finding; a cast is used only to state an invariant the types cannot see, with a
 comment saying what it is.
 
-One exemption exists, granted by the operator for this case alone
-(2026-10-24): Vitest 5 reads a suite hook's first parameter as its fixtures
-and requires an object pattern there, so the load hooks in
-`tests/setup/limits.ts` take `({}, suite)` behind one
-`eslint-disable-next-line no-empty-pattern` with its reason. It is not a
-pattern to follow: every other finding is fixed in the code, and a new
-exemption, or a rule loosened in `eslint.config.js`, needs the operator's
-ruling first. Lint fails if this one stops being needed.
+No exemption exists: a disable comment, or a rule loosened in
+`eslint.config.js`, needs the operator's ruling first.
 
 `tests/unit/static-checks.test.ts` pins the scripts, the CI steps, the hook and
 these settings; `tests/unit/lint-config.test.ts` pins the lint config's own

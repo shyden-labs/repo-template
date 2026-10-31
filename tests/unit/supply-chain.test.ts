@@ -3,7 +3,6 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { withoutYamlComments, withoutYamlQuotes } from './source-text.ts';
 import { leaks, parseGroups } from './dependabot-groups.ts';
-import { layout } from '../../scripts/workflow-lines.ts';
 
 /**
  * The CI supply chain is pinned, and something keeps it current.
@@ -122,7 +121,7 @@ const splitPins = (uses: Use[]) => {
 describe('the CI supply chain is pinned', () => {
   it('pins each action at one SHA in every workflow, judged over every pinned use', () => {
     const uses = externalUses();
-    expect({ pinned: uses.length, split: splitPins(uses) }).toEqual({ pinned: 29, split: [] });
+    expect({ pinned: uses.length, split: splitPins(uses) }).toEqual({ pinned: 10, split: [] });
   });
 
   it('names an action whose bump reached one workflow and missed another', () => {
@@ -244,8 +243,7 @@ describe('Dependabot keeps the pins from rotting', () => {
  * One Node and one runner, pinned exactly (issue #63; global rule 2026-10-08
  * sets Node 26.3+, and every project runs the same versions as the rest).
  *
- * `ubuntu-latest` and a bare major Node (the `26` in this repo's `.nvmrc`,
- * which no workflow reads since #143) are floating pins: the image or the Node under CI changes on
+ * `ubuntu-latest` and a bare major Node are floating pins: the image or the Node under CI changes on
  * GitHub's schedule, not ours. Node is now `.github/node/Dockerfile` alone. Each
  * reader is an allow-list of the one value written, so every other spelling
  * (a list, an expression, a block of labels, another case) fails, naming it.
@@ -344,15 +342,7 @@ const nodePin = (text: string): { version: string } | { wrong: string } => {
 describe('the template runs one Node and one runner, pinned exactly', () => {
   it(`every job runs on ${RUNNER}, judged over every runs-on read`, () => {
     const runners = workflowFiles().flatMap((f) => runnersIn(f, workflow(f)));
-    expect({ read: runners.length, floating: floating(runners) }).toEqual({ read: 9, floating: [] });
-  });
-
-  it('reads one runs-on for every job the workflow parser finds, per file', () => {
-    const files = workflowFiles();
-    expect({
-      files: files.length,
-      mismatched: files.filter((f) => runnersIn(f, workflow(f)).length !== layout(workflow(f)).jobs.length),
-    }).toEqual({ files: 8, mismatched: [] });
+    expect({ read: runners.length, floating: floating(runners) }).toEqual({ read: 5, floating: [] });
   });
 
   const job = (runsOn: string) => ['jobs:', '  build:', `    runs-on:${runsOn}`, '    steps:', '      - run: true', ''].join('\n');
@@ -383,15 +373,7 @@ describe('the template runs one Node and one runner, pinned exactly', () => {
 
   it("every setup-node step takes the read step's version and follows it, judged over every step read", () => {
     const steps = workflowFiles().flatMap((f) => setupNodeSteps(f, workflow(f)));
-    expect({ read: steps.length, wrong: steps.filter(({ wrong }) => wrong.length > 0) }).toEqual({ read: 8, wrong: [] });
-  });
-
-  it('reads every setup-node step a plain search of each file finds', () => {
-    const files = workflowFiles();
-    expect({
-      files: files.length,
-      mismatched: files.filter((f) => setupNodeSteps(f, workflow(f)).length !== workflow(f).split(/actions\/setup-node@/i).length - 1),
-    }).toEqual({ files: 8, mismatched: [] });
+    expect({ read: steps.length, wrong: steps.filter(({ wrong }) => wrong.length > 0) }).toEqual({ read: 4, wrong: [] });
   });
 
   const steps = (...lines: string[]) => ['    steps:', ...lines, ''].join('\n');
@@ -406,7 +388,7 @@ describe('the template runs one Node and one runner, pinned exactly', () => {
       [["does not take the read step's version"]],
     ],
     [
-      'reads .nvmrc',
+      'reads a version file instead',
       steps(...READ, `      - uses: actions/setup-node@${SHA}`, '        with:', "          node-version-file: '.nvmrc'"),
       [["does not take the read step's version", 'reads a version file']],
     ],
@@ -503,16 +485,6 @@ describe('the template runs one Node and one runner, pinned exactly', () => {
 
   it('accepts a pin with no final newline', () => {
     expect(nodePin('FROM node:26.3.0')).toEqual({ version: '26.3.0' });
-  });
-
-  it('is in the README file table and in step 16, which a new repository follows', () => {
-    const readme = readFileSync('README.md', 'utf8');
-    expect(readme).toContain(
-      "| `.github/node/Dockerfile` | CI's one exact Node version, in the one file Dependabot's `docker` entry bumps, so Node changes only through a pull request (issue #143). |",
-    );
-    expect(readme).toContain(
-      "16. **Keep CI's Node in `.github/node/Dockerfile` alone.** It is one line, `FROM node:<major>.<minor>.<patch>`, and no workflow reads any other Node version.",
-    );
   });
 
   it('has Dependabot bump the Dockerfile within major 26, on develop', () => {

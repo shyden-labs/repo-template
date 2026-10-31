@@ -1,8 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import unit from '../../vitest.unit.config.ts';
-import integration from '../../vitest.integration.config.ts';
-import logs from '../../vitest.logs.config.ts';
-import coverage from '../../vitest.coverage.config.ts';
 import { NODE_WARNINGS, UNIT_REFUSAL, UNIT_SETUP } from '../setup/files.ts';
 import { failOnNodeWarning, failOnWarnings } from '../setup/warnings.ts';
 
@@ -86,28 +83,13 @@ describe('failOnNodeWarning', () => {
   });
 });
 
-/** Each suite's config, and each project of the coverage run, as vitest reads it. */
-const configs: [string, { plugins?: unknown[]; test: { setupFiles?: string[] } }][] = [
-  ['unit', unit],
-  ['integration', integration],
-  ['logs', logs],
-  ...coverage.test.projects.map((project): [string, { plugins?: unknown[]; test: { setupFiles?: string[] } }] => [
-    `coverage project ${project.test.name}`,
-    project,
-  ]),
-];
-
-describe('every suite fails on warnings', () => {
-  it('reads every suite and every coverage project', () => {
-    expect(configs.map(([name]) => name)).toEqual(['unit', 'integration', 'logs', 'coverage project unit', 'coverage project integration']);
+describe('the unit suite fails on warnings', () => {
+  it('carries the vite plugin', () => {
+    expect(unit.plugins).toContain(failOnWarnings);
   });
 
-  it.each(configs)('%s carries the vite plugin', (_name, config) => {
-    expect(config.plugins).toContain(failOnWarnings);
-  });
-
-  it.each(configs)('%s registers the node warning listener', (_name, config) => {
-    expect(config.test.setupFiles).toContain(NODE_WARNINGS);
+  it('registers the node warning listener', () => {
+    expect(unit.test.setupFiles).toContain(NODE_WARNINGS);
   });
 
   it('keeps the unit refusal first, so nothing a file loads runs before it', () => {

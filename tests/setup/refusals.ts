@@ -1,7 +1,6 @@
-// A unit test starts no process and opens no connection (docs/unit-limits.md,
-// #92). tests/setup/unit-refusal.ts installs these refusals on Node's own
+// A unit test starts no process and opens no connection (#92). tests/setup/unit-refusal.ts installs these refusals on Node's own
 // modules before every unit file; a test that needs a process or a socket
-// stands the dependency in, or moves to tests/integration.
+// stands the dependency in, or moves to an integration suite.
 
 /** Marks the globals once the refusals are installed; it holds the entries refused. */
 export const REFUSED = Symbol.for('repo-template.unit-refusal');
@@ -86,7 +85,7 @@ export function installRefusals(m: Refusable, who: () => string): string[] {
   for (const [owner, key, entry, reason] of planned) {
     const refused = function refused(): never {
       throw new Error(
-        `unit test refused: "${who()}" called ${entry}. ${reason} Stand the dependency in, or move the case to tests/integration (#92).`,
+        `unit test refused: "${who()}" called ${entry}. ${reason} Stand the dependency in, or move the case to an integration suite (#92).`,
       );
     };
     Object.defineProperty(owner, key, { value: refused, writable: true, configurable: true });
