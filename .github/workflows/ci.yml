@@ -67,3 +67,12 @@ jobs:
           cache: 'npm'
       - run: node scripts/npm-ci.ts
       - run: npm run test:coverage
+
+  # The SonarCloud quality gate, blocking (#27, #60): the reusable workflow
+  # scans, then fails unless this scan's gate is OK (docs/sonarcloud.md).
+  sonarcloud:
+    uses: ./.github/workflows/sonarcloud.yml
+    with:
+      organization: shyden-labs
+      project-key: shyden-labs_repo-template
+    secrets: inherit
