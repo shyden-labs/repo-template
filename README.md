@@ -33,7 +33,7 @@ settings already in place, and nothing it doesn't need on day one (#149).
 
 1. `gh repo create <name> --public --template shyden-labs/repo-template`. A repo carrying game, art or learning content adds its own content licence.
 2. Create `develop` and make it the default branch before Dependabot first runs. CI fails until this is done.
-3. As the operator, set the branch rules: `node scripts/branch-rules-setup.ts <owner/repo> build-and-test coverage`, and add any check the project adds later.
+3. Set up SonarCloud as `docs/sonarcloud.md` describes (CI fails until `SONAR_TOKEN` is set). Then, as the operator, set the branch rules: `node scripts/branch-rules-setup.ts <owner/repo> build-and-test coverage "sonarcloud / sonarcloud"`, and add any check the project adds later.
 4. Add the ecosystems your repo uses to `.github/dependabot.yml`, and enable Dependabot alerts and security updates.
 5. `npm ci && npm run test:unit`.
 6. Set up the project board as `docs/project-board.md` describes.
