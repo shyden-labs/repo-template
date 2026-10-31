@@ -15,7 +15,9 @@
  * default branch changes, which is how ShyTalk's `main` lost its rules on
  * 2026-10-13. It creates what is missing, updates what differs, and reads both
  * branches' rules back, failing unless develop is strict and main is not and
- * requires release-cut. Then it gives the `dev` environment, which holds the
+ * requires release-cut, and unless develop takes pull requests by squash alone
+ * and main by merge commit alone (issue #115). It sets the repository to
+ * delete merged head branches and refuse rebase merges, reads that back, then gives the `dev` environment, which holds the
  * dev credential, a deployment branch policy naming `develop` alone, and reads
  * that back too (issue #117).
  */
@@ -29,6 +31,8 @@ export interface Rule {
 
 export interface RulesetBody {
   name: string;
+  /** Who may bypass the ruleset; GitHub shows it only to an admin and answers `null` to anyone else. */
+  bypass_actors?: unknown[] | null | undefined;
   target: string;
   enforcement: string;
   conditions: { ref_name: { include: string[]; exclude: string[] } };
@@ -41,6 +45,13 @@ export interface ExistingRuleset extends RulesetBody {
 
 export type Branch = 'develop' | 'main';
 const BRANCHES: Branch[] = ['develop', 'main'];
+
+/**
+ * How each branch takes pull requests (#115): `develop` by squash alone, so a
+ * red commit fixed later on a ticket's branch never lands alone; `main` by
+ * merge commit alone, so a release cut keeps develop's history whole.
+ */
+export const MERGE_METHOD: Record<Branch, string> = { develop: 'squash', main: 'merge' };
 
 /** The commit status `.github/workflows/check-release-cut.yml` posts on each pull request into main's head. */
 export const RELEASE_CUT = 'release-cut';
@@ -70,6 +81,7 @@ export function desiredRuleset(branch: Branch, checks: string[]): RulesetBody {
           require_code_owner_review: false,
           require_last_push_approval: false,
           required_review_thread_resolution: false,
+          allowed_merge_methods: [MERGE_METHOD[branch]],
         },
       },
       {
@@ -114,7 +126,14 @@ export function planRulesets(existing: ExistingRuleset[], checks: string[]): Rul
     const body = desiredRuleset(branch, checks);
     const found = existing.find((r) => r.name === branch);
     if (found === undefined) return { action: 'create' as const, body };
-    return { action: shape(found) === shape(body) ? ('keep' as const) : ('update' as const), id: found.id, body };
+    if (shape(found) === shape(body)) return { action: 'keep' as const, id: found.id, body };
+    // Unmeasured whether a PUT leaving bypass_actors out keeps them, so the update carries them, and is never sent unseen.
+    if (!Array.isArray(found.bypass_actors)) {
+      throw new Error(
+        `ruleset ${found.id} "${found.name}" differs, but its bypass list is hidden (read it with admin rights), so an update could drop a bypass`,
+      );
+    }
+    return { action: 'update' as const, id: found.id, body: { ...body, bypass_actors: found.bypass_actors } };
   });
 }
 
@@ -131,8 +150,16 @@ export function auditBranchRules(branch: Branch, rules: Rule[]): string[] {
   if (!rules.some((r) => r.type === 'deletion')) {
     problems.push(`${branch}: no rule forbids deleting it`);
   }
-  if (!rules.some((r) => r.type === 'pull_request')) {
+  const pullRequests = rules.filter((r) => r.type === 'pull_request');
+  if (pullRequests.length === 0) {
     problems.push(`${branch}: no rule requires a pull request`);
+  }
+  for (const r of pullRequests) {
+    const methods = (r.parameters as { allowed_merge_methods?: string[] } | undefined)?.allowed_merge_methods;
+    if (methods?.length !== 1 || methods[0] !== MERGE_METHOD[branch]) {
+      const named = methods === undefined ? 'an unstated method' : methods.join(', ');
+      problems.push(`${branch}: pull requests may merge by ${named}, not ${MERGE_METHOD[branch]} alone`);
+    }
   }
   const checks = rules.filter((r) => r.type === 'required_status_checks').map((r) => (r.parameters ?? {}) as ChecksParameters);
   const requiresReleaseCut = checks.some((c) => c.required_status_checks?.some((s) => s.context === RELEASE_CUT) === true);
@@ -156,11 +183,21 @@ export function auditBranchRules(branch: Branch, rules: Rule[]): string[] {
   return problems;
 }
 
+/** The repository settings a template copy does not carry, so the script sets them (#28, #115). */
+const REPO_SETTINGS = {
+  delete_branch_on_merge: { value: true, problem: 'merged head branches are not deleted' },
+  allow_rebase_merge: { value: false, problem: 'rebase merging is allowed' },
+  allow_squash_merge: { value: true, problem: 'squash merging is off, so develop could take no pull request' },
+  allow_merge_commit: { value: true, problem: 'merge commits are off, so main could take no release cut' },
+} as const;
+
+export type RepoSettings = Partial<Record<keyof typeof REPO_SETTINGS, boolean>>;
+
 /** Every way the repository's own settings (as `repos/<owner>/<repo>` reports them) fall short; empty when none. */
-export function auditRepoSettings(repo: { delete_branch_on_merge?: boolean }): string[] {
-  return repo.delete_branch_on_merge === true
-    ? []
-    : [`merged head branches are not deleted (delete_branch_on_merge is ${String(repo.delete_branch_on_merge)})`];
+export function auditRepoSettings(repo: RepoSettings): string[] {
+  return Object.entries(REPO_SETTINGS)
+    .filter(([key, want]) => repo[key as keyof RepoSettings] !== want.value)
+    .map(([key, want]) => `${want.problem} (${key} is ${String(repo[key as keyof RepoSettings])})`);
 }
 
 /** The environment that holds the dev credential, and the one branch that may deploy to it (#117). */
@@ -277,14 +314,20 @@ export function main(args: string[]): number {
   }
   // Only now that neither branch can be deleted: a merged pull request's head
   // branch is deleted with it (#28). A template copies files, not settings.
-  gh(['api', '-X', 'PATCH', `repos/${repo}`, '-F', 'delete_branch_on_merge=true']);
-  const settings = auditRepoSettings(gh(['api', `repos/${repo}`]) as { delete_branch_on_merge?: boolean });
+  gh([
+    'api',
+    '-X',
+    'PATCH',
+    `repos/${repo}`,
+    ...Object.entries(REPO_SETTINGS).flatMap(([key, want]) => ['-F', `${key}=${String(want.value)}`]),
+  ]);
+  const settings = auditRepoSettings(gh(['api', `repos/${repo}`]) as RepoSettings);
   if (settings.length > 0) {
     throw new Error(`read back, the repository still falls short:\n  ${settings.join('\n  ')}`);
   }
   setDevEnvironment(repo);
   process.stdout.write(
-    `${repo}: develop requires strict checks; main requires ${RELEASE_CUT} instead; both forbid deletion and require pull requests; merged head branches are deleted; ${DEV_ENVIRONMENT} deploys from ${DEV_BRANCH} alone.\n`,
+    `${repo}: develop requires strict checks; main requires ${RELEASE_CUT} instead; both forbid deletion and require pull requests; develop takes squashes alone and main merge commits alone, with rebase merging off; merged head branches are deleted; ${DEV_ENVIRONMENT} deploys from ${DEV_BRANCH} alone.\n`,
   );
   return 0;
 }

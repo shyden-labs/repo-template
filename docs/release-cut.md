@@ -6,6 +6,21 @@ never on `develop`, since `develop` is squash-only. So after the first
 release, `main` always holds one commit that `develop` and every later cut
 lack.
 
+## Merge methods (issue #115)
+
+`scripts/branch-rules-setup.ts` sets three merge settings and reads each back:
+
+- `develop`'s ruleset allows **squash** alone, so a red commit later fixed on
+  a ticket's branch never lands on `develop` by itself.
+- `main`'s ruleset allows **merge commit** alone, so a release cut lands
+  whole, as one merge commit.
+- The repository's "Allow rebase merging" is **off**, since neither branch
+  takes a rebase. Squash merging and merge commits stay on, since each branch
+  needs one of them.
+
+It refuses to update a ruleset whose bypass list it cannot read (GitHub hides
+it from anyone without admin rights), since the update could drop a bypass.
+
 ## Why `main` is not strict
 
 A strict rule ("require branches to be up to date before merging") passes a
@@ -96,4 +111,5 @@ The rules are set by the operator (rulesets need admin rights):
     node scripts/branch-rules-setup.ts <owner/repo> build-and-test coverage "sonarcloud / sonarcloud"
 
 Then read back `rules/branches/develop` (the four checks, strict) and
-`rules/branches/main` (the four checks and `release-cut`, not strict).
+`rules/branches/main` (the four checks and `release-cut`, not strict), with
+`develop` allowing squash alone and `main` merge commits alone.
