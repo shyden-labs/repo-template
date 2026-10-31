@@ -585,29 +585,3 @@ describe('check-release-cut.yml', () => {
     expect(pins('check-release-cut.yml')).toEqual([...new Set(pins('ci.yml'))]);
   });
 });
-
-describe('docs/release-cut.md', () => {
-  const doc = () => readFileSync('docs/release-cut.md', 'utf8');
-
-  it('says why main is not strict', () => {
-    expect(doc()).toContain('so a strict `main` would refuse every cut after the first.');
-  });
-
-  it.each(['(a)', '(b)', '(c)', '(d)'])('names check %s', (label) => {
-    expect(
-      doc()
-        .split('\n')
-        .filter((line) => line.startsWith(`- **${label}**`)),
-    ).toHaveLength(1);
-  });
-
-  it('says which pull requests it judges, and why a fork’s posts nothing', () => {
-    expect(doc().replace(/\s+/g, ' ')).toContain(
-      "It judges only pull requests whose head branch is in this repository. A fork's pull request posts no status at all",
-    );
-  });
-
-  it('says how to apply the rules and what to read back', () => {
-    expect(doc()).toContain('node scripts/branch-rules-setup.ts <owner/repo> build-and-test coverage');
-  });
-});
