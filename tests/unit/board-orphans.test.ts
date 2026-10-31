@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { emptyBoardNote } from '../../scripts/board-progress.ts';
-import { inProgressIssues, findOrphanIssues, main, QUERY, type OpenPullRequest } from '../../scripts/board-orphans.ts';
+import { inProgressIssues, findOrphanIssues, isDeadBranch, main, QUERY, type OpenPullRequest } from '../../scripts/board-orphans.ts';
 
 // `gh` is stood in: a unit test starts no process. Each test queues gh's replies in call order.
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
@@ -14,8 +14,10 @@ const reply = (...values: unknown[]) => {
  * A ticket is In Progress only while a branch or an open pull request is working
  * it (operator 2026-10-13: "if a ticket is not in progress then it should not be
  * marked as in progress"; issue #10). Branches here are named `<issue>-<slug>`.
- * An open pull request always counts; a branch counts only while it has no closed
- * pull request (operator 2026-10-13: "Branch counts until its PR closes").
+ * An open pull request always counts. A branch counts until a pull request of it
+ * closes unmerged (operator 2026-10-13: "Branch counts until its PR closes"); a
+ * branch whose pull request MERGED keeps counting until its ticket closes (global
+ * ruling 2026-10-16, issue #114), so merged work awaiting its hand close is no orphan.
  */
 
 function page(items: { number: number; state: 'OPEN' | 'CLOSED'; status: string | null }[], totalCount = items.length) {
@@ -104,6 +106,34 @@ describe('findOrphanIssues', () => {
 
   it('branches 17-x and 70-x do not claim issue 7', () => {
     expect(findOrphanIssues([7], [pr({ headRefName: '17-x' })], ['70-x'], [])).toEqual([7]);
+  });
+});
+
+describe('isDeadBranch', () => {
+  const merged = { number: 1, mergedAt: '2026-10-31T00:00:00Z' };
+  const unmerged = { number: 2, mergedAt: null };
+
+  it('a branch with no closed pull request is alive', () => {
+    expect(isDeadBranch('7-work', [])).toBe(false);
+  });
+
+  it('a branch whose pull request closed unmerged is dead', () => {
+    expect(isDeadBranch('7-work', [unmerged])).toBe(true);
+  });
+
+  it('a branch whose pull request merged is alive', () => {
+    expect(isDeadBranch('7-work', [merged])).toBe(false);
+  });
+
+  // The branch was merged, then reused for a pull request that was closed unmerged.
+  it('a branch with a merged pull request stays alive after a later one closes unmerged', () => {
+    expect(isDeadBranch('7-work', [unmerged, merged])).toBe(false);
+  });
+
+  it('fails closed, naming the branch, when a closed pull request lacks mergedAt', () => {
+    expect(() => isDeadBranch('7-work', [merged, { number: 3 }])).toThrow(
+      'closed pull request #3 of 7-work has no mergedAt field; refusing to judge it',
+    );
   });
 });
 
@@ -208,35 +238,55 @@ describe('main', () => {
     reply([board], [openPr({ closingIssuesReferences: [{ number: 7 }] })], [[{ name: 'main' }]]);
     expect(main(ARGS)).toBe(0);
     expect(out).toContain(
-      'board-orphans: 1 open pull request(s), 1 branch(es) searched; 0 of 0 candidate branch(es) have a closed pull request\n',
+      'board-orphans: 1 open pull request(s), 1 branch(es) searched; 0 of 0 candidate branch(es) closed without a merge\n',
     );
     expect(err).toEqual([]);
   });
 
-  it('passes while a branch named for it has no closed pull request', () => {
+  const closedArgs = (branch: string) => [
+    'pr',
+    'list',
+    '-R',
+    'shyden-labs/repo',
+    '--state',
+    'closed',
+    '--head',
+    branch,
+    '--limit',
+    '500',
+    '--json',
+    'number,mergedAt',
+  ];
+
+  it('passes while a branch named for it has no closed pull request, reading every closed one with mergedAt', () => {
     reply([board], [], [[{ name: '7-work' }]], []);
     expect(main(ARGS)).toBe(0);
-    expect(gh.mock.calls[3]?.[1]).toEqual([
-      'pr',
-      'list',
-      '-R',
-      'shyden-labs/repo',
-      '--state',
-      'closed',
-      '--head',
-      '7-work',
-      '--limit',
-      '1',
-      '--json',
-      'number',
-    ]);
+    expect(gh.mock.calls[3]?.[1]).toEqual(closedArgs('7-work'));
   });
 
-  it('fails once that branch has a closed pull request', () => {
-    reply([board], [], [[{ name: '7-work' }]], [{ number: 3 }]);
+  it('fails once that branch has a pull request closed unmerged', () => {
+    reply([board], [], [[{ name: '7-work' }]], [{ number: 3, mergedAt: null }]);
     expect(main(ARGS)).toBe(1);
     expect(out).toContain(
-      'board-orphans: 0 open pull request(s), 1 branch(es) searched; 1 of 1 candidate branch(es) have a closed pull request\n',
+      'board-orphans: 0 open pull request(s), 1 branch(es) searched; 1 of 1 candidate branch(es) closed without a merge\n',
     );
+  });
+
+  it('passes while that branch has a merged pull request, until the ticket closes', () => {
+    reply([board], [], [[{ name: '7-work' }]], [{ number: 3, mergedAt: '2026-10-31T00:00:00Z' }]);
+    expect(main(ARGS)).toBe(0);
+    expect(out).toContain(
+      'board-orphans: 0 open pull request(s), 1 branch(es) searched; 0 of 1 candidate branch(es) closed without a merge\n',
+    );
+  });
+
+  it('fails when a closed pull request list may be cut short', () => {
+    reply(
+      [board],
+      [],
+      [[{ name: '7-work' }]],
+      Array.from({ length: 500 }, (_, i) => ({ number: i, mergedAt: null })),
+    );
+    expect(() => main(ARGS)).toThrow('gh pr list hit its limit of 500 closed pull requests of 7-work; the list may be cut short');
   });
 });
