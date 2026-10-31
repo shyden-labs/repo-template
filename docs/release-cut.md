@@ -93,7 +93,7 @@ only after the first release carrying #86 has reached `main`.
 
 The rules are set by the operator (rulesets need admin rights):
 
-    node scripts/branch-rules-setup.ts <owner/repo> build-and-test coverage
+    node scripts/branch-rules-setup.ts <owner/repo> build-and-test coverage "sonarcloud / sonarcloud"
 
 Then read back `rules/branches/develop` (the four checks, strict) and
 `rules/branches/main` (the four checks and `release-cut`, not strict).
