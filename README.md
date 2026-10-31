@@ -19,7 +19,7 @@ settings already in place, and nothing it doesn't need on day one (shyden-labs/r
 | `tests/unit/supply-chain.test.ts` | Actions pinned to SHAs, Dependabot covering every ecosystem and targeting `develop`, Node read from the Dockerfile. |
 | `tsconfig.json`, `eslint.config.js`, `.prettierrc.json`, `.githooks/pre-push`, `docs/static-checks.md` | Strict typecheck, lint and format, in CI and before every push. |
 | `package.json` `overrides` | `minimatch` held at 11.0.3, past its ReDoS advisory GHSA-g3hv-75wg-m249, until eslint and typescript-eslint accept minimatch 11 themselves; then remove it (shyden-labs/repo-template#154). |
-| `LICENSE` | Apache-2.0. |
+| `LICENSE`, `NOTICE` | Apache-2.0, the ASF's text verbatim in `LICENSE`; the copyright line in `NOTICE`, as the ASF advises (shyden-labs/repo-template#147). |
 
 ## The rules
 
