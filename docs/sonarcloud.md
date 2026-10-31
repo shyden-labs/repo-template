@@ -30,7 +30,9 @@ Then, asked how: every project adopts SonarCloud, blocking.
 
 1. On [sonarcloud.io](https://sonarcloud.io), sign in with GitHub, open the
    `shyden-labs` organisation, choose **Analyze new project**, and pick the
-   repository. Note the project key (usually `shyden-labs_<repo>`).
+   repository. Note the project key (usually `shyden-labs_<repo>`). If the
+   repository isn't listed, follow **GitHub app configuration** on that page
+   and add it to the SonarQubeCloud app's repository access.
 2. In the project, open **Administration → Analysis Method** and turn
    **Automatic Analysis** off: CI runs the scan.
 3. In **Administration → New Code**, set the new-code definition to
@@ -52,15 +54,18 @@ Then, asked how: every project adopts SonarCloud, blocking.
      secrets: inherit
    ```
 
-## Not yet confirmed
+## Confirmed by the first real scan
 
-The first real scan confirms two things no document read on 2026-10-22
-stated. Each fails closed, by name, if it is not so:
+repo-template's PR #160 (2026-10-31) confirmed what no document read on
+2026-10-22 stated:
 
 - The scan action writes `.scannerwork/report-task.txt` holding `ceTaskId`,
   `serverUrl` and `dashboardUrl`.
 - A pull request's analysis task names its `pullRequest`.
 
-SonarCloud's documentation also marks `api/qualitygates/project_status`
-deprecated (since 2025-09-16). It answered for ShyTalk on 2026-10-18. Move to
-its replacement when SonarCloud retires it.
+Uncovered code planted on that PR failed the gate, as it should:
+`new_coverage is 0.0, which fails LT 80`.
+
+SonarCloud's documentation marks `api/qualitygates/project_status`
+deprecated (since 2025-09-16). It still answered on 2026-10-31. Move to its
+replacement when SonarCloud retires it.
