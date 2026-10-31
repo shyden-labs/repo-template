@@ -5,7 +5,7 @@ import { failOnWarnings } from './tests/setup/warnings.ts';
 // The unit suite: tests under tests/unit, 1 s per test and hook, no process or
 // connection (tests/setup/unit-refusal.ts). `npm run test:coverage` runs the
 // same suite with V8 coverage over the TypeScript under scripts/, held to one
-// overall threshold (#149). A type-only import: `defineConfig` only types the object.
+// overall threshold (shyden-labs/repo-template#149). A type-only import: `defineConfig` only types the object.
 export default {
   plugins: [failOnWarnings],
   test: {

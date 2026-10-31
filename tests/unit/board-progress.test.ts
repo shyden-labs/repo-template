@@ -206,7 +206,7 @@ describe('formatLines', () => {
     expect(lines[1]).toContain('2 closed stories unscored');
   });
 
-  // Issue #75: a board holding only epics and post-launch stories has nothing in scope, and no percentage of nothing.
+  // Issue shyden-labs/repo-template#75: a board holding only epics and post-launch stories has nothing in scope, and no percentage of nothing.
   it('says both lines are unavailable when nothing on the board is in scope', () => {
     const lines = formatLines(
       progress([item({ number: 1, title: 'Epic: a' }), item({ number: 2, labels: ['post-launch'] })], TODAY),
@@ -484,7 +484,7 @@ describe('main', () => {
     expect(out).toEqual([]);
   });
 
-  // Issue #75: a new board, or one whose items are all archived, is expected; it is named, never failed.
+  // Issue shyden-labs/repo-template#75: a new board, or one whose items are all archived, is expected; it is named, never failed.
   it('says a board of 0 items has no progress to report, and exits 0', () => {
     gh.mockReturnValueOnce(JSON.stringify([boardPage('Example Stories', [])]));
     expect(main(['PVT_1', 'Example Stories'])).toBe(0);
@@ -512,7 +512,7 @@ describe('main', () => {
 });
 
 /**
- * A board read is judged only when it is whole (issue #72). On 2026-10-22
+ * A board read is judged only when it is whole (issue shyden-labs/repo-template#72). On 2026-10-22
  * GitHub's Projects API served short and empty pages for a 466-item board,
  * and board-next printed "nothing is open". Every page states the board's
  * size; what was collected must equal it, on a board holding something.
@@ -559,7 +559,7 @@ describe('assertWholeRead', () => {
 
 /**
  * Each script reading a board's items asks for the board's size and checks
- * the read against it (issue #72), so a new script cannot leave it out. A
+ * the read against it (issue shyden-labs/repo-template#72), so a new script cannot leave it out. A
  * script reads items when its code (comments stripped) holds `items(first:`.
  */
 const unguardedReaders = (files: { name: string; text: string }[]) =>

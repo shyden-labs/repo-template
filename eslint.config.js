@@ -1,6 +1,6 @@
 /**
  * Lint every code file with typescript-eslint's strict, type-checked rules
- * (issue #61): a finding or an unused disable comment fails `npm run lint`,
+ * (issue shyden-labs/repo-template#61): a finding or an unused disable comment fails `npm run lint`,
  * which runs with no warnings allowed.
  */
 import js from '@eslint/js';

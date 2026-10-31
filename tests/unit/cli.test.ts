@@ -5,7 +5,7 @@ import { runIfEntry } from '../../scripts/cli.ts';
 /**
  * Every script's command-line entry goes through `runIfEntry`, so the branch
  * that decides "was I started, or imported?" lives in one place and is tested
- * here in-process, with a stand-in for `process` (issue #32: every line runs,
+ * here in-process, with a stand-in for `process` (issue shyden-labs/repo-template#32: every line runs,
  * and a unit test starts no process).
  */
 

@@ -1,6 +1,6 @@
 /**
- * Dependabot's group assignment, as dependabot-core does it (issue #39;
- * Shyden 2026-10-20, "global fix please"). Since dependabot-core #13098 a
+ * Dependabot's group assignment, as dependabot-core does it (issue shyden-labs/repo-template#39;
+ * Shyden 2026-10-20, "global fix please"). Since dependabot-core shyden-labs/repo-template#13098 a
  * dependency is offered to every group whose `contains?` is true, and the
  * group whose patterns score highest keeps it: a group with no patterns scores
  * 500, above any wildcard (`actions/cache*` 99, `@vitest/*` 94). So order

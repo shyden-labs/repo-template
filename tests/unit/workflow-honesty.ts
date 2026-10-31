@@ -1,6 +1,6 @@
 /**
  * A check is green only if it ran and passed (Shyden 2026-10-18: "don't pass
- * if it doesn't run"; issue #27). These read a workflow's comment-stripped
+ * if it doesn't run"; issue shyden-labs/repo-template#27). These read a workflow's comment-stripped
  * text and name each way it could pass without doing its job.
  */
 import { withoutYamlComments } from './source-text.ts';

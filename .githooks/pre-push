@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The static checks before every push (issues #61, #65): format, lint and
+# The static checks before every push (issues shyden-labs/repo-template#61, shyden-labs/repo-template#65): format, lint and
 # typecheck on each commit being pushed, each in its own temporary worktree, so
 # an error committed under a fixed working tree, or in an earlier commit of the
 # push, is refused. scripts/pre-push.ts reads git's updates from stdin. No test

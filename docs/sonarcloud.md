@@ -1,7 +1,7 @@
 # SonarCloud
 
 Every repository runs SonarCloud on every pull request, and a failed quality
-gate blocks it (issue #27). Shyden, 2026-10-18: *"it needs to check. we
+gate blocks it (issue shyden-labs/repo-template#27). Shyden, 2026-10-18: *"it needs to check. we
 discussed this already before and i told you to make sure we check the results
 and fail the workflow if it fails"*, after *"don't pass if it doesn't run"*.
 Then, asked how: every project adopts SonarCloud, blocking.
@@ -14,7 +14,7 @@ Then, asked how: every project adopts SonarCloud, blocking.
   analysis, with `scripts/sonar-verdict.ts`. It is green only on `OK`; `ERROR`
   fails, naming each failed condition with its value and threshold.
 - The scan treats `tests/` as tests, not source, and leaves the config files
-  the unit suite does not measure out of coverage (issue #164). A project with
+  the unit suite does not measure out of coverage (issue shyden-labs/repo-template#164). A project with
   other unmeasured files adds them to `sonar.coverage.exclusions`.
 - A verdict it cannot read fails closed, naming why:
   - a missing report (the scan did not run)
@@ -59,7 +59,7 @@ Then, asked how: every project adopts SonarCloud, blocking.
 
 ## Confirmed by the first real scan
 
-repo-template's PR #160 (2026-10-31) confirmed what no document read on
+repo-template's PR shyden-labs/repo-template#160 (2026-10-31) confirmed what no document read on
 2026-10-22 stated:
 
 - The scan action writes `.scannerwork/report-task.txt` holding `ceTaskId`,

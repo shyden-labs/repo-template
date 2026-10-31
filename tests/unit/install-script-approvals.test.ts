@@ -4,13 +4,13 @@ import { yamlLinesWithoutComments } from './source-text.ts';
 
 /**
  * No workflow approves a dependency's install script past package.json's
- * `allowScripts` (issue #78): that field, and `.npmrc` pinned whole beside it
- * (#70), are the only places the decision is made. Read from comment-stripped
+ * `allowScripts` (issue shyden-labs/repo-template#78): that field, and `.npmrc` pinned whole beside it
+ * (shyden-labs/repo-template#70), are the only places the decision is made. Read from comment-stripped
  * text, so a comment naming a flag neither trips the guard nor hides one.
  *
  * What npm 11.20.0 reads as an approval, measured 2026-10-23 with
  * `npm config get` in a scratch project (`@npmcli/config` `loadEnv`, its
- * definitions, and nopt's abbreviations; the table is on #78):
+ * definitions, and nopt's abbreviations; the table is on shyden-labs/repo-template#78):
  * - an option, from the shortest prefix npm expands to it. `--allow-scripts`
  *   has none shorter, since `allow-scripts-pending` and `-pin` share it. A new
  *   npm can only lengthen these; re-measure if it removes a setting.
@@ -213,7 +213,7 @@ describe('the guard', () => {
     ['an option that only starts like userconfig', '      - run: tool --user=y'],
     ['a strict policy', '      - run: npm ci --strict-allow-scripts'],
     ['scripts ignored', '      - run: npm ci --ignore-scripts'],
-    // One letter short of each shortest form npm expands (measured on #78).
+    // One letter short of each shortest form npm expands (measured on shyden-labs/repo-template#78).
     ['allow-scripts one letter short', '      - run: npm ci --allow-script=fsevents'],
     ['the bypass one letter short', '      - run: npm ci --dang'],
     ['userconfig one letter short', '      - run: npm ci --user=other'],

@@ -1,4 +1,4 @@
-// A unit test starts no process and opens no connection (#92). tests/setup/unit-refusal.ts installs these refusals on Node's own
+// A unit test starts no process and opens no connection (shyden-labs/repo-template#92). tests/setup/unit-refusal.ts installs these refusals on Node's own
 // modules before every unit file; a test that needs a process or a socket
 // stands the dependency in, or moves to an integration suite.
 

@@ -19,7 +19,7 @@ const gh = vi.mocked(execFileSync);
 /**
  * Every repository requires pull requests to be up to date with their base
  * ("strict" required checks) on `develop` and `main`, each by a ruleset that
- * names its branch (issue #8). Measured 2026-10-13 in ShyTalk: develop was not
+ * names its branch (issue shyden-labs/repo-template#8). Measured 2026-10-13 in ShyTalk: develop was not
  * strict, and a ruleset named "main" targeted ~DEFAULT_BRANCH, so when develop
  * became the default branch the real `main` kept only no-force-push.
  */
@@ -57,7 +57,7 @@ describe('desiredRuleset', () => {
   });
 
   // Each release merge lands on main and never on squash-only develop, so a
-  // strict main would refuse every cut after the first (#86).
+  // strict main would refuse every cut after the first (shyden-labs/repo-template#86).
   it('does not require main’s checks to be run on an up-to-date branch', () => {
     expect(checksRule(desiredRuleset('main', CHECKS))?.strict_required_status_checks_policy).toBe(false);
   });
@@ -76,7 +76,7 @@ describe('desiredRuleset', () => {
     );
   });
 
-  // #115: a red commit fixed later on a ticket's branch never lands alone on
+  // shyden-labs/repo-template#115: a red commit fixed later on a ticket's branch never lands alone on
   // develop, and a release cut keeps develop's history whole on main.
   it.each([
     ['develop' as const, ['squash']],
@@ -142,7 +142,7 @@ describe('planRulesets', () => {
   });
 
   // A ruleset read without admin rights shows `bypass_actors: null`; a PUT
-  // over it could drop a bypass nobody saw (#115).
+  // over it could drop a bypass nobody saw (shyden-labs/repo-template#115).
   it.each([null, undefined])('refuses to update a ruleset whose bypass list reads %s, naming it', (bypass) => {
     const hidden = { ...existing(11, 'develop', ['refs/heads/develop'], false), bypass_actors: bypass };
     expect(() => planRulesets([hidden], CHECKS)).toThrow(
@@ -280,13 +280,13 @@ describe('auditBranchRules', () => {
   });
 
   // With "Automatically delete head branches" on, merging a develop -> main
-  // release pull request deletes develop unless a rule forbids it (#28).
+  // release pull request deletes develop unless a rule forbids it (shyden-labs/repo-template#28).
   it('names a branch that can be deleted', () => {
     expect(auditBranchRules('develop', [good[1], good[2]])).toEqual(['develop: no rule forbids deleting it']);
   });
 });
 
-// #115: develop takes squashes and main merge commits, so the repository
+// shyden-labs/repo-template#115: develop takes squashes and main merge commits, so the repository
 // allows both, and rebase merging (which neither branch takes) is off.
 const SETTLED = { delete_branch_on_merge: true, allow_rebase_merge: false, allow_squash_merge: true, allow_merge_commit: true };
 
@@ -314,7 +314,7 @@ describe('auditRepoSettings', () => {
   });
 });
 
-// #117: `dev` holds the dev credential, so only `develop` may deploy to it. A
+// shyden-labs/repo-template#117: `dev` holds the dev credential, so only `develop` may deploy to it. A
 // pull_request run uses the pull request's own workflows, so without the
 // policy a same-repository branch could name `environment: dev`.
 const DEVELOP = { id: 1, name: 'develop', type: 'branch' };

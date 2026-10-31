@@ -2,7 +2,7 @@
  * Runs a script's `main` when that script is the program node started, and
  * does nothing when a test imports it. Every script's entry goes through here,
  * so the started-or-imported branch is tested once, in-process, and each
- * script's own last line always runs (issue #32).
+ * script's own last line always runs (issue shyden-labs/repo-template#32).
  *
  *   await runIfEntry(import.meta.url, main);
  *

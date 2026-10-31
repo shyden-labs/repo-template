@@ -2,7 +2,7 @@
  * Fails, naming each, while an open issue on the board is In Progress and
  * nothing is working it: no open pull request names it (`#<n>` in its title or
  * body, a closing reference, or a head branch starting `<n>-`) and no remote
- * branch starts `<n>-` without a closed pull request (issue #10; operator 2026-10-13: "if a ticket is not in
+ * branch starts `<n>-` without a closed pull request (issue shyden-labs/repo-template#10; operator 2026-10-13: "if a ticket is not in
  * progress then it should not be marked as in progress"). Run it in the
  * repository's required PR checks with a token that can read the board:
  *
@@ -64,7 +64,7 @@ export interface ClosedPullRequest {
  * Whether a branch stopped working its ticket: a pull request of it closed
  * unmerged, and none merged (operator 2026-10-13: "Branch counts until its PR
  * closes"). A branch whose pull request merged keeps counting until its ticket
- * closes (global ruling 2026-10-16, issue #114). Fails closed on an entry with no
+ * closes (global ruling 2026-10-16, issue shyden-labs/repo-template#114). Fails closed on an entry with no
  * `mergedAt`, which could otherwise read as unmerged.
  */
 export function isDeadBranch(branch: string, closed: ClosedPullRequest[]): boolean {

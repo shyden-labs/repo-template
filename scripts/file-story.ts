@@ -1,5 +1,5 @@
 /**
- * Files one story the way every project does (issue #20; Shyden 2026-10-16:
+ * Files one story the way every project does (issue shyden-labs/repo-template#20; Shyden 2026-10-16:
  * "the whole procedure"; docs/project-board.md, "Filing a ticket"):
  *
  *   node scripts/file-story.ts <board-node-id> "<board title>" <story.json>
@@ -126,7 +126,7 @@ const SET_OPTION = `mutation($project: ID!, $item: ID!, $field: ID!, $option: St
   updateProjectV2ItemFieldValue(input: { projectId: $project, itemId: $item, fieldId: $field, value: { singleSelectOptionId: $option } }) { clientMutationId } }`;
 // Read through the repository, not the item's node id: the GitHub App router
 // runs a graphql call as a project's App only when its fields name that
-// project's board or repository, and a PVTI_ item id names neither (issue #96).
+// project's board or repository, and a PVTI_ item id names neither (issue shyden-labs/repo-template#96).
 const READ_CARDS = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) { issue(number: $number) { projectItems(first: 50) { nodes { project { id title }
   estimate: fieldValueByName(name: "Estimate") { ... on ProjectV2ItemFieldNumberValue { number } }

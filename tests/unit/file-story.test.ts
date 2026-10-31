@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { boardFields, main, parseStory, type Story } from '../../scripts/file-story.ts';
 
 /**
- * Filing a story the way every project does (issue #20): the story is checked
+ * Filing a story the way every project does (issue shyden-labs/repo-template#20): the story is checked
  * before anything is written, the board is resolved by node id with its title
  * asserted, a title already open is refused, and every field set is read back.
  * `gh` is stood in: no process starts and nothing reaches the network.
@@ -260,7 +260,7 @@ describe('main', () => {
   // as a project's App only when it names that project: a REST path or -R under
   // its repository, or a graphql body (every -f/-F value) naming its board's
   // node id, or its owner and name together. A call naming neither is refused,
-  // so a filing that worked exited 1 (issue #96: a bare PVTI_ item id).
+  // so a filing that worked exited 1 (issue shyden-labs/repo-template#96: a bare PVTI_ item id).
   it('names the repository or the board in every call it makes, as the App router needs', () => {
     reply(...filing());
     // Soft, so a run that throws still reports which calls named nothing.

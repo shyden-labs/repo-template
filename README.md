@@ -1,7 +1,7 @@
 # Shyden Labs repo template
 
 A starter kit: a new Shyden Labs repository starts with CI and repository
-settings already in place, and nothing it doesn't need on day one (#149).
+settings already in place, and nothing it doesn't need on day one (shyden-labs/repo-template#149).
 
 ## What is here
 
@@ -9,8 +9,8 @@ settings already in place, and nothing it doesn't need on day one (#149).
 | --- | --- |
 | `.github/workflows/ci.yml` | On every pull request and every push to `develop`: install, `npm audit` (any known vulnerability fails), typecheck, lint, format check and unit tests (`build-and-test`), then coverage as one overall threshold over the TypeScript under `scripts/` (`coverage`). Its first step fails unless the default branch is `develop`. |
 | `.github/dependabot.yml` | Version updates for npm, GitHub Actions and the Node pin, each targeting `develop`. |
-| `.github/node/Dockerfile` | CI's one exact Node version (`FROM node:<major>.<minor>.<patch>`), bumped by Dependabot as a pull request of its own (#143). |
-| `scripts/npm-ci.ts` | Every workflow installs through it: `npm ci` that fails on any warning npm prints, naming each line (#140). |
+| `.github/node/Dockerfile` | CI's one exact Node version (`FROM node:<major>.<minor>.<patch>`), bumped by Dependabot as a pull request of its own (shyden-labs/repo-template#143). |
+| `scripts/npm-ci.ts` | Every workflow installs through it: `npm ci` that fails on any warning npm prints, naming each line (shyden-labs/repo-template#140). |
 | `.github/workflows/sonarcloud.yml`, `scripts/sonar-verdict.ts`, `docs/sonarcloud.md` | A reusable SonarCloud scan whose quality gate blocks the pull request. |
 | `.github/workflows/check-release-cut.yml`, `scripts/release-cut.ts`, `docs/release-cut.md` | Proves each pull request into `main` lands exactly a release cut CI tested. |
 | `.github/workflows/deploy-dev.yml` | The dev deploy stub: every merge into `develop` deploys to dev; every pull request rehearses it. |
@@ -18,7 +18,7 @@ settings already in place, and nothing it doesn't need on day one (#149).
 | `scripts/board-*.ts`, `scripts/file-story.ts`, `.github/ISSUE_TEMPLATE/story.yml`, `docs/project-board.md` | The project board: filing stories, Estimate and Priority fields, the next ticket, progress, and orphaned In Progress tickets. |
 | `tests/unit/supply-chain.test.ts` | Actions pinned to SHAs, Dependabot covering every ecosystem and targeting `develop`, Node read from the Dockerfile. |
 | `tsconfig.json`, `eslint.config.js`, `.prettierrc.json`, `.githooks/pre-push`, `docs/static-checks.md` | Strict typecheck, lint and format, in CI and before every push. |
-| `package.json` `overrides` | `minimatch` held at 11.0.3, past its ReDoS advisory GHSA-g3hv-75wg-m249, until eslint and typescript-eslint accept minimatch 11 themselves; then remove it (#154). |
+| `package.json` `overrides` | `minimatch` held at 11.0.3, past its ReDoS advisory GHSA-g3hv-75wg-m249, until eslint and typescript-eslint accept minimatch 11 themselves; then remove it (shyden-labs/repo-template#154). |
 | `LICENSE` | Apache-2.0. |
 
 ## The rules
@@ -28,6 +28,7 @@ settings already in place, and nothing it doesn't need on day one (#149).
 3. **`develop` is the default branch**, because GitHub opens Dependabot security fixes against the default branch only.
 4. **Warnings are build failures**: a vite or node warning fails the unit run.
 5. **A unit test runs in under 1 s and starts no process and opens no connection** (`tests/setup/unit-refusal.ts`).
+6. **Comments and docs cite issues in full**, as `owner/repo#N`, never a bare `#N` (`tests/unit/issue-refs.test.ts`; shyden-labs/repo-template#146). A repository made from this template copies every file, so a template reference such as `shyden-labs/repo-template#115` keeps pointing at the template's issue, and the new repository cites its own issues the same way. Test titles and messages are strings and are left as they are.
 
 ## Using it
 

@@ -273,13 +273,13 @@ export interface SizedPage {
 }
 
 /**
- * Refuses a board read that is not whole (issue #72), and returns the board's
+ * Refuses a board read that is not whole (issue shyden-labs/repo-template#72), and returns the board's
  * size: no pages, a page of another board, pages disagreeing on the board's
  * size, or fewer or more items than that size. On 2026-10-22 GitHub's
  * Projects API served 0 and 100 items of a 466-item board, and a reader
  * trusting the pages said nothing was open.
  *
- * A board of 0 items is accepted (issue #75; Shyden 2026-10-23: new and fully
+ * A board of 0 items is accepted (issue shyden-labs/repo-template#75; Shyden 2026-10-23: new and fully
  * archived boards are expected): GitHub's empty page reads the same, so each
  * caller names it with `emptyBoardNote` rather than reporting nothing.
  */

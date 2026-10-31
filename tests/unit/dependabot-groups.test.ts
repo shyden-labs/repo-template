@@ -3,7 +3,7 @@ import { contains, leaks, parseGroups, type Group } from './dependabot-groups.ts
 
 /**
  * Dependabot's group assignment, as dependabot-core does it rather than as
- * GitHub's docs describe it (issue #39; Shyden 2026-10-20, "global fix
+ * GitHub's docs describe it (issue shyden-labs/repo-template#39; Shyden 2026-10-20, "global fix
  * please"). Every group whose `contains?` is true is offered the dependency,
  * and a group with no patterns outscores any wildcard, so order decides
  * nothing: a catch-all must exclude each pattern group's patterns.

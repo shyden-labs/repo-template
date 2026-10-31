@@ -13,11 +13,11 @@ const reply = (...values: unknown[]) => {
 /**
  * A ticket is In Progress only while a branch or an open pull request is working
  * it (operator 2026-10-13: "if a ticket is not in progress then it should not be
- * marked as in progress"; issue #10). Branches here are named `<issue>-<slug>`.
+ * marked as in progress"; issue shyden-labs/repo-template#10). Branches here are named `<issue>-<slug>`.
  * An open pull request always counts. A branch counts until a pull request of it
  * closes unmerged (operator 2026-10-13: "Branch counts until its PR closes"); a
  * branch whose pull request MERGED keeps counting until its ticket closes (global
- * ruling 2026-10-16, issue #114), so merged work awaiting its hand close is no orphan.
+ * ruling 2026-10-16, issue shyden-labs/repo-template#114), so merged work awaiting its hand close is no orphan.
  */
 
 function page(items: { number: number; state: 'OPEN' | 'CLOSED'; status: string | null }[], totalCount = items.length) {
@@ -162,14 +162,14 @@ describe('main', () => {
     expect(() => main(['PVT_1', 'Other', 'shyden-labs/repo'])).toThrow('the board is "Board", not "Other": nothing read');
   });
 
-  // Issue #72: a short page could hide the one In Progress ticket nothing is working.
+  // Issue shyden-labs/repo-template#72: a short page could hide the one In Progress ticket nothing is working.
   it('refuses a short read, reading nothing else', () => {
     reply([page([{ number: 7, state: 'OPEN', status: 'Todo' }], 466)]);
     expect(() => main(ARGS)).toThrow('the board "Board" holds 466 items and 1 were read: a short read, nothing judged');
     expect(gh).toHaveBeenCalledTimes(1);
   });
 
-  // Issue #75: a new repository's empty board must not fail its pull requests.
+  // Issue shyden-labs/repo-template#75: a new repository's empty board must not fail its pull requests.
   it('passes a board of 0 items, naming it, reading nothing else', () => {
     reply([page([])]);
     expect(main(ARGS)).toBe(0);
