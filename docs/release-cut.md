@@ -33,8 +33,10 @@ would then hold merge commits, breaking its squash-only rule.
 So `scripts/branch-rules-setup.ts` makes `develop` strict and `main` not, and
 `main` requires the `release-cut` status in strict's place. Its read-back fails
 when `main` is strict, when `main` does not require `release-cut`, when
-`develop` is not strict, or when `develop` requires `release-cut` (it is never
-posted on pull requests into `develop`, so every merge would wait on it).
+`main`'s checks are enforced on creation, when `develop` is not strict, when
+`develop`'s checks are not enforced on creation, or when `develop` requires
+`release-cut` (it is never posted on pull requests into `develop`, so every
+merge would wait on it).
 
 ## What `release-cut` checks
 
@@ -113,3 +115,9 @@ The rules are set by the operator (rulesets need admin rights):
 Then read back `rules/branches/develop` (the four checks, strict) and
 `rules/branches/main` (the four checks and `release-cut`, not strict), with
 `develop` allowing squash alone and `main` merge commits alone.
+
+`main`'s checks are not enforced when `main` is created (`do_not_enforce_on_create`,
+issue shyden-labs/repo-template#171). Its first commit is never a pull request,
+so no check has run on it, and GitHub would refuse to create `main` at all.
+Every change after that needs the checks. `develop`'s checks are enforced from
+the start.

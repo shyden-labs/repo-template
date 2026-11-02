@@ -15,7 +15,8 @@
  * default branch changes, which is how ShyTalk's `main` lost its rules on
  * 2026-10-13. It creates what is missing, updates what differs, and reads both
  * branches' rules back, failing unless develop is strict and main is not and
- * requires release-cut, and unless develop takes pull requests by squash alone
+ * requires release-cut and lets main be created before its checks have run
+ * (issue shyden-labs/repo-template#171), and unless develop takes pull requests by squash alone
  * and main by merge commit alone (issue shyden-labs/repo-template#115). It sets the repository to
  * delete merged head branches and refuse rebase merges, reads that back, then gives the `dev` environment, which holds the
  * dev credential, a deployment branch policy naming `develop` alone, and reads
@@ -89,6 +90,10 @@ export function desiredRuleset(branch: Branch, checks: string[]): RulesetBody {
         parameters: {
           strict_required_status_checks_policy: branch === 'develop',
           required_status_checks: contexts.map((context) => ({ context })),
+          // A new main's first commit is never a pull request, so it has no checks, and
+          // GitHub answers 422 when main is created unless they wait until after
+          // (shyden-labs/repo-template#171). develop stays enforced from its creation.
+          do_not_enforce_on_create: branch === 'main',
         },
       },
       { type: 'required_signatures' },
@@ -140,6 +145,7 @@ export function planRulesets(existing: ExistingRuleset[], checks: string[]): Rul
 interface ChecksParameters {
   strict_required_status_checks_policy?: boolean;
   required_status_checks?: { context: string }[];
+  do_not_enforce_on_create?: boolean;
 }
 
 /** Every way a branch's rules (as `rules/branches/<branch>` reports them) fall short; empty when none. */
@@ -172,12 +178,18 @@ export function auditBranchRules(branch: Branch, rules: Rule[]): string[] {
     if (requiresReleaseCut) {
       problems.push(`${branch}: a rule requires ${RELEASE_CUT}, which runs only on pull requests into main`);
     }
+    if (checks.some((c) => c.do_not_enforce_on_create === true)) {
+      problems.push(`${branch}: a required-checks rule is not enforced when develop is created`);
+    }
   } else {
     if (checks.some((c) => c.strict_required_status_checks_policy !== false)) {
       problems.push(`${branch}: a required-checks rule is strict, so a second release cut could never merge`);
     }
     if (!requiresReleaseCut) {
       problems.push(`${branch}: no rule requires ${RELEASE_CUT}`);
+    }
+    if (checks.some((c) => c.do_not_enforce_on_create !== true)) {
+      problems.push(`${branch}: a required-checks rule is enforced when main is created, so a new main can never be made`);
     }
   }
   return problems;
