@@ -43,7 +43,7 @@ body:
     id: announce
     attributes:
       label: Announce
-      description: What this lets us tell people once it closes (on the site, the roadmap or the release notes), or "nothing" and why.
+      description: What can be told to people once this closes (on the site, the roadmap or the release notes), or "nothing" and why.
     validations:
       required: true
   - type: textarea
