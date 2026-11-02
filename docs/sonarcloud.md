@@ -1,10 +1,10 @@
 # SonarCloud
 
 Every repository runs SonarCloud on every pull request, and a failed quality
-gate blocks it (issue shyden-labs/repo-template#27). Shyden, 2026-10-18: *"it needs to check. we
-discussed this already before and i told you to make sure we check the results
-and fail the workflow if it fails"*, after *"don't pass if it doesn't run"*.
-Then, asked how: every project adopts SonarCloud, blocking.
+gate blocks it (issue shyden-labs/repo-template#27). Shyden ruled on 2026-10-18 that a scan
+that does not run must fail, and that the results must be checked, failing the
+workflow when the gate fails. Then, asked how: every project adopts SonarCloud,
+blocking.
 
 ## What the template gives you
 

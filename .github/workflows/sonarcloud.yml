@@ -1,6 +1,6 @@
-# The SonarCloud quality gate, blocking (issue shyden-labs/repo-template#27; Shyden 2026-10-18: "don't
-# pass if it doesn't run", "make sure we check the results and fail the
-# workflow if it fails"; then every project adopts it, blocking).
+# The SonarCloud quality gate, blocking (issue shyden-labs/repo-template#27; Shyden's ruling of 2026-10-18:
+# a scan that does not run fails, and the results are checked, failing the
+# workflow when the gate fails; every project adopts it, blocking).
 #
 # Reusable: a project calls it from its pull-request workflow and makes the
 # job a required check (docs/sonarcloud.md has the one-time setup):

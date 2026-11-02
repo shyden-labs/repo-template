@@ -12,9 +12,9 @@ import { leaks, parseGroups } from './dependabot-groups.ts';
  * 1. A MUTABLE TAG is not a version. `actions/checkout@v4` resolves to
  *    whatever the tag points at today, and a tag can be repointed by anyone
  *    who can push to that repo. A compromised or coerced maintainer moves the
- *    tag and every workflow in this repo runs their code, with our secrets,
+ *    tag and every workflow in this repo runs their code, with this repo's secrets,
  *    on the next push. Pinning to a full commit SHA is the only form of this
- *    reference that cannot be changed underneath us.
+ *    reference that cannot be changed underneath it.
  *
  * 2. A PIN THAT NOBODY BUMPS rots. shyden.co.uk sat three majors behind on
  *    both of its actions with no mechanism to notice. So the SHA is only half
@@ -147,7 +147,7 @@ describe('the CI supply chain is pinned', () => {
   });
 
   it('every third-party action is pinned to a full commit SHA', () => {
-    expect(unpinned(externalUses()), 'a mutable tag can be repointed under us').toEqual([]);
+    expect(unpinned(externalUses()), 'a mutable tag can be repointed under the workflow').toEqual([]);
   });
 
   it('names an action pinned to a tag', () => {
@@ -244,7 +244,7 @@ describe('Dependabot keeps the pins from rotting', () => {
  * sets Node 26.3+, and every project runs the same versions as the rest).
  *
  * `ubuntu-latest` and a bare major Node are floating pins: the image or the Node under CI changes on
- * GitHub's schedule, not ours. Node is now `.github/node/Dockerfile` alone. Each
+ * GitHub's schedule, not this repo's. Node is now `.github/node/Dockerfile` alone. Each
  * reader is an allow-list of the one value written, so every other spelling
  * (a list, an expression, a block of labels, another case) fails, naming it.
  */

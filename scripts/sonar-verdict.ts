@@ -1,8 +1,8 @@
 /**
  * Reads SonarCloud's quality-gate verdict for the analysis THIS run's scan
- * made, and passes only on OK (issue shyden-labs/repo-template#27; Shyden 2026-10-18: "don't pass if it
- * doesn't run", "make sure we check the results and fail the workflow if it
- * fails"):
+ * made, and passes only on OK (issue shyden-labs/repo-template#27; Shyden's ruling of 2026-10-18: a
+ * scan that does not run fails, and the results are checked, failing the
+ * workflow when the gate fails):
  *
  *   node scripts/sonar-verdict.ts .scannerwork/report-task.txt
  *

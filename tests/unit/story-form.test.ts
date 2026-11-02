@@ -38,9 +38,9 @@ describe('the story form', () => {
     expect(block('story')).toContain('description: As a <who>, I can <what>, so that <why>.');
   });
 
-  it('asks what this lets us tell people once it closes, or nothing and why', () => {
+  it('asks what can be told to people once it closes, or nothing and why', () => {
     expect(block('announce')).toContain(
-      'What this lets us tell people once it closes (on the site, the roadmap or the release notes), or "nothing" and why.',
+      'What can be told to people once this closes (on the site, the roadmap or the release notes), or "nothing" and why.',
     );
   });
 
