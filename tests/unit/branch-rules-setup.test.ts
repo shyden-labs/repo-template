@@ -70,6 +70,17 @@ describe('desiredRuleset', () => {
     ]);
   });
 
+  // A new main's first commit is never a pull request, so it carries no checks
+  // and GitHub refuses to create main if they are enforced on creation
+  // (shyden-labs/repo-template#171, found as shyden-labs/ShyTalk#70).
+  it('does not enforce main’s checks when main is created', () => {
+    expect(checksRule(desiredRuleset('main', CHECKS))).toMatchObject({ do_not_enforce_on_create: true });
+  });
+
+  it('enforces develop’s checks when develop is created', () => {
+    expect(checksRule(desiredRuleset('develop', CHECKS))).toMatchObject({ do_not_enforce_on_create: false });
+  });
+
   it('refuses release-cut among the named checks, since develop would wait on it forever', () => {
     expect(() => desiredRuleset('develop', ['unit', 'release-cut'])).toThrow(
       'release-cut runs only on pull requests into main: leave it out, and main gets it alone',
@@ -239,9 +250,33 @@ describe('auditBranchRules', () => {
     expect(auditBranchRules('develop', [good[0], good[2]])).toEqual(['develop: no rule requires a pull request']);
   });
 
-  const mainChecks = (strict: boolean, contexts: string[]): Rule => ({
+  const mainChecks = (strict: boolean, contexts: string[], unenforcedOnCreate: boolean | 'omitted' = true): Rule => ({
     type: 'required_status_checks',
-    parameters: { strict_required_status_checks_policy: strict, required_status_checks: contexts.map((context) => ({ context })) },
+    parameters: {
+      strict_required_status_checks_policy: strict,
+      required_status_checks: contexts.map((context) => ({ context })),
+      ...(unenforcedOnCreate === 'omitted' ? {} : { do_not_enforce_on_create: unenforcedOnCreate }),
+    },
+  });
+  const MAIN_ENFORCED_ON_CREATE = 'main: a required-checks rule is enforced when main is created, so a new main can never be made';
+
+  it.each([false, 'omitted' as const])(
+    'names a main whose required checks are enforced on creation (do_not_enforce_on_create %s)',
+    (flag) => {
+      expect(auditBranchRules('main', [good[0], mainPullRequests, mainChecks(false, ['unit', 'release-cut'], flag)])).toEqual([
+        MAIN_ENFORCED_ON_CREATE,
+      ]);
+    },
+  );
+
+  it('names a develop whose required checks are not enforced on creation', () => {
+    expect(auditBranchRules('develop', [good[0], good[1], mainChecks(true, ['unit'], true)])).toEqual([
+      'develop: a required-checks rule is not enforced when develop is created',
+    ]);
+  });
+
+  it('passes a develop that sets do_not_enforce_on_create to false', () => {
+    expect(auditBranchRules('develop', [good[0], good[1], mainChecks(true, ['unit'], false)])).toEqual([]);
   });
 
   it('passes a main that requires release-cut and is not strict', () => {
@@ -259,7 +294,11 @@ describe('auditBranchRules', () => {
     ['develop' as const, ['develop: a required-checks rule is not strict']],
     [
       'main' as const,
-      ['main: a required-checks rule is strict, so a second release cut could never merge', 'main: no rule requires release-cut'],
+      [
+        'main: a required-checks rule is strict, so a second release cut could never merge',
+        'main: no rule requires release-cut',
+        'main: a required-checks rule is enforced when main is created, so a new main can never be made',
+      ],
     ],
   ])('names a %s whose required-checks rule has no parameters', (branch, problems) => {
     expect(auditBranchRules(branch, [good[0], branch === 'main' ? mainPullRequests : good[1], { type: 'required_status_checks' }])).toEqual(
@@ -268,7 +307,7 @@ describe('auditBranchRules', () => {
   });
 
   it('names a develop that requires release-cut, which never runs on its pull requests', () => {
-    expect(auditBranchRules('develop', [good[0], good[1], mainChecks(true, ['unit', 'release-cut'])])).toEqual([
+    expect(auditBranchRules('develop', [good[0], good[1], mainChecks(true, ['unit', 'release-cut'], false)])).toEqual([
       'develop: a rule requires release-cut, which runs only on pull requests into main',
     ]);
   });
@@ -391,7 +430,11 @@ describe('main', () => {
     pullRequests('merge'),
     {
       type: 'required_status_checks',
-      parameters: { strict_required_status_checks_policy: false, required_status_checks: [{ context: 'release-cut' }] },
+      parameters: {
+        strict_required_status_checks_policy: false,
+        required_status_checks: [{ context: 'release-cut' }],
+        do_not_enforce_on_create: true,
+      },
     },
   ];
   const reply = (...values: unknown[]) => {
