@@ -110,6 +110,8 @@ naming the epics, rather than calling the board empty.
   one, until its stories exist.
 - Work after the release is labelled `post-launch`, and it is left out of the
   release-ready figures.
+- An issue closed as not planned or as a duplicate is no work done, so it is
+  left out of the figures too: the count, the total, the pace and the points.
 
 ## Reporting progress
 

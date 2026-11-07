@@ -35,6 +35,7 @@ function item(over: Partial<BoardItem> & { number: number | null }): BoardItem {
     state: 'OPEN',
     createdAt: '2026-09-01T00:00:00Z',
     closedAt: null,
+    stateReason: null,
     estimate: 3,
     labels: [],
     ...over,
@@ -46,8 +47,11 @@ const closedOn = (number: number, day: string, estimate: number | null = 3) =>
     number,
     state: 'CLOSED',
     closedAt: `${day}T12:00:00Z`,
+    stateReason: 'COMPLETED',
     estimate,
   });
+
+const closedAs = (number: number, stateReason: BoardItem['stateReason']) => ({ ...closedOn(number, '2026-10-03'), stateReason });
 
 describe('inScope', () => {
   it('leaves out an epic, which is the sum of its stories', () => {
@@ -60,6 +64,26 @@ describe('inScope', () => {
 
   it('keeps an ordinary story', () => {
     expect(inScope(item({ number: 3 }))).toBe(true);
+  });
+
+  it('keeps a story closed as completed', () => {
+    expect(inScope(closedAs(4, 'COMPLETED'))).toBe(true);
+  });
+
+  it('keeps a closed story that has no close reason', () => {
+    expect(inScope(closedAs(5, null))).toBe(true);
+  });
+
+  it('leaves out a story closed as not planned, which is no work done', () => {
+    expect(inScope(closedAs(6, 'NOT_PLANNED'))).toBe(false);
+  });
+
+  it('leaves out a story closed as a duplicate, which is no work done', () => {
+    expect(inScope(closedAs(7, 'DUPLICATE'))).toBe(false);
+  });
+
+  it('keeps a reopened story', () => {
+    expect(inScope(item({ number: 8, stateReason: 'REOPENED' }))).toBe(true);
   });
 });
 
@@ -84,6 +108,11 @@ describe('progress by tickets', () => {
       TODAY,
     );
     expect(p.tickets.pace).toEqual([0, 1, 0]);
+  });
+
+  it('counts a story closed as not planned or duplicate in neither the closed count, the total nor the pace', () => {
+    const p = progress([closedOn(1, '2026-10-03'), closedAs(2, 'NOT_PLANNED'), closedAs(3, 'DUPLICATE'), item({ number: 4 })], TODAY);
+    expect(p.tickets).toMatchObject({ closed: 1, total: 2, pace: [0, 0, 0, 0, 0, 1, 0] });
   });
 
   it('leaves a closure 7 days before today out of the window', () => {
@@ -122,6 +151,14 @@ describe('progress by effort', () => {
   it('is unavailable while an open in-scope story has no estimate', () => {
     const p = progress([item({ number: 1 }), item({ number: 2, estimate: null })], TODAY);
     expect(p.effort).toEqual({ available: false, scored: 1, open: 2 });
+  });
+
+  it('counts no points for a story closed as not planned', () => {
+    const p = progress(
+      [closedOn(1, '2026-10-03', 5), { ...closedAs(2, 'NOT_PLANNED'), estimate: 8 }, item({ number: 3, estimate: 2 })],
+      TODAY,
+    );
+    expect(p.effort).toMatchObject({ available: true, closedPoints: 5, openPoints: 2 });
   });
 
   it('counts closed points of all points', () => {
@@ -271,6 +308,7 @@ describe('parseItems', () => {
               state: 'CLOSED',
               createdAt: '2026-10-01T00:00:00Z',
               closedAt: '2026-10-03T01:02:03Z',
+              stateReason: 'NOT_PLANNED',
               labels: { nodes: [{ name: 'post-launch' }] },
             },
           },
@@ -283,6 +321,7 @@ describe('parseItems', () => {
         state: 'CLOSED',
         createdAt: '2026-10-01T00:00:00Z',
         closedAt: '2026-10-03T01:02:03Z',
+        stateReason: 'NOT_PLANNED',
         estimate: 5,
         labels: ['post-launch'],
       },
@@ -307,6 +346,14 @@ describe('parseItems', () => {
       ]),
     ]).items;
     expect(read?.estimate).toBeNull();
+  });
+
+  it('reads a missing close reason as null', () => {
+    expect(parseItems([page([issue(9)])]).items[0]?.stateReason).toBeNull();
+  });
+
+  it('asks GitHub for each issue’s close reason', () => {
+    expect(QUERY).toMatch(/\.\.\. on Issue \{[^}]*\bstateReason\b/);
   });
 
   it('leaves a pull request out of the count, by number', () => {
@@ -334,6 +381,7 @@ describe('parseItems', () => {
           state: 'OPEN',
           createdAt: '2026-10-02T00:00:00Z',
           closedAt: null,
+          stateReason: null,
           estimate: 5,
           labels: [],
         },
