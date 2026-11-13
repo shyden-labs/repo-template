@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { withoutYamlComments, withoutYamlQuotes, yamlBlock as topLevel } from './source-text.ts';
 
 /**
@@ -31,8 +31,8 @@ describe('deploy-dev', () => {
     );
   });
 
-  // What keeps the credential out of a pull request is dev letting only develop
-  // deploy (shyden-labs/repo-template#117); this line only picks an environment a pull request may use.
+  // Every branch may deploy to dev (shyden-labs/repo-template#185; global rule, Shyden 2026-11-13), so a
+  // branch started by hand deploys. A pull request still rehearses with no credential by default.
   it('deploys from the dev environment, and rehearses in dev-rehearsal, which holds no credential', () => {
     const jobs = topLevel(workflow(), 'jobs').split('\n');
     expect(jobs).toContain('    environment: ${{ github.event_name == pull_request && dev-rehearsal || dev }}');
@@ -87,5 +87,21 @@ describe('deploy-dev', () => {
       '          echo ::error title=deploy-dev is not filled in::Replace this step with the projects own dev deploy, acting only on the areas in changed-files.txt, and deploying nothing when DEPLOY_REHEARSAL is true (README, Using it, step 7).',
       '          exit 1',
     ]);
+  });
+
+  // shyden-labs/repo-template#185: no ref guard stops a hand-started run from any branch deploying.
+  it('deploys from whichever branch it was started on, with no check of the ref', () => {
+    expect(workflow()).not.toMatch(/github\.ref\b|github\.head_ref|GITHUB_REF\b/);
+  });
+});
+
+// shyden-labs/repo-template#185: `dev` lets every branch deploy, and fork pull requests get no secrets
+// because only pull_request_target runs with them, so no workflow on it may name an environment.
+// (release-cut runs on it, naming none and running none of the pull request's code.)
+describe('every workflow', () => {
+  const dir = '.github/workflows';
+  it.each(readdirSync(dir).filter((f) => /\.ya?ml$/.test(f)))('%s names no environment if it runs on pull_request_target', (file) => {
+    const text = withoutYamlComments(readFileSync(`${dir}/${file}`, 'utf8'));
+    expect(text.includes('pull_request_target') && /^\s+environment:/m.test(text)).toBe(false);
   });
 });
