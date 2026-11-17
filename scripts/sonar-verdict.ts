@@ -13,7 +13,9 @@
  * ?analysisId=`), never the project's latest. ERROR fails naming each failed
  * condition with its value and threshold. A missing token, an API error, a
  * failed task, no analysis, a task for another pull request, or any status but
- * OK fails closed, naming what was missing. Auth is `Authorization: Bearer`.
+ * OK fails closed, naming what was missing. Auth is `Authorization: Bearer`,
+ * sent to https://sonarcloud.io alone: a report naming any other server fails
+ * before the token leaves (shyden-labs/repo-template#193).
  *
  * Unconfirmed until the first real scan (docs/sonarcloud.md): that the scan
  * action writes `.scannerwork/report-task.txt` with these keys, and that the
@@ -37,6 +39,9 @@ interface ProjectStatus {
 }
 
 const STEP_MS = 5000;
+
+/** The only server the token is sent to (shyden-labs/repo-template#193). */
+const SONARCLOUD = 'https://sonarcloud.io';
 
 function fail(message: string): never {
   throw new Error(`sonar-verdict: ${message}`);
@@ -79,10 +84,9 @@ function summary(body: string): void {
 }
 
 export async function main(args: string[]): Promise<number> {
-  const [path, ...rest] = args;
-  if (path === undefined || rest.length > 0) throw new Error('usage: node scripts/sonar-verdict.ts <.scannerwork/report-task.txt>');
+  if (args.length !== 1) throw new Error('usage: node scripts/sonar-verdict.ts <.scannerwork/report-task.txt>');
   try {
-    const { ok, lines, dashboardUrl } = await judge(path);
+    const { ok, lines, dashboardUrl } = await judge(String(args[0]));
     summary(`The scan ran. ${lines.join('; ')}\n\n${dashboardUrl}`);
     for (const line of lines) (ok ? process.stdout : process.stderr).write(`sonar-verdict: ${line}\n`);
     process.stdout.write(`sonar-verdict: ${dashboardUrl}\n`);
@@ -98,11 +102,14 @@ async function judge(path: string): Promise<{ ok: boolean; lines: string[]; dash
   const token = process.env.SONAR_TOKEN;
   if (!token) {
     return fail(
-      'SONAR_TOKEN is empty; set it as an Actions secret, and as a Dependabot secret for Dependabot pull requests (docs/sonarcloud.md)',
+      'SONAR_TOKEN is empty; set it in the sonarcloud environment, and as a Dependabot secret for Dependabot pull requests (docs/sonarcloud.md)',
     );
   }
   if (!existsSync(path)) fail(`no report-task.txt at ${path}: the scan did not run`);
   const report = parseReportTask(readFileSync(path, 'utf8'));
+  if (report.serverUrl !== SONARCLOUD) {
+    fail(`report-task.txt names the server ${JSON.stringify(report.serverUrl)}, not ${SONARCLOUD}; the token is sent to SonarCloud only`);
+  }
   const ceiling = Number(process.env.SONAR_CEILING_SECONDS || 300);
   let task: {
     status: string;

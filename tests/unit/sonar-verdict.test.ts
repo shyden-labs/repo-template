@@ -124,9 +124,23 @@ describe('main', () => {
   it('fails, naming the key and where it is set, when the token is missing', async () => {
     vi.stubEnv('SONAR_TOKEN', '');
     await expect(run()).rejects.toThrow(
-      'sonar-verdict: SONAR_TOKEN is empty; set it as an Actions secret, and as a Dependabot secret for Dependabot pull requests (docs/sonarcloud.md)',
+      'sonar-verdict: SONAR_TOKEN is empty; set it in the sonarcloud environment, and as a Dependabot secret for Dependabot pull requests (docs/sonarcloud.md)',
     );
   });
+
+  // Issue shyden-labs/repo-template#193: the token goes to SonarCloud alone, whatever server
+  // report-task.txt names; a rewritten report cannot send it elsewhere.
+  it.each(['https://evil.example', 'http://sonarcloud.io', 'https://sonarcloud.io.evil.example', 'https://sonarcloud.io/', ''])(
+    'refuses the server %j before sending the token anywhere',
+    async (server) => {
+      writeFileSync(join(dir, 'report-task.txt'), REPORT.replace('serverUrl=https://sonarcloud.io', `serverUrl=${server}`));
+      answer(task('SUCCESS'), gate('OK'));
+      await expect(run()).rejects.toThrow(
+        `sonar-verdict: report-task.txt names the server ${JSON.stringify(server)}, not https://sonarcloud.io; the token is sent to SonarCloud only`,
+      );
+      expect(fetched).toEqual([]);
+    },
+  );
 
   it("reads this scan's task, then the gate of the analysis it made, and passes OK", async () => {
     answer(task('SUCCESS'), gate('OK'));
@@ -254,5 +268,19 @@ describe('main', () => {
   ])('fails closed on an API error reading %s', async (_what, replies, message) => {
     answer(...(replies as [number, unknown][]));
     await expect(run()).rejects.toThrow(message);
+  });
+});
+
+// Issue shyden-labs/repo-template#193: the scan job runs no npm, so the reader holding the token
+// loads Node's built-ins and this repository's own files, never an installed package.
+describe('what the reader loads', () => {
+  // Every form that loads a module: `import … from`, a bare `import '…'`, and `import('…')`.
+  const importsOf = (file: string) =>
+    [...readFileSync(file, 'utf8').matchAll(/\bfrom\s+'([^']+)'|^import\s+'([^']+)'|\bimport\(\s*'([^']+)'/gm)].map(
+      (m) => m[1] ?? m[2] ?? m[3],
+    );
+
+  it.each(['scripts/sonar-verdict.ts', 'scripts/cli.ts'])('%s imports only node: built-ins and the reader itself', (file) => {
+    expect(importsOf(file).filter((spec) => !spec?.startsWith('node:') && spec !== './cli.ts')).toEqual([]);
   });
 });

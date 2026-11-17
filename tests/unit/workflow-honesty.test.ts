@@ -26,16 +26,73 @@ describe('every workflow', () => {
   });
 });
 
-describe('sonarcloud.yml', () => {
+/** Each job of a workflow, by id, as its own text (comments dropped). */
+const jobsOf = (text: string): Record<string, string> => {
+  const body = withoutYamlComments(text).split(/^jobs:\n/m)[1] ?? '';
+  return Object.fromEntries(
+    body
+      .split(/^(?= {2}[\w-]+:\n)/m)
+      .filter((chunk) => /^ {2}[\w-]+:\n/.test(chunk))
+      .map((chunk) => [chunk.slice(2, chunk.indexOf(':')), chunk]),
+  );
+};
+
+// Issue shyden-labs/repo-template#193: the token never shares a job with a dependency install or
+// the branch's own code. One job installs and runs the coverage suite holding no secret, and hands
+// on only coverage/lcov.info; the scan job keeps the id `sonarcloud`, the required check's name.
+describe('sonarcloud.yml keeps the token away from installed code', () => {
+  const jobs = jobsOf(read('sonarcloud.yml'));
+
+  it('has a coverage job and a scan job', () => {
+    expect(Object.keys(jobs)).toEqual(['coverage-report', 'sonarcloud']);
+  });
+
+  it('runs the coverage suite holding no secret, handing on only coverage/lcov.info', () => {
+    const job = withoutPinnedShas(jobs['coverage-report'] ?? '');
+    expect({
+      secrets: job.includes('secrets.'),
+      environment: job.includes('environment:'),
+      runsSuite: job.includes('      - run: npm run test:coverage\n'),
+      upload: job.includes(
+        [
+          '      - uses: actions/upload-artifact@<sha>',
+          '        with:',
+          '          name: coverage-lcov',
+          '          path: coverage/lcov.info',
+          '          if-no-files-found: error',
+        ].join('\n'),
+      ),
+    }).toEqual({ secrets: false, environment: false, runsSuite: true, upload: true });
+  });
+
+  it('scans in a fresh checkout that runs no npm, reading the token from the sonarcloud environment', () => {
+    const job = withoutPinnedShas(jobs.sonarcloud ?? '');
+    expect({
+      npm: /\bnpm\b/.test(job),
+      needs: job.includes('    needs: coverage-report\n'),
+      environment: job.includes('    environment: sonarcloud\n'),
+      download: job.includes(
+        [
+          '      - uses: actions/download-artifact@<sha>',
+          '        with:',
+          '          name: coverage-lcov',
+          '          path: coverage',
+        ].join('\n'),
+      ),
+      host: job.includes('            -Dsonar.host.url=https://sonarcloud.io\n'),
+    }).toEqual({ npm: false, needs: true, environment: true, download: true, host: true });
+  });
+
   it('fails first when the token is missing, naming the key and where it is set', () => {
-    expect(withoutPinnedShas(withoutYamlComments(read('sonarcloud.yml')))).toContain(
+    expect(withoutPinnedShas(jobs.sonarcloud ?? '')).toContain(
       [
+        '    steps:',
         '      - name: The SonarCloud token is set',
         '        env:',
         '          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}',
         '        run: |',
         '          if [ -z "$SONAR_TOKEN" ]; then',
-        '            echo "::error title=SONAR_TOKEN is missing::Set SONAR_TOKEN as an Actions secret, and as a Dependabot secret for Dependabot pull requests (docs/sonarcloud.md)."',
+        '            echo "::error title=SONAR_TOKEN is missing::Set SONAR_TOKEN in the sonarcloud environment, and as a Dependabot secret for Dependabot pull requests (docs/sonarcloud.md)."',
         '            exit 1',
         '          fi',
         '      - uses: actions/checkout@<sha>',
@@ -43,6 +100,16 @@ describe('sonarcloud.yml', () => {
     );
   });
 
+  // The docs (reusing-workflows, read 2026-11-17): the caller must still pass the secret, or an
+  // environment secret resolves to an empty string in the called workflow, with no error.
+  it("is called with the caller's secrets passed on", () => {
+    expect(read('ci.yml')).toContain(
+      '    uses: ./.github/workflows/sonarcloud.yml\n    with:\n      organization: shyden-labs\n      project-key: shyden-labs_repo-template\n    secrets: inherit\n',
+    );
+  });
+});
+
+describe('sonarcloud.yml', () => {
   it('scans, then reads the verdict of that scan', () => {
     const text = read('sonarcloud.yml');
     expect({ scans: text.includes('SonarSource/sonarqube-scan-action@'), problems: scanWithoutVerdict('sonarcloud.yml', text) }).toEqual({
