@@ -329,9 +329,8 @@ export function main(args: string[]): number {
   if (id === undefined || title === undefined) {
     throw new Error('usage: node scripts/board-progress.ts <board-node-id> "<board title>"');
   }
-  const out = execFileSync('gh', ['api', 'graphql', '--paginate', '--slurp', '-f', `query=${QUERY}`, '-f', `id=${id}`], {
-    encoding: 'utf8',
-  });
+  const query = ['api', 'graphql', '--paginate', '--slurp', '-f', `query=${QUERY}`, '-f', `id=${id}`];
+  const out = execFileSync('gh', query, { encoding: 'utf8' }); // NOSONAR: gh is found on PATH by design, its folder differs on the Mac and on CI (shyden-labs/repo-template#188)
   const pages = JSON.parse(out) as RawPage[];
   if (assertWholeRead(pages, title) === 0) {
     process.stdout.write(`${emptyBoardNote(title)}: no progress to report.\n`);

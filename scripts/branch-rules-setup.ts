@@ -235,7 +235,7 @@ export function auditDevEnvironment(env: DevEnvironment | undefined): string[] {
 
 /** gh's JSON answer. */
 function gh(args: string[], input?: string): unknown {
-  return JSON.parse(execFileSync('gh', args, { encoding: 'utf8', input }));
+  return JSON.parse(execFileSync('gh', args, { encoding: 'utf8', input })); // NOSONAR: gh is found on PATH by design, its folder differs on the Mac and on CI (shyden-labs/repo-template#188)
 }
 
 type ListedEnvironment = DevEnvironment & { name: string; protection_rules?: { type: string }[] };

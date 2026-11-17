@@ -77,7 +77,7 @@ export function planPriorityField(fields: Field[]): 'create' | 'exists' {
 function gql(query: string, vars: Record<string, string>): unknown {
   const args = ['api', 'graphql', '-f', `query=${query}`];
   for (const [k, v] of Object.entries(vars)) args.push('-f', `${k}=${v}`);
-  return JSON.parse(execFileSync('gh', args, { encoding: 'utf8' }));
+  return JSON.parse(execFileSync('gh', args, { encoding: 'utf8' })); // NOSONAR: gh is found on PATH by design, its folder differs on the Mac and on CI (shyden-labs/repo-template#188)
 }
 
 interface Board {

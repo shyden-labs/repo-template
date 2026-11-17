@@ -1,1 +1,2 @@
 FROM node:26.13.0
+USER node

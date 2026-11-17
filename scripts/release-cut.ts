@@ -127,7 +127,7 @@ export function parseRemoteHead(lsRemote: string, ref: string, question: string)
 }
 
 function git(args: string[]): string {
-  return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); // NOSONAR: git is found on PATH by design, its folder differs on the Mac and on CI (shyden-labs/repo-template#188)
 }
 
 /** Whether `sha` is on develop. git answers 0 (yes) or 1 (no); anything else is an error, never a no. */
