@@ -1,5 +1,10 @@
 # Shyden Labs repo template
 
+**Progress page:** none for repo-template itself. A new project replaces
+this line with a link to its own progress page (a Claude artifact, also
+listed in `~/.claude/progress-pages.json`) when it is created
+(shyden-labs/repo-template#198).
+
 A starter kit: a new Shyden Labs repository starts with CI and repository
 settings already in place, and nothing it doesn't need on day one (shyden-labs/repo-template#149).
 
