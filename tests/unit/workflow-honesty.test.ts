@@ -53,10 +53,13 @@ describe('sonarcloud.yml', () => {
 
   // Issue shyden-labs/repo-template#164: without these, the scanner judged tests/ and the config files as
   // uncovered source, failing the coverage gate of a fully covered pull request.
+  // Issue shyden-labs/repo-template#187: sonar.tests without sonar.sources left the scanner indexing
+  // tests/ alone, so from 2026-10-31 the gate passed on no source code at all.
   it('scans tests as tests and judges coverage only on what the unit suite measures', () => {
     expect(read('sonarcloud.yml')).toContain(
       [
         '            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info',
+        '            -Dsonar.sources=.',
         '            -Dsonar.tests=tests',
         '            -Dsonar.exclusions=tests/**',
         '            -Dsonar.coverage.exclusions=eslint.config.js,vitest.unit.config.ts',
