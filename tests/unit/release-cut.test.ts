@@ -489,7 +489,9 @@ describe('check-release-cut.yml', () => {
   });
 
   it('can read the repository and write commit statuses, nothing more', () => {
-    expect(yamlBlock(workflow('check-release-cut.yml'), 'permissions')).toBe('permissions:\n  contents: read\n  statuses: write');
+    expect(yamlBlock(workflow('check-release-cut.yml'), 'permissions', '    ')).toBe(
+      '    permissions:\n      contents: read\n      statuses: write',
+    );
   });
 
   // main requires the release-cut status the job posts; the job's own check run carries another name, so it is never taken for it.

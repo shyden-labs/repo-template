@@ -15,12 +15,13 @@ on:
   pull_request_target:
     branches: [main]
 
-permissions:
-  contents: read
-  statuses: write
+permissions: {}
 
 jobs:
   judge-release-cut:
+    permissions:
+      contents: read
+      statuses: write
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:

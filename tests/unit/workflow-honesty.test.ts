@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
-import { withoutPinnedShas, withoutYamlComments } from './source-text.ts';
+import { withoutPinnedShas, withoutYamlComments, yamlBlock } from './source-text.ts';
 import { scanWithoutVerdict, swallowed, tokenGated } from './workflow-honesty.ts';
 
 /**
@@ -106,6 +106,45 @@ describe('sonarcloud.yml keeps the token away from installed code', () => {
     expect(read('ci.yml')).toContain(
       '    uses: ./.github/workflows/sonarcloud.yml\n    with:\n      organization: shyden-labs\n      project-key: shyden-labs_repo-template\n    secrets: inherit\n',
     );
+  });
+});
+
+// SonarCloud's githubactions:S8264 (PR shyden-labs/repo-template#194): a permission granted at
+// workflow level reaches every job. Each workflow grants nothing at its top; each job is granted
+// only what it uses.
+describe('every workflow grants permissions per job, least first', () => {
+  it.each(files)('%s grants nothing at workflow level', (file) => {
+    expect(
+      read(file)
+        .split('\n')
+        .filter((line) => line.startsWith('permissions:')),
+    ).toEqual(['permissions: {}']);
+  });
+
+  it.each([
+    ['check-release-cut.yml', 'judge-release-cut', ['contents: read', 'statuses: write']],
+    ['ci.yml', 'build-and-test', ['contents: read']],
+    ['ci.yml', 'coverage', ['contents: read']],
+    ['ci.yml', 'sonarcloud', ['contents: read', 'pull-requests: read']],
+    ['deploy-dev.yml', 'deploy-dev', ['contents: read']],
+    ['sonarcloud.yml', 'coverage-report', ['contents: read']],
+    ['sonarcloud.yml', 'sonarcloud', ['contents: read', 'pull-requests: read']],
+  ])('%s job %s is granted %j', (file, job, grants) => {
+    expect(yamlBlock(jobsOf(read(file))[job] ?? '', 'permissions', '    ')).toBe(
+      ['    permissions:', ...grants.map((g) => `      ${g}`)].join('\n'),
+    );
+  });
+
+  it('judges every job of every workflow', () => {
+    expect(files.flatMap((file) => Object.keys(jobsOf(read(file))).map((job) => `${file} ${job}`))).toEqual([
+      'check-release-cut.yml judge-release-cut',
+      'ci.yml build-and-test',
+      'ci.yml coverage',
+      'ci.yml sonarcloud',
+      'deploy-dev.yml deploy-dev',
+      'sonarcloud.yml coverage-report',
+      'sonarcloud.yml sonarcloud',
+    ]);
   });
 });
 

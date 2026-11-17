@@ -39,12 +39,12 @@ on:
       SONAR_TOKEN:
         required: false
 
-permissions:
-  contents: read
-  pull-requests: read
+permissions: {}
 
 jobs:
   coverage-report:
+    permissions:
+      contents: read
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
@@ -68,6 +68,9 @@ jobs:
           retention-days: 1
 
   sonarcloud:
+    permissions:
+      contents: read
+      pull-requests: read
     needs: coverage-report
     runs-on: ubuntu-26.04
     timeout-minutes: 20

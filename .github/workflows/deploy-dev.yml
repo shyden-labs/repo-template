@@ -28,11 +28,12 @@ concurrency:
   group: ${{ github.event_name == 'pull_request' && format('deploy-dev-rehearsal-{0}', github.event.pull_request.number) || 'deploy-dev' }}
   cancel-in-progress: false
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   deploy-dev:
+    permissions:
+      contents: read
     # The template itself hosts nothing, so its own develop skips the deploy
     # rather than failing on every merge (shyden-labs/repo-template#43, Shyden 2026-10-27). Its pull
     # requests still rehearse, so the rehearsal is proved here before any
