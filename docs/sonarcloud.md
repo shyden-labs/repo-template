@@ -13,6 +13,14 @@ blocking.
   fails the job). It then scans and reads the quality gate of that scan's
   analysis, with `scripts/sonar-verdict.ts`. It is green only on `OK`; `ERROR`
   fails, naming each failed condition with its value and threshold.
+- A branch analysis (a push to `develop`) that indexed no source files fails,
+  naming why, even when the gate says `OK`: an empty analysis passes the gate
+  on nothing (issue shyden-labs/repo-template#191). A pull request analysis
+  counts only the files the pull request changed, so one that changes only
+  docs has no `files` measure; it is judged by its gate alone, and the push
+  to `develop` after it carries the check. Measured 2026-11-17: `develop`
+  indexed 22 files, none of them Markdown; PR 189, which changed one workflow
+  and one test, counted 1.
 - The scan treats `tests/` as tests, not source, and leaves the config files
   the unit suite does not measure out of coverage (issue shyden-labs/repo-template#164). A project with
   other unmeasured files adds them to `sonar.coverage.exclusions`.

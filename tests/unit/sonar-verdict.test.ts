@@ -203,10 +203,45 @@ describe('main', () => {
     await expect(run()).rejects.toThrow('sonar-verdict: task AX1 analysed pull request 6, not 7: a verdict for another commit');
   });
 
-  it('accepts a task that names no pull request when none is expected', async () => {
+  // A branch analysis (a push to develop) is the whole project, so it must have indexed source files.
+  // A pull request analysis counts only the files the PR changed (PR 189 counted 1), so a docs-only
+  // PR has no `files` measure at all and is judged by its gate alone (shyden-labs/repo-template#191).
+  const branchTask = () => task('SUCCESS', { pullRequest: undefined, componentKey: 'shyden-labs_x', branch: 'develop' });
+  const files = (value?: string) =>
+    [200, { component: { measures: value === undefined ? [] : [{ metric: 'files', value }] } }] as [number, unknown];
+
+  it('passes a branch analysis that indexed source files, reading the files of that branch', async () => {
     vi.stubEnv('SONAR_PULL_REQUEST', '');
-    answer(task('SUCCESS', { pullRequest: undefined }), gate('OK'));
+    answer(branchTask(), files('22'), gate('OK'));
     expect(await run()).toBe(0);
+    expect(fetched[1]).toBe(
+      'https://sonarcloud.io/api/measures/component?component=shyden-labs_x&branch=develop&metricKeys=files Bearer tok',
+    );
+  });
+
+  it.each([
+    ['0', 'files is 0'],
+    [undefined, 'no files measure'],
+  ])('fails closed on a branch analysis that indexed no source files (files %s)', async (value, why) => {
+    vi.stubEnv('SONAR_PULL_REQUEST', '');
+    answer(branchTask(), files(value));
+    await expect(run()).rejects.toThrow(
+      `sonar-verdict: analysis AN1 of branch develop indexed no source files (${why}); check sonar.sources, the gate passes on nothing`,
+    );
+  });
+
+  it('judges a pull request analysis by its gate alone, as a docs-only PR has no files measure', async () => {
+    answer(task('SUCCESS'), gate('OK'));
+    expect(await run()).toBe(0);
+    expect(fetched.some((f) => f.includes('/api/measures/'))).toBe(false);
+  });
+
+  it('fails closed on an API error reading the files of a branch', async () => {
+    vi.stubEnv('SONAR_PULL_REQUEST', '');
+    answer(branchTask(), [500, {}]);
+    await expect(run()).rejects.toThrow(
+      'sonar-verdict: GET https://sonarcloud.io/api/measures/component?component=shyden-labs_x&branch=develop&metricKeys=files answered 500; no verdict to read',
+    );
   });
 
   it.each([

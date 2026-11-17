@@ -104,7 +104,14 @@ async function judge(path: string): Promise<{ ok: boolean; lines: string[]; dash
   if (!existsSync(path)) fail(`no report-task.txt at ${path}: the scan did not run`);
   const report = parseReportTask(readFileSync(path, 'utf8'));
   const ceiling = Number(process.env.SONAR_CEILING_SECONDS || 300);
-  let task: { status: string; analysisId?: string; pullRequest?: string; errorMessage?: string };
+  let task: {
+    status: string;
+    analysisId?: string;
+    pullRequest?: string;
+    errorMessage?: string;
+    componentKey?: string;
+    branch?: string;
+  };
   for (let waited = 0; ; waited += STEP_MS / 1000) {
     task = ((await get(`${report.serverUrl}/api/ce/task?id=${report.ceTaskId}`, token)) as { task: typeof task }).task;
     if (task.status !== 'PENDING' && task.status !== 'IN_PROGRESS') break;
@@ -119,12 +126,34 @@ async function judge(path: string): Promise<{ ok: boolean; lines: string[]; dash
   if (pullRequest !== '' && task.pullRequest !== pullRequest) {
     fail(`task ${report.ceTaskId} analysed pull request ${String(task.pullRequest)}, not ${pullRequest}: a verdict for another commit`);
   }
+  if (task.pullRequest === undefined) await requireSourceFiles(report.serverUrl, token, task, task.analysisId);
   const status = (
     (await get(`${report.serverUrl}/api/qualitygates/project_status?analysisId=${task.analysisId}`, token)) as {
       projectStatus: ProjectStatus;
     }
   ).projectStatus;
   return { ...verdict(status), dashboardUrl: report.dashboardUrl };
+}
+
+/**
+ * A branch analysis is the whole project, so it must have indexed source files: an empty one
+ * passes the gate on nothing (shyden-labs/repo-template#187). A pull request analysis counts only
+ * the files the PR changed, so a docs-only PR has no `files` measure; it is judged by its gate.
+ */
+async function requireSourceFiles(
+  serverUrl: string,
+  token: string,
+  task: { componentKey?: string; branch?: string },
+  analysisId: string,
+): Promise<void> {
+  const url = `${serverUrl}/api/measures/component?component=${String(task.componentKey)}&branch=${String(task.branch)}&metricKeys=files`;
+  const { component } = (await get(url, token)) as { component: { measures: { metric: string; value: string }[] } };
+  const files = component.measures.find((m) => m.metric === 'files')?.value;
+  if (files === undefined || Number(files) === 0) {
+    fail(
+      `analysis ${analysisId} of branch ${String(task.branch)} indexed no source files (${files === undefined ? 'no files measure' : `files is ${files}`}); check sonar.sources, the gate passes on nothing`,
+    );
+  }
 }
 
 await runIfEntry(import.meta.url, main);
