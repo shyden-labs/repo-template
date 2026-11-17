@@ -20,7 +20,7 @@ export function warnings(output: string): string[] {
 }
 
 export function main(): number {
-  const run = spawnSync('npm', ['ci'], { encoding: 'utf8', stdio: ['inherit', 'pipe', 'pipe'] });
+  const run = spawnSync('npm', ['ci'], { encoding: 'utf8', stdio: ['inherit', 'pipe', 'pipe'] }); // NOSONAR: npm is found on PATH by design, its folder differs on the Mac and on CI (shyden-labs/repo-template#188)
   if (run.error) throw new Error(`npm ci did not run: ${run.error.message}`);
   process.stdout.write(run.stdout);
   process.stderr.write(run.stderr);

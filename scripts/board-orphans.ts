@@ -98,7 +98,7 @@ export const QUERY = `query($id: ID!, $endCursor: String) {
 const PR_LIMIT = 500;
 
 function gh(args: string[]): unknown {
-  return JSON.parse(execFileSync('gh', args, { encoding: 'utf8', maxBuffer: 64e6 }));
+  return JSON.parse(execFileSync('gh', args, { encoding: 'utf8', maxBuffer: 64e6 })); // NOSONAR: gh is found on PATH by design, its folder differs on the Mac and on CI (shyden-labs/repo-template#188)
 }
 
 export function main(args: string[]): number {

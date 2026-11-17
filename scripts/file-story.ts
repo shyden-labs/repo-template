@@ -113,7 +113,7 @@ export function boardFields(fields: Field[], story: Story) {
   };
 }
 
-const gh = (args: string[]): unknown => JSON.parse(execFileSync('gh', args, { encoding: 'utf8' }));
+const gh = (args: string[]): unknown => JSON.parse(execFileSync('gh', args, { encoding: 'utf8' })); // NOSONAR: gh is found on PATH by design, its folder differs on the Mac and on CI (shyden-labs/repo-template#188)
 
 const READ_BOARD = `query($id: ID!) { node(id: $id) { ... on ProjectV2 { title
   fields(first: 50) { nodes { ... on ProjectV2FieldCommon { id name dataType }
