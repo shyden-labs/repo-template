@@ -8,11 +8,21 @@ blocking.
 
 ## What the template gives you
 
-- `.github/workflows/sonarcloud.yml`, a reusable workflow. It fails when
-  `SONAR_TOKEN` is missing, and runs the coverage command (a failure there
-  fails the job). It then scans and reads the quality gate of that scan's
-  analysis, with `scripts/sonar-verdict.ts`. It is green only on `OK`; `ERROR`
-  fails, naming each failed condition with its value and threshold.
+- `.github/workflows/sonarcloud.yml`, a reusable workflow with two jobs, so
+  the token never shares a job with a dependency install or the branch's own
+  code (issue shyden-labs/repo-template#193):
+  - `coverage-report` installs the dependencies and runs the coverage command
+    (a failure there fails the check). It holds no secret, and hands on only
+    `coverage/lcov.info`.
+  - `sonarcloud`, the required check, checks out afresh and runs no npm. It
+    reads `SONAR_TOKEN` from the `sonarcloud` environment and fails when the
+    token is missing. It scans that coverage against `https://sonarcloud.io`,
+    then reads the quality gate of that scan's analysis with
+    `scripts/sonar-verdict.ts`, which loads Node's built-ins alone. It is green
+    only on `OK`; `ERROR` fails, naming each failed condition with its value
+    and threshold.
+- The verdict reader sends the token to `https://sonarcloud.io` alone. A
+  `report-task.txt` naming any other server fails before the token is sent.
 - A branch analysis (a push to `develop`) that indexed no source files fails,
   naming why, even when the gate says `OK`: an empty analysis passes the gate
   on nothing (issue shyden-labs/repo-template#191). A pull request analysis
@@ -49,12 +59,17 @@ blocking.
 3. In **Administration → New Code**, set the new-code definition to
    **Previous version**, or to the branch your project diffs against.
 4. Under **My Account → Security**, generate a token.
-5. In the GitHub repository, open **Settings → Secrets and variables →
-   Actions** and add it as `SONAR_TOKEN`. Then do the same under **Dependabot**
-   secrets: Dependabot pull requests don't receive Actions secrets, and they
-   are scanned too.
-6. Call the workflow from the pull-request workflow, and make its job a
-   required check on `develop` and `main`:
+5. In the GitHub repository, open **Settings → Environments**, create
+   `sonarcloud` (no reviewers; deployment branches: no restriction), and add
+   the token to it as the secret `SONAR_TOKEN`. Keep no repository-level
+   `SONAR_TOKEN`: secrets live in environments. Then add it under **Secrets and
+   variables → Dependabot** as `SONAR_TOKEN` too: GitHub's docs say a
+   Dependabot run receives Dependabot secrets only, and Dependabot pull
+   requests are scanned too.
+6. Call the workflow from the pull-request workflow, and make its
+   `sonarcloud / sonarcloud` job a required check on `develop` and `main`.
+   Keep `secrets: inherit`: GitHub resolves an environment secret the caller
+   did not pass to an empty string in the called workflow.
 
    ```yaml
    sonarcloud:

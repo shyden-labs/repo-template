@@ -9,8 +9,13 @@ on:
   push:
     branches: [develop]
 
+# Each job is granted only what it uses (SonarCloud githubactions:S8264).
+permissions: {}
+
 jobs:
   build-and-test:
+    permissions:
+      contents: read
     runs-on: ubuntu-26.04
     steps:
       # GitHub opens Dependabot SECURITY fixes against the default branch
@@ -52,6 +57,8 @@ jobs:
   # Coverage runs apart from the 1 s unit step: one overall threshold over the
   # TypeScript under scripts/ (vitest.unit.config.ts, shyden-labs/repo-template#149).
   coverage:
+    permissions:
+      contents: read
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -71,6 +78,9 @@ jobs:
   # The SonarCloud quality gate, blocking (shyden-labs/repo-template#27, shyden-labs/repo-template#60): the reusable workflow
   # scans, then fails unless this scan's gate is OK (docs/sonarcloud.md).
   sonarcloud:
+    permissions:
+      contents: read
+      pull-requests: read
     uses: ./.github/workflows/sonarcloud.yml
     with:
       organization: shyden-labs

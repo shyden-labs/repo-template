@@ -60,13 +60,14 @@ describe('deploy-dev', () => {
     ]);
   });
 
-  // No other job key may skip it or pass it on failure (`continue-on-error`).
-  it('gives the job no key but its condition, runner, environment and steps', () => {
+  // No other job key may skip it or pass it on failure (`continue-on-error`). Its permissions are
+  // granted at job level (SonarCloud githubactions:S8264, PR shyden-labs/repo-template#194).
+  it('gives the job no key but its permissions, condition, runner, environment and steps', () => {
     const keys = topLevel(workflow(), 'jobs')
       .split('\n')
       .filter((line) => /^ {4}\S/.test(line))
       .map((line) => line.trim().split(':')[0]);
-    expect(keys).toEqual(['if', 'runs-on', 'environment', 'steps']);
+    expect(keys).toEqual(['permissions', 'if', 'runs-on', 'environment', 'steps']);
   });
 
   // Only the template's rehearsal passes the placeholder: the template has
