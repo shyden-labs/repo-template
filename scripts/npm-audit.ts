@@ -32,14 +32,11 @@ export interface AuditReport {
 }
 
 /**
- * picomatch <= 4.0.7 ReDoS, reached only through glob patterns an attacker
- * supplies; here picomatch is dev-only tooling with our own patterns, and no
- * patched version exists (Shyden, 2026-11-18: "temporary exception"). Every
- * session start checks for a fix (~/.claude/global-rules/picomatch-audit-exception-check.md).
+ * Advisories Shyden excepted by name, each until its expiry. None now: the
+ * picomatch exception (GHSA-fc5q-39xc-vjpf) ended when GitHub withdrew that
+ * advisory on 2026-11-18 (shyden-labs/repo-template#200).
  */
-export const EXCEPTIONS: AuditException[] = [
-  { advisory: 'GHSA-fc5q-39xc-vjpf', expires: '2026-12-01', ticket: 'shyden-labs/repo-template#200' },
-];
+export const EXCEPTIONS: AuditException[] = [];
 
 /** Each reason the audit fails: an advisory not excepted, an expired exception, or one that matches nothing. */
 export function problems(report: AuditReport, exceptions: AuditException[], now: Date): string[] {

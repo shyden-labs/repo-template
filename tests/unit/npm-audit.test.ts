@@ -10,8 +10,9 @@ const spawn = vi.mocked(spawnSync);
 
 /**
  * CI's audit fails on every known vulnerability except an advisory Shyden
- * excepted by name, until its expiry (shyden-labs/repo-template#200: picomatch
- * GHSA-fc5q-39xc-vjpf has no patched version). An exception that has expired,
+ * excepted by name, until its expiry (shyden-labs/repo-template#200; the
+ * picomatch fixture below is that ticket's advisory, withdrawn by GitHub on
+ * 2026-11-18, so EXCEPTIONS is empty now). An exception that has expired,
  * or that no longer matches anything because the fix landed, fails too, so it
  * is removed rather than left behind.
  */
@@ -70,8 +71,8 @@ describe('problems', () => {
 });
 
 describe('EXCEPTIONS', () => {
-  it('holds only the picomatch advisory, until 2026-12-01, on ticket #200', () => {
-    expect(EXCEPTIONS).toEqual([exception]);
+  it('holds none: GitHub withdrew the picomatch advisory on 2026-11-18 (#200)', () => {
+    expect(EXCEPTIONS).toEqual([]);
   });
 });
 
@@ -92,15 +93,15 @@ describe('main', () => {
     return () => vi.useRealTimers();
   });
 
-  it('runs npm audit as JSON and passes when only excepted advisories remain', () => {
-    spawn.mockReturnValue(result({ status: 1, stdout: JSON.stringify(report(PICOMATCH)) }));
+  it('runs npm audit as JSON and passes a clean report', () => {
+    spawn.mockReturnValue(result({ status: 0, stdout: JSON.stringify({ vulnerabilities: {} }) }));
     expect(main()).toBe(0);
     expect(spawn).toHaveBeenCalledWith('npm', ['audit', '--json'], expect.objectContaining({ encoding: 'utf8' }));
   });
 
   it('fails naming each problem', () => {
     spawn.mockReturnValue(result({ status: 1, stdout: JSON.stringify(report(PICOMATCH, OTHER)) }));
-    expect(() => main()).toThrow(`npm audit found 1 problem(s):\nnot excepted: ${OTHER} (a flaw)`);
+    expect(() => main()).toThrow(`npm audit found 2 problem(s):\nnot excepted: ${PICOMATCH} (a flaw)\nnot excepted: ${OTHER} (a flaw)`);
   });
 
   it('fails when npm did not run', () => {
