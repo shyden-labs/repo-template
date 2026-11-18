@@ -39,10 +39,12 @@ describe('deploy-dev', () => {
     expect(jobs.filter((line) => /^ {4}environment:/.test(line))).toHaveLength(1);
   });
 
-  // A pull_request event has no `before`, so a rehearsal diffs against the base.
-  it('lists what a pull request changes against its base', () => {
+  // On a pull request's later pushes (`synchronize`) `before` is the previous
+  // push, so a rehearsal diffs against the base whatever `before` holds
+  // (shyden-labs/repo-template#204, found in shyden-labs/shydesk#210).
+  it('lists what a pull request changes against its base, not its previous push', () => {
     expect(topLevel(workflow(), 'jobs').split('\n')).toContain(
-      '          BEFORE: ${{ github.event.before || github.event.pull_request.base.sha }}',
+      '          BEFORE: ${{ github.event_name == pull_request && github.event.pull_request.base.sha || github.event.before }}',
     );
   });
 
