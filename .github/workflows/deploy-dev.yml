@@ -52,10 +52,11 @@ jobs:
           fetch-depth: 0
       # What this deploy covers: the files the push changed, or every file on
       # a hand-started run or a branch's first push (no earlier commit to diff).
-      # A pull request has no `before`, so its rehearsal diffs against its base.
+      # A pull request's rehearsal diffs against its base: on its later pushes
+      # `before` is only the previous push (shyden-labs/repo-template#204).
       - name: List the files this merge changed
         env:
-          BEFORE: ${{ github.event.before || github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: |
           if [ -n "$BEFORE" ] && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
             git diff --name-only "$BEFORE" "$GITHUB_SHA" > changed-files.txt
