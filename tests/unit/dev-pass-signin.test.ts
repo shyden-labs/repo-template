@@ -2,6 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { webcrypto } from 'node:crypto';
 import { CODE_TTL_SECONDS, handleSignin, type AccessCert, type CodeStore, type SigninConfig } from '../../scripts/dev-pass/signin.ts';
 import { mintPass, verifyPass, type PassKind, type PublicKeys, type SigningKey } from '../../scripts/dev-pass/pass.ts';
+import rsaTestKeys from './fixtures/dev-pass-rsa-test-keys.json' with { type: 'json' };
 
 /**
  * The DEV sign-in Worker (shyden-labs/repo-template#207, spec §5), reached only
@@ -22,7 +23,7 @@ const AUDIENCE = 'aud-tag-123';
 const SECRET_HEADER = 'X-Door-Secret';
 const SECRET = 'signin-door-secret';
 const EMAIL = 'shyden@example.com';
-const RSA = { name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' };
+const RSA = { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' };
 
 const b64url = (bytes: Uint8Array): string => Buffer.from(bytes).toString('base64url');
 const json = (value: unknown): string => b64url(new TextEncoder().encode(JSON.stringify(value)));
@@ -43,10 +44,10 @@ const codes = {
 };
 
 beforeAll(async () => {
-  const access = await crypto.subtle.generateKey(RSA, true, ['sign', 'verify']);
-  accessKey = access.privateKey;
-  strangerKey = (await crypto.subtle.generateKey(RSA, true, ['sign', 'verify'])).privateKey;
-  cert = { ...(await crypto.subtle.exportKey('jwk', access.publicKey)), kid: 'access-1' };
+  // Fixed test-only keys: generating RSA keys searches for primes and took up to 3 s here (shyden-labs/repo-template#212).
+  accessKey = await crypto.subtle.importKey('jwk', rsaTestKeys.accessPrivate, RSA, false, ['sign']);
+  strangerKey = await crypto.subtle.importKey('jwk', rsaTestKeys.strangerPrivate, RSA, false, ['sign']);
+  cert = { ...rsaTestKeys.accessPublic, kid: 'access-1' };
   const pass = (await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify'])) as webcrypto.CryptoKeyPair;
   passKeys = { p1: (await crypto.subtle.exportKey('jwk', pass.publicKey)).x ?? '' };
   passSigning = { kid: 'p1', privateKey: pass.privateKey };
