@@ -106,8 +106,21 @@ export async function verifyPass(pass: string | undefined, options: { host: stri
   return { ok: true, sub, kind, exp };
 }
 
-/** Where to send someone back to: a path on this host, never another site (`//x` and `/\x` are other sites to a browser). */
+/** A control character, a space, DEL or a backslash. */
+function hasUnsafeChar(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code <= 0x20 || code === 0x7f || code === 0x5c) return true;
+  }
+  return false;
+}
+
+/**
+ * Where to send someone back to: a path on this host, never another site. `//x` is another
+ * site to a browser, and browsers read `\` as `/` and drop tabs and newlines, so a path
+ * holding a backslash, a control character or whitespace is refused too.
+ */
 export function safeBack(value: string | null | undefined): string {
-  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//') || value.startsWith('/\\')) return '/';
+  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//') || hasUnsafeChar(value)) return '/';
   return value;
 }

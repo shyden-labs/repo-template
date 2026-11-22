@@ -50,6 +50,8 @@ function passCookie(cookie: string | null): string | undefined {
 
 async function acceptPass(request: Request, env: DoorEnv): Promise<Response> {
   if (request.method !== 'POST') return reply(405, { allow: 'POST' });
+  // Only the sign-in's own page may post a pass, so another site cannot sign someone in as itself.
+  if (request.headers.get('origin') !== SIGNIN_ORIGIN) return reply(403);
   const form = await readForm(request);
   if (typeof form === 'number') return reply(form);
   const pass = form.get('pass');

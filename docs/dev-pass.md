@@ -83,9 +83,15 @@ at once, rotate with no overlap.
 - **A pass is a bearer token.** It is HttpOnly, short-lived and bound to one
   door, and no build holds it. Malware on a signed-in person's own machine can
   still copy it. Nothing on Cloudflare Free does better.
-- **Login CSRF.** Someone with their own pass could POST it to another
-  person's door. That would only sign the victim into DEV as the sender, and
-  getting a pass at all needs an allowed sign-in. Accepted.
+- **Login CSRF is closed by the Origin check.** The door accepts a pass
+  only from a post whose `Origin` is `https://dev-signin.shyden.co.uk`, so
+  another site cannot sign a person in as itself. The sign-in page uses
+  `Referrer-Policy: origin` for this, because under `no-referrer` a browser
+  sends `Origin: null`. Its Referer then shows only the sign-in origin, and
+  the pass stays in the post body.
+- **`back` is a plain path.** A path holding a backslash, a control
+  character or whitespace is refused, because browsers read `\` as `/` and
+  drop tabs and newlines, which would turn `/\t/x` into another site.
 - **App codes in KV.** KV is eventually consistent, so two exchanges racing
   in different locations could both read a code before its delete lands.
   Both would still need the verifier, which only the app holds. Accepted. A

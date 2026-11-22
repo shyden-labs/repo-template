@@ -89,7 +89,11 @@ async function s256(verifier: string): Promise<string> {
   return toBase64url(new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(verifier))));
 }
 
-/** A page that posts a browser pass to the door, so the pass never sits in a URL, history, log or Referer. */
+/**
+ * A page that posts a browser pass to the door, so the pass never sits in a URL, history, log
+ * or Referer. `Referrer-Policy: origin` keeps the post's Origin header, which the door checks
+ * (under `no-referrer` a browser sends `Origin: null`).
+ */
 async function passPage(url: URL, identity: Identity, config: SigninConfig): Promise<Response> {
   const host = url.searchParams.get('for');
   if (!knownHost(config, host)) return reply(400);
@@ -103,7 +107,7 @@ async function passPage(url: URL, identity: Identity, config: SigninConfig): Pro
     '<button type="submit">Continue</button></form>',
     '<script>document.forms[0].submit()</script></body></html>',
   ].join('');
-  return reply(200, { 'content-type': 'text/html; charset=utf-8', 'referrer-policy': 'no-referrer' }, page);
+  return reply(200, { 'content-type': 'text/html; charset=utf-8', 'referrer-policy': 'origin' }, page);
 }
 
 /** RFC 8252 with PKCE: a one-use code for the app, sent to one of its host's listed app links. */

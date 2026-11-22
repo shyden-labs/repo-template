@@ -231,7 +231,22 @@ describe('safeBack', () => {
     expect(safeBack('/')).toBe('/');
   });
 
-  for (const value of ['//evil.example', '/\\evil.example', 'https://evil.example/', 'rooms', '', null, undefined]) {
+  for (const value of [
+    '//evil.example',
+    '/\\evil.example',
+    '/\t/evil.example',
+    '/\n/evil.example',
+    '/\r/evil.example',
+    '/a\\b',
+    '/a b',
+    '/a\u0000b',
+    '/a\u007fb',
+    'https://evil.example/',
+    'rooms',
+    '',
+    null,
+    undefined,
+  ]) {
     it(`sends ${JSON.stringify(value)} to the root`, () => {
       expect(safeBack(value)).toBe('/');
     });

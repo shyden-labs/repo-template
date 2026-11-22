@@ -38,7 +38,7 @@ const html = { accept: 'text/html,application/xhtml+xml' };
 function accept(body: string, headers: Record<string, string> = {}): Request {
   return new Request(url('/__devpass/accept'), {
     method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded', ...headers },
+    headers: { 'content-type': 'application/x-www-form-urlencoded', origin: SIGNIN_ORIGIN, ...headers },
     body,
   });
 }
@@ -90,6 +90,28 @@ describe('accepting a pass', () => {
     await expectRefusal(response);
   });
 
+  it('refuses a good pass posted with no Origin with 403, so another site cannot sign someone in', async () => {
+    const request = new Request(url('/__devpass/accept'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ pass: await pass() }).toString(),
+    });
+    const response = await door(request);
+    expect(response.status).toBe(403);
+    expect(response.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('refuses a good pass posted from another site with 403', async () => {
+    const response = await door(accept(new URLSearchParams({ pass: await pass() }).toString(), { origin: 'https://evil.example' }));
+    expect(response.status).toBe(403);
+    expect(response.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('refuses a good pass posted with Origin null with 403', async () => {
+    const response = await door(accept(new URLSearchParams({ pass: await pass() }).toString(), { origin: 'null' }));
+    expect(response.status).toBe(403);
+  });
+
   it('refuses a form with no pass field', async () => {
     await expectRefusal(await door(accept('back=%2F')));
   });
@@ -108,7 +130,7 @@ describe('accepting a pass', () => {
     });
     const request = new Request(url('/__devpass/accept'), {
       method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded', 'content-length': '4097' },
+      headers: { 'content-type': 'application/x-www-form-urlencoded', 'content-length': '4097', origin: SIGNIN_ORIGIN },
       body: unread,
       duplex: 'half',
     });
@@ -126,7 +148,7 @@ describe('accepting a pass', () => {
   });
 
   it('refuses an accept with no content type with 415', async () => {
-    const response = await door(new Request(url('/__devpass/accept'), { method: 'POST' }));
+    const response = await door(new Request(url('/__devpass/accept'), { method: 'POST', headers: { origin: SIGNIN_ORIGIN } }));
     expect(response.status).toBe(415);
     expect(forward).not.toHaveBeenCalled();
   });

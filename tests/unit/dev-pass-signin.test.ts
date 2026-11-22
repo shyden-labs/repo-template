@@ -295,11 +295,11 @@ describe('the browser pass page', () => {
 
   const field = (body: string, name: string) => body.match(new RegExp(`name="${name}" value="([^"]*)"`))?.[1];
 
-  it('posts a 12-hour browser pass for the person to the door, from a no-store, no-referrer HTML page', async () => {
+  it('posts a 12-hour browser pass for the person to the door, from a no-store HTML page whose Referer holds only its origin', async () => {
     const { response, body } = await page({ for: HOST, back: '/rooms/7' });
     expectStatus(response, 200);
     expect(response.headers.get('content-type')).toBe('text/html; charset=utf-8');
-    expect(response.headers.get('referrer-policy')).toBe('no-referrer');
+    expect(response.headers.get('referrer-policy')).toBe('origin');
     expect(body).toContain(`<form method="post" action="https://${HOST}/__devpass/accept">`);
     expect(await verifyPass(field(body, 'pass'), { host: HOST, keys: passKeys, now: NOW })).toEqual({
       ok: true,
