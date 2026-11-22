@@ -14,6 +14,7 @@ export const SUB_HEADER = 'X-Dev-Pass-Sub';
 
 const ACCEPT_PATH = '/__devpass/accept';
 const SIGNOUT_PATH = '/__devpass/signout';
+const EMBED_PATH = '/__devpass/embed';
 const COOKIE_ATTRIBUTES = 'Secure; HttpOnly; SameSite=Lax; Path=/';
 
 export interface DoorEnv {
@@ -25,6 +26,13 @@ export interface DoorEnv {
   readonly secret: string;
   /** Seconds since the epoch. */
   readonly now: number;
+  /**
+   * A door whose pages run another product's embed (shyden-labs/repo-template#209): calls the
+   * sign-in Worker through its door, to swap a visitor's pass for an embed pass.
+   */
+  readonly signin?: (request: Request) => Promise<Response>;
+  /** An embed's API door: the page origins whose embeds may call it with an embed pass. */
+  readonly embedOrigins?: readonly string[];
 }
 
 function reply(status: number, headers: Record<string, string> = {}): Response {
@@ -64,6 +72,28 @@ async function acceptPass(request: Request, env: DoorEnv): Promise<Response> {
   });
 }
 
+/** For page code on this door's own origin: the visitor's pass, swapped for an embed pass to `?for=`. */
+async function embedPass(request: Request, env: DoorEnv, signin: (request: Request) => Promise<Response>): Promise<Response> {
+  if (request.method !== 'POST') return reply(405, { allow: 'POST' });
+  if (request.headers.get('origin') !== `https://${env.host}`) return reply(403);
+  const audience = new URL(request.url).searchParams.get('for');
+  if (audience === null || audience === '') return reply(400);
+  const pass = passCookie(request.headers.get('cookie'));
+  if (pass === undefined) return reply(401);
+  if (!(await verifyPass(pass, { host: env.host, keys: env.keys, now: env.now })).ok) return reply(401);
+  const answer = await signin(
+    new Request(`${SIGNIN_ORIGIN}/embed`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ pass, for: audience }).toString(),
+    }),
+  );
+  if (answer.status !== 200) return reply(answer.status);
+  return new Response(await answer.text(), { status: 200, headers: { 'cache-control': 'no-store', 'content-type': 'application/json' } });
+}
+
+const cors = (origin: string) => ({ 'access-control-allow-origin': origin, vary: 'Origin' });
+
 function wantsPage(request: Request): boolean {
   return request.method === 'GET' && request.headers.get('upgrade') === null && (request.headers.get('accept') ?? '').includes('text/html');
 }
@@ -71,13 +101,27 @@ function wantsPage(request: Request): boolean {
 export async function handleDevDoor(request: Request, env: DoorEnv, forward: (request: Request) => Promise<Response>): Promise<Response> {
   const url = new URL(request.url);
   if (url.pathname === ACCEPT_PATH) return acceptPass(request, env);
+  if (url.pathname === EMBED_PATH) return env.signin === undefined ? reply(404) : embedPass(request, env, env.signin);
   if (url.pathname === SIGNOUT_PATH) {
     return reply(303, { location: `${SIGNIN_ORIGIN}/signout`, 'set-cookie': `${PASS_COOKIE}=; ${COOKIE_ATTRIBUTES}; Max-Age=0` });
+  }
+
+  const origin = request.headers.get('origin');
+  const embedOrigin = origin !== null && env.embedOrigins?.includes(origin) === true ? origin : undefined;
+  if (request.method === 'OPTIONS' && env.embedOrigins !== undefined && request.headers.has('access-control-request-method')) {
+    if (embedOrigin === undefined) return reply(403);
+    return reply(204, {
+      ...cors(embedOrigin),
+      'access-control-allow-headers': 'X-Dev-Pass, Content-Type',
+      'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE',
+      'access-control-max-age': '600',
+    });
   }
 
   const pass = request.headers.get(PASS_HEADER) ?? passCookie(request.headers.get('cookie'));
   const check = await verifyPass(pass, { host: env.host, keys: env.keys, now: env.now });
   if (!check.ok) {
+    if (embedOrigin !== undefined) return reply(401, cors(embedOrigin));
     if (!wantsPage(request)) return reply(401);
     const signin = new URL('/pass', SIGNIN_ORIGIN);
     signin.search = new URLSearchParams({ for: env.host, back: url.pathname + url.search }).toString();
@@ -91,5 +135,10 @@ export async function handleDevDoor(request: Request, env: DoorEnv, forward: (re
   else headers.set('cookie', cookie);
   headers.set(env.secretHeader, env.secret);
   headers.set(SUB_HEADER, check.sub);
-  return forward(new Request(request, { headers }));
+  const response = await forward(new Request(request, { headers }));
+  if (embedOrigin === undefined) return response;
+  const answer = new Response(response.body, response);
+  answer.headers.set('access-control-allow-origin', embedOrigin);
+  answer.headers.append('vary', 'Origin');
+  return answer;
 }

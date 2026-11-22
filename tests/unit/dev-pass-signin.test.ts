@@ -1,7 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { webcrypto } from 'node:crypto';
 import { CODE_TTL_SECONDS, handleSignin, type AccessCert, type CodeStore, type SigninConfig } from '../../scripts/dev-pass/signin.ts';
-import { verifyPass, type PublicKeys } from '../../scripts/dev-pass/pass.ts';
+import { mintPass, verifyPass, type PassKind, type PublicKeys, type SigningKey } from '../../scripts/dev-pass/pass.ts';
 
 /**
  * The DEV sign-in Worker (shyden-labs/repo-template#207, spec §5), reached only
@@ -13,6 +13,8 @@ import { verifyPass, type PublicKeys } from '../../scripts/dev-pass/pass.ts';
 const ORIGIN = 'https://dev-signin.shyden.co.uk';
 const HOST = 'dev.yaweloidle.com';
 const OTHER_HOST = 'dev.shytalk.com';
+/** An embed's API, reached from HOST's pages with an embed pass. */
+const EMBED_HOST = 'dev-api.shydesk.example';
 const APP_LINK = 'com.shyden.yawelo:/devpass';
 const NOW = 1_800_000_000;
 const ISSUER = 'https://shyden.cloudflareaccess.com';
@@ -29,6 +31,8 @@ let accessKey: webcrypto.CryptoKey;
 let strangerKey: webcrypto.CryptoKey;
 let cert: AccessCert;
 let passKeys: PublicKeys;
+let passSigning: SigningKey;
+let strangerSigning: SigningKey;
 let config: SigninConfig;
 let stored: Map<string, string>;
 const fetchCerts = vi.fn<() => Promise<readonly AccessCert[]>>();
@@ -45,6 +49,9 @@ beforeAll(async () => {
   cert = { ...(await crypto.subtle.exportKey('jwk', access.publicKey)), kid: 'access-1' };
   const pass = (await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify'])) as webcrypto.CryptoKeyPair;
   passKeys = { p1: (await crypto.subtle.exportKey('jwk', pass.publicKey)).x ?? '' };
+  passSigning = { kid: 'p1', privateKey: pass.privateKey };
+  const stranger = (await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify'])) as webcrypto.CryptoKeyPair;
+  strangerSigning = { kid: 'p1', privateKey: stranger.privateKey };
   config = {
     secretHeader: SECRET_HEADER,
     secret: SECRET,
@@ -54,6 +61,7 @@ beforeAll(async () => {
     hosts: { [HOST]: { appRedirects: [APP_LINK] }, [OTHER_HOST]: { appRedirects: [] } },
     signing: { kid: 'p1', privateKey: pass.privateKey },
     codes,
+    embeds: { keys: passKeys, audiences: { [HOST]: [EMBED_HOST] } },
     now: NOW,
   };
 });
@@ -524,5 +532,77 @@ describe('the machine pass', () => {
 
   it('refuses a host not in the map', async () => {
     expectStatus(await machine(await jwt(claims({ email: undefined, common_name: 'mac-mini' })), 'dev.evil.example'), 400);
+  });
+});
+
+describe('the embed pass', () => {
+  const doorPass = (options: { aud?: string; kind?: PassKind; now?: number; signing?: SigningKey } = {}) =>
+    mintPass({ aud: options.aud ?? HOST, sub: EMAIL, kind: options.kind ?? 'browser' }, options.signing ?? passSigning, options.now ?? NOW);
+  const embed = (body: Record<string, string>, secret: string | null = SECRET) =>
+    call('/embed', { method: 'POST', token: null, secret, body: new URLSearchParams(body).toString() });
+
+  it("swaps a door's pass, with no Access token, for a 5-minute embed pass to an audience listed for that door", async () => {
+    const response = await embed({ pass: await doorPass(), for: EMBED_HOST });
+    expectStatus(response, 200);
+    expect(response.headers.get('content-type')).toBe('application/json');
+    const { pass } = (await response.json()) as { pass: string };
+    expect(await verifyPass(pass, { host: EMBED_HOST, keys: passKeys, now: NOW })).toEqual({
+      ok: true,
+      sub: EMAIL,
+      kind: 'embed',
+      exp: NOW + 300,
+    });
+  });
+
+  it('refuses a call without the door secret', async () => {
+    expectStatus(await embed({ pass: await doorPass(), for: EMBED_HOST }, null), 401);
+  });
+
+  it('refuses a call with no pass', async () => {
+    expectStatus(await embed({ for: EMBED_HOST }), 401);
+  });
+
+  it('refuses an expired pass', async () => {
+    expectStatus(await embed({ pass: await doorPass({ now: NOW - 43_200 }), for: EMBED_HOST }), 401);
+  });
+
+  it('refuses a forged pass', async () => {
+    expectStatus(await embed({ pass: await doorPass({ signing: strangerSigning }), for: EMBED_HOST }), 401);
+  });
+
+  it('refuses a pass for a door that does not list the audience', async () => {
+    expectStatus(await embed({ pass: await doorPass({ aud: OTHER_HOST }), for: EMBED_HOST }), 401);
+  });
+
+  it('refuses an audience not listed for the door', async () => {
+    expectStatus(await embed({ pass: await doorPass(), for: OTHER_HOST }), 401);
+  });
+
+  it('refuses an inherited property name as a door', async () => {
+    expectStatus(await embed({ pass: await doorPass({ aud: 'constructor' }), for: EMBED_HOST }), 401);
+  });
+
+  it('refuses to swap an embed pass for another', async () => {
+    expectStatus(await embed({ pass: await doorPass({ kind: 'embed' }), for: EMBED_HOST }), 401);
+  });
+
+  it('refuses a GET with 405', async () => {
+    const response = await call(`/embed${query({ for: EMBED_HOST })}`, { token: null });
+    expectStatus(response, 405);
+    expect(response.headers.get('allow')).toBe('POST');
+  });
+
+  it('refuses a body that is not a form with 415', async () => {
+    expectStatus(await call('/embed', { method: 'POST', token: null, body: '{"pass":"a"}', type: 'application/json' }), 415);
+  });
+
+  it('is not found where no embeds are configured', async () => {
+    const { embeds: _embeds, ...plain } = config;
+    const request = new Request(`${ORIGIN}/embed`, {
+      method: 'POST',
+      headers: { [SECRET_HEADER]: SECRET, 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ pass: await doorPass(), for: EMBED_HOST }).toString(),
+    });
+    expectStatus(await handleSignin(request, plain), 404);
   });
 });
