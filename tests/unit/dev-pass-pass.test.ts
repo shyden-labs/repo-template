@@ -58,8 +58,8 @@ const claims = (overrides: Record<string, unknown> = {}) => ({
 const verify = (pass: string | undefined, now = NOW) => verifyPass(pass, { host: HOST, keys, now });
 
 describe('lifetimes', () => {
-  it('gives browser and app passes 12 hours and machine passes 1 hour', () => {
-    expect(LIFETIME_SECONDS).toEqual({ browser: 43_200, app: 43_200, machine: 3_600 });
+  it('gives browser and app passes 12 hours, machine passes 1 hour and embed passes 5 minutes', () => {
+    expect(LIFETIME_SECONDS).toEqual({ browser: 43_200, app: 43_200, machine: 3_600, embed: 300 });
   });
 
   it('allows 60 seconds of clock skew', () => {
@@ -68,8 +68,8 @@ describe('lifetimes', () => {
 });
 
 describe('mintPass', () => {
-  for (const kind of ['browser', 'app', 'machine'] as const satisfies readonly PassKind[]) {
-    it(`mints a ${kind} pass the door accepts, expiring after its lifetime`, async () => {
+  for (const kind of ['browser', 'app', 'machine', 'embed'] as const satisfies readonly PassKind[]) {
+    it(`mints the ${kind} pass the door accepts, expiring after its lifetime`, async () => {
       const pass = await mintPass({ aud: HOST, sub: 'someone', kind }, key, NOW);
       expect(await verify(pass)).toEqual({ ok: true, sub: 'someone', kind, exp: NOW + LIFETIME_SECONDS[kind] });
     });
@@ -197,7 +197,7 @@ describe('verifyPass', () => {
     expect(await verify(await craft(claims({ aud: 'dev.shytalk.com' })))).toEqual({ ok: false, reason: 'wrong-audience' });
   });
 
-  it('refuses a kind that is not browser, app or machine', async () => {
+  it('refuses a kind that is not browser, app, machine or embed', async () => {
     expect(await verify(await craft(claims({ kind: 'admin' })))).toEqual({ ok: false, reason: 'bad-kind' });
   });
 

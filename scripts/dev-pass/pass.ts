@@ -5,7 +5,7 @@
 // The type import is erased: it only names WebCrypto's types, as the template has no DOM lib.
 import type { webcrypto } from 'node:crypto';
 
-export type PassKind = 'browser' | 'app' | 'machine';
+export type PassKind = 'browser' | 'app' | 'machine' | 'embed';
 /** A door's keys: `kid` → the Ed25519 public key's JWK `x`. Public, so plain vars, not secrets. */
 export type PublicKeys = Readonly<Record<string, string>>;
 export interface SigningKey {
@@ -25,7 +25,8 @@ export type PassCheck =
   | { readonly ok: true; readonly sub: string; readonly kind: PassKind; readonly exp: number }
   | { readonly ok: false; readonly reason: PassFailure };
 
-export const LIFETIME_SECONDS: Readonly<Record<PassKind, number>> = { browser: 12 * 3_600, app: 12 * 3_600, machine: 3_600 };
+/** An embed pass sits where page code can read it, so it lasts minutes (shyden-labs/repo-template#209). */
+export const LIFETIME_SECONDS: Readonly<Record<PassKind, number>> = { browser: 12 * 3_600, app: 12 * 3_600, machine: 3_600, embed: 300 };
 /** Allowed on `iat` only; `exp` gets none. */
 export const CLOCK_SKEW_SECONDS = 60;
 

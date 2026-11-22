@@ -5,7 +5,17 @@
 // The type import is erased: it only names WebCrypto's types, as the template has no DOM lib.
 import type { webcrypto } from 'node:crypto';
 import { readForm } from './form.ts';
-import { CLOCK_SKEW_SECONDS, fromBase64url, mintPass, safeBack, toBase64url, type PassKind, type SigningKey } from './pass.ts';
+import {
+  CLOCK_SKEW_SECONDS,
+  fromBase64url,
+  mintPass,
+  safeBack,
+  toBase64url,
+  verifyPass,
+  type PassKind,
+  type PublicKeys,
+  type SigningKey,
+} from './pass.ts';
 
 /** One of Access's signing keys, from `https://<team>.cloudflareaccess.com/cdn-cgi/access/certs`. */
 export type AccessCert = webcrypto.JsonWebKey & { readonly kid: string };
@@ -28,6 +38,11 @@ export interface SigninConfig {
   readonly hosts: Readonly<Record<string, { readonly appRedirects: readonly string[] }>>;
   readonly signing: SigningKey;
   readonly codes: CodeStore;
+  /**
+   * Cross-site embeds (shyden-labs/repo-template#209): each door whose pass may be swapped
+   * for an embed pass, with the audiences it may get one for, and the keys that check its passes.
+   */
+  readonly embeds?: { readonly keys: PublicKeys; readonly audiences: Readonly<Record<string, readonly string[]>> };
   /** Seconds since the epoch. */
   readonly now: number;
 }
@@ -150,6 +165,23 @@ async function machinePass(url: URL, identity: Identity, config: SigninConfig): 
   return passReply(await mint(config, host, identity.sub, 'machine'));
 }
 
+/**
+ * A door's pass, swapped for a 5-minute pass to an audience listed for that door. The pass is
+ * the credential, so Access bypasses this path; an embed pass is never swapped again.
+ */
+async function embedPass(request: Request, embeds: NonNullable<SigninConfig['embeds']>, config: SigninConfig): Promise<Response> {
+  const form = await readForm(request);
+  if (typeof form === 'number') return reply(form);
+  const pass = form.get('pass') ?? undefined;
+  const audience = form.get('for');
+  for (const [door, audiences] of Object.entries(embeds.audiences)) {
+    if (audience === null || !audiences.includes(audience)) continue;
+    const check = await verifyPass(pass, { host: door, keys: embeds.keys, now: config.now });
+    if (check.ok && check.kind !== 'embed') return passReply(await mint(config, audience, check.sub, 'embed'));
+  }
+  return reply(401);
+}
+
 const ROUTES: Readonly<
   Record<string, { method: string; handle: (url: URL, identity: Identity, config: SigninConfig) => Promise<Response> }>
 > = {
@@ -164,6 +196,10 @@ export async function handleSignin(request: Request, config: SigninConfig): Prom
   const url = new URL(request.url);
   // The app holds no Access cookie, so Access bypasses this one path; PKCE guards it.
   if (url.pathname === '/app/exchange') return request.method === 'POST' ? appExchange(request, config) : reply(405, { allow: 'POST' });
+  if (url.pathname === '/embed') {
+    if (config.embeds === undefined) return reply(404);
+    return request.method === 'POST' ? embedPass(request, config.embeds, config) : reply(405, { allow: 'POST' });
+  }
 
   const identity = await accessIdentity(request.headers.get(JWT_HEADER), config);
   if (identity === undefined) return reply(401);

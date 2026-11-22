@@ -294,3 +294,170 @@ describe('a request with a valid pass', () => {
     expect(await request.text()).toBe('{"name":"a"}');
   });
 });
+
+describe('getting an embed pass for page code', () => {
+  const API_HOST = 'dev-api.shydesk.example';
+  const signin = vi.fn<(request: Request) => Promise<Response>>();
+  const embedDoor = (request: Request) => handleDevDoor(request, { ...env, signin }, forward);
+  const ask = async (options: { origin?: string | null; method?: string; cookie?: string | null; for?: string | null } = {}) => {
+    const headers = new Headers();
+    const origin = options.origin === undefined ? `https://${HOST}` : options.origin;
+    if (origin !== null) headers.set('origin', origin);
+    const cookie = options.cookie === undefined ? `${PASS_COOKIE}=${await pass()}` : options.cookie;
+    if (cookie !== null) headers.set('cookie', cookie);
+    const target = options.for === undefined ? API_HOST : options.for;
+    const search = target === null ? '' : `?${new URLSearchParams({ for: target }).toString()}`;
+    return embedDoor(new Request(url(`/__devpass/embed${search}`), { method: options.method ?? 'POST', headers }));
+  };
+
+  beforeEach(() => {
+    signin.mockReset();
+    signin.mockResolvedValue(new Response('{"pass":"embed-pass"}', { status: 200, headers: { 'content-type': 'application/json' } }));
+  });
+
+  function signinCall(): Request {
+    expect(signin).toHaveBeenCalledTimes(1);
+    const request = signin.mock.calls[0]?.[0];
+    if (request === undefined) throw new Error('signin got no request');
+    return request;
+  }
+
+  it("swaps the visitor's pass at the sign-in and hands the embed pass to the page, uncached", async () => {
+    const response = await ask();
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('application/json');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.text()).toBe('{"pass":"embed-pass"}');
+    const request = signinCall();
+    expect(request.method).toBe('POST');
+    expect(request.url).toBe(`${SIGNIN_ORIGIN}/embed`);
+    expect(request.headers.get('content-type')).toBe('application/x-www-form-urlencoded');
+    expect(Object.fromEntries(new URLSearchParams(await request.text()))).toEqual({ pass: await pass(), for: API_HOST });
+    expect(forward).not.toHaveBeenCalled();
+  });
+
+  it('refuses another site with 403, before asking the sign-in', async () => {
+    expect((await ask({ origin: 'https://evil.example' })).status).toBe(403);
+    expect(signin).not.toHaveBeenCalled();
+  });
+
+  it('refuses a call with no Origin with 403', async () => {
+    expect((await ask({ origin: null })).status).toBe(403);
+    expect(signin).not.toHaveBeenCalled();
+  });
+
+  it('refuses a GET with 405', async () => {
+    const response = await ask({ method: 'GET' });
+    expect(response.status).toBe(405);
+    expect(response.headers.get('allow')).toBe('POST');
+    expect(signin).not.toHaveBeenCalled();
+  });
+
+  it('refuses a visitor with no pass with 401', async () => {
+    expect((await ask({ cookie: null })).status).toBe(401);
+    expect(signin).not.toHaveBeenCalled();
+  });
+
+  it('refuses a pass for another door with 401', async () => {
+    expect((await ask({ cookie: `${PASS_COOKIE}=${await pass('dev.shytalk.com')}` })).status).toBe(401);
+    expect(signin).not.toHaveBeenCalled();
+  });
+
+  it('refuses a call naming no audience with 400', async () => {
+    expect((await ask({ for: null })).status).toBe(400);
+    expect(signin).not.toHaveBeenCalled();
+  });
+
+  it("passes on the sign-in's refusal with no body", async () => {
+    signin.mockResolvedValue(new Response('nope', { status: 401 }));
+    const response = await ask();
+    expect(response.status).toBe(401);
+    expect(await response.text()).toBe('');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('is not found on a door with no sign-in to ask, and is never forwarded', async () => {
+    const response = await door(
+      new Request(url(`/__devpass/embed?for=${API_HOST}`), {
+        method: 'POST',
+        headers: { origin: `https://${HOST}`, cookie: `${PASS_COOKIE}=${await pass()}` },
+      }),
+    );
+    expect(response.status).toBe(404);
+    expect(forward).not.toHaveBeenCalled();
+  });
+});
+
+describe("an embed's API door", () => {
+  const API_HOST = 'dev-api.shydesk.example';
+  const PAGE = `https://${HOST}`;
+  const apiDoor = (request: Request, embedOrigins: readonly string[] | null = [PAGE]) =>
+    handleDevDoor(request, embedOrigins === null ? { ...env, host: API_HOST } : { ...env, host: API_HOST, embedOrigins }, forward);
+  const apiUrl = (path: string) => `https://${API_HOST}${path}`;
+  const apiPass = () => mintPass({ aud: API_HOST, sub: 'shyden@example.com', kind: 'embed' }, key, NOW);
+  const preflight = (origin: string) =>
+    new Request(apiUrl('/tickets'), {
+      method: 'OPTIONS',
+      headers: { origin, 'access-control-request-method': 'POST', 'access-control-request-headers': 'x-dev-pass, content-type' },
+    });
+
+  it('answers a preflight from a listed page itself, allowing the pass header', async () => {
+    const response = await apiDoor(preflight(PAGE));
+    expect(response.status).toBe(204);
+    expect(response.headers.get('access-control-allow-origin')).toBe(PAGE);
+    expect(response.headers.get('access-control-allow-headers')).toBe('X-Dev-Pass, Content-Type');
+    expect(response.headers.get('access-control-allow-methods')).toBe('GET, POST, PUT, PATCH, DELETE');
+    expect(response.headers.get('access-control-max-age')).toBe('600');
+    expect(response.headers.get('vary')).toBe('Origin');
+    expect(response.headers.get('access-control-allow-credentials')).toBeNull();
+    expect(forward).not.toHaveBeenCalled();
+  });
+
+  it('refuses a preflight from a page not listed with 403 and no CORS headers', async () => {
+    const response = await apiDoor(preflight('https://evil.example'));
+    expect(response.status).toBe(403);
+    expect(response.headers.get('access-control-allow-origin')).toBeNull();
+    expect(forward).not.toHaveBeenCalled();
+  });
+
+  it('keeps refusing a preflight on a door with no embed pages', async () => {
+    const response = await apiDoor(preflight(PAGE), null);
+    expect(response.status).toBe(401);
+    expect(response.headers.get('access-control-allow-origin')).toBeNull();
+  });
+
+  it("forwards a listed page's call carrying an embed pass, and lets the page read the answer", async () => {
+    forward.mockResolvedValue(new Response('{"id":1}', { status: 201, headers: { 'content-type': 'application/json' } }));
+    const response = await apiDoor(
+      new Request(apiUrl('/tickets'), { method: 'POST', headers: { origin: PAGE, [PASS_HEADER]: await apiPass() }, body: '{}' }),
+    );
+    expect(response.status).toBe(201);
+    expect(await response.text()).toBe('{"id":1}');
+    expect(response.headers.get('content-type')).toBe('application/json');
+    expect(response.headers.get('access-control-allow-origin')).toBe(PAGE);
+    expect(response.headers.get('vary')).toBe('Origin');
+    expect(forwarded().headers.get(PASS_HEADER)).toBeNull();
+  });
+
+  it("refuses a listed page's call with no pass with 401 the page can read", async () => {
+    const response = await apiDoor(new Request(apiUrl('/tickets'), { method: 'POST', headers: { origin: PAGE }, body: '{}' }));
+    expect(response.status).toBe(401);
+    expect(response.headers.get('access-control-allow-origin')).toBe(PAGE);
+    expect(forward).not.toHaveBeenCalled();
+  });
+
+  it('refuses an embed pass made for another door', async () => {
+    const response = await apiDoor(
+      new Request(apiUrl('/tickets'), { headers: { origin: PAGE, [PASS_HEADER]: await pass(HOST, 'embed') } }),
+    );
+    expect(response.status).toBe(401);
+    expect(forward).not.toHaveBeenCalled();
+  });
+
+  it('gives no CORS headers to a page not listed', async () => {
+    const response = await apiDoor(
+      new Request(apiUrl('/tickets'), { headers: { origin: 'https://evil.example', [PASS_HEADER]: await apiPass() } }),
+    );
+    expect(response.headers.get('access-control-allow-origin')).toBeNull();
+  });
+});
