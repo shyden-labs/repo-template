@@ -14,6 +14,7 @@ import {
 
 // `gh` is stood in: a unit test starts no process.
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
+vi.mock('../../scripts/tools.ts', () => ({ toolPath: (name: string) => `/fixed/${name}` }));
 const gh = vi.mocked(execFileSync);
 
 /**
@@ -326,7 +327,7 @@ describe('main', () => {
   it('reads the board by its node id', () => {
     serve(boardOf(node('Todo')));
     main(ARGS);
-    expect(gh).toHaveBeenCalledWith('gh', ['api', 'graphql', '--paginate', '--slurp', '-f', `query=${QUERY}`, '-f', 'id=PVT_1'], {
+    expect(gh).toHaveBeenCalledWith('/fixed/gh', ['api', 'graphql', '--paginate', '--slurp', '-f', `query=${QUERY}`, '-f', 'id=PVT_1'], {
       encoding: 'utf8',
     });
   });

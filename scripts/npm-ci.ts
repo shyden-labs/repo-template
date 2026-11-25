@@ -11,6 +11,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { runIfEntry } from './cli.ts';
+import { toolPath } from './tools.ts';
 
 const WARNING = [/^npm warn\b/i, /^\(node:\d+\) (?:\[\w+\] )?\w*Warning\b/];
 
@@ -20,11 +21,14 @@ export function warnings(output: string): string[] {
 }
 
 export function main(): number {
-  const run = spawnSync('npm', ['ci'], { encoding: 'utf8', stdio: ['inherit', 'pipe', 'pipe'] }); // NOSONAR: npm is found on PATH by design, its folder differs on the Mac and on CI (shyden-labs/repo-template#188)
+  const run = spawnSync(toolPath('npm'), ['ci'], { encoding: 'utf8', stdio: ['inherit', 'pipe', 'pipe'] });
   if (run.error) throw new Error(`npm ci did not run: ${run.error.message}`);
   process.stdout.write(run.stdout);
   process.stderr.write(run.stderr);
-  if (run.status !== 0) throw new Error(`npm ci exited ${run.status ?? `on ${String(run.signal)}`}`);
+  if (run.status !== 0) {
+    const ending = run.status ?? `on ${String(run.signal)}`;
+    throw new Error(`npm ci exited ${ending}`);
+  }
   const found = warnings(`${run.stdout}\n${run.stderr}`);
   if (found.length > 0) throw new Error(`npm ci printed ${found.length} warning(s):\n${found.join('\n')}`);
   return 0;

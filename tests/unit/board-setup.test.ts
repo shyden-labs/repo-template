@@ -4,6 +4,7 @@ import { main, planEstimateField, planPriorityField, PRIORITY_OPTIONS } from '..
 
 // `gh` is stood in: a unit test starts no process. Each test queues gh's replies in call order.
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
+vi.mock('../../scripts/tools.ts', () => ({ toolPath: (name: string) => `/fixed/${name}` }));
 const gh = vi.mocked(execFileSync);
 
 /**
@@ -170,4 +171,9 @@ describe('main', () => {
     reply(board(ESTIMATE, PRIORITY), board(ESTIMATE));
     expect(() => main(['PVT_1', 'Board'])).toThrow('the Priority field was not there on reading back');
   });
+});
+
+// Every gh call runs the absolute path toolPath gives, never a PATH lookup (SonarCloud S4036, shyden-labs/repo-template#217).
+afterEach(() => {
+  for (const call of gh.mock.calls) expect(call[0]).toBe('/fixed/gh');
 });

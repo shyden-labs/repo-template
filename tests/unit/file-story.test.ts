@@ -13,6 +13,7 @@ import { boardFields, main, parseStory, type Story } from '../../scripts/file-st
  */
 
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
+vi.mock('../../scripts/tools.ts', () => ({ toolPath: (name: string) => `/fixed/${name}` }));
 const gh = vi.mocked(execFileSync);
 
 const BODY = ['## Story', 'x', '## Context', 'x', '## Acceptance criteria', '1. x', '## Announce', 'x', '## Definition of done', 'x'].join(
@@ -333,4 +334,9 @@ describe('main', () => {
     reply(...filing(over));
     expect(() => main(['PVT_1', 'App Stories', write(STORY)])).toThrow(`file-story: shyden-labs/app#40 was filed, but ${problem}`);
   });
+});
+
+// Every gh call runs the absolute path toolPath gives, never a PATH lookup (SonarCloud S4036, shyden-labs/repo-template#217).
+afterEach(() => {
+  for (const call of gh.mock.calls) expect(call[0]).toBe('/fixed/gh');
 });

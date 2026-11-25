@@ -563,6 +563,10 @@ describe('the embed pass', () => {
     expectStatus(await embed({ for: EMBED_HOST }), 401);
   });
 
+  it('refuses a valid door pass that names no audience', async () => {
+    expectStatus(await embed({ pass: await doorPass() }), 401);
+  });
+
   it('refuses an expired pass', async () => {
     expectStatus(await embed({ pass: await doorPass({ now: NOW - 43_200 }), for: EMBED_HOST }), 401);
   });

@@ -34,16 +34,24 @@ const VERSION = 'v1';
 const encoder = new TextEncoder();
 
 export function toBase64url(bytes: Uint8Array): string {
-  return btoa(String.fromCharCode(...bytes))
-    .replaceAll('+', '-')
-    .replaceAll('/', '_')
-    .replace(/=+$/, '');
+  return withoutPadding(
+    btoa(String.fromCodePoint(...bytes))
+      .replaceAll('+', '-')
+      .replaceAll('/', '_'),
+  );
+}
+
+/** The text without its trailing `=` padding, cut without a backtracking regex (SonarCloud S8786). */
+function withoutPadding(base64: string): string {
+  let end = base64.length;
+  while (end > 0 && base64[end - 1] === '=') end -= 1;
+  return base64.slice(0, end);
 }
 
 /** Throws on anything that is not base64. */
 export function fromBase64url(value: string): Uint8Array<ArrayBuffer> {
   const binary = atob(value.replaceAll('-', '+').replaceAll('_', '/'));
-  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return Uint8Array.from(binary, (char) => char.codePointAt(0) as number);
 }
 
 export async function mintPass(claims: PassClaims, key: SigningKey, now: number): Promise<string> {
@@ -109,8 +117,8 @@ export async function verifyPass(pass: string | undefined, options: { host: stri
 
 /** A control character, a space, DEL or a backslash. */
 function hasUnsafeChar(value: string): boolean {
-  for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
+  for (const char of value) {
+    const code = char.codePointAt(0) as number;
     if (code <= 0x20 || code === 0x7f || code === 0x5c) return true;
   }
   return false;

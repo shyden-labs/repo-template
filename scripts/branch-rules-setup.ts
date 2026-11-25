@@ -24,6 +24,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { runIfEntry } from './cli.ts';
+import { toolPath } from './tools.ts';
 
 export interface Rule {
   type: string;
@@ -134,7 +135,7 @@ export function planRulesets(existing: ExistingRuleset[], checks: string[]): Rul
     if (shape(found) === shape(body)) return { action: 'keep' as const, id: found.id, body };
     // Unmeasured whether a PUT leaving bypass_actors out keeps them, so the update carries them, and is never sent unseen.
     if (!Array.isArray(found.bypass_actors)) {
-      throw new Error(
+      throw new TypeError(
         `ruleset ${found.id} "${found.name}" differs, but its bypass list is hidden (read it with admin rights), so an update could drop a bypass`,
       );
     }
@@ -160,6 +161,19 @@ export function auditBranchRules(branch: Branch, rules: Rule[]): string[] {
   if (pullRequests.length === 0) {
     problems.push(`${branch}: no rule requires a pull request`);
   }
+  problems.push(...mergeMethodProblems(branch, pullRequests));
+  const checks = rules.filter((r) => r.type === 'required_status_checks').map((r) => (r.parameters ?? {}) as ChecksParameters);
+  if (checks.length === 0) {
+    problems.push(`${branch}: no rule requires status checks`);
+  } else {
+    problems.push(...(branch === 'develop' ? developCheckProblems(checks) : mainCheckProblems(checks)));
+  }
+  return problems;
+}
+
+/** Each pull-request rule that lets the branch merge by anything but its one method. */
+function mergeMethodProblems(branch: Branch, pullRequests: Rule[]): string[] {
+  const problems: string[] = [];
   for (const r of pullRequests) {
     const methods = (r.parameters as { allowed_merge_methods?: string[] } | undefined)?.allowed_merge_methods;
     if (methods?.length !== 1 || methods[0] !== MERGE_METHOD[branch]) {
@@ -167,30 +181,38 @@ export function auditBranchRules(branch: Branch, rules: Rule[]): string[] {
       problems.push(`${branch}: pull requests may merge by ${named}, not ${MERGE_METHOD[branch]} alone`);
     }
   }
-  const checks = rules.filter((r) => r.type === 'required_status_checks').map((r) => (r.parameters ?? {}) as ChecksParameters);
-  const requiresReleaseCut = checks.some((c) => c.required_status_checks?.some((s) => s.context === RELEASE_CUT) === true);
-  if (checks.length === 0) {
-    problems.push(`${branch}: no rule requires status checks`);
-  } else if (branch === 'develop') {
-    if (checks.some((c) => c.strict_required_status_checks_policy !== true)) {
-      problems.push(`${branch}: a required-checks rule is not strict`);
-    }
-    if (requiresReleaseCut) {
-      problems.push(`${branch}: a rule requires ${RELEASE_CUT}, which runs only on pull requests into main`);
-    }
-    if (checks.some((c) => c.do_not_enforce_on_create === true)) {
-      problems.push(`${branch}: a required-checks rule is not enforced when develop is created`);
-    }
-  } else {
-    if (checks.some((c) => c.strict_required_status_checks_policy !== false)) {
-      problems.push(`${branch}: a required-checks rule is strict, so a second release cut could never merge`);
-    }
-    if (!requiresReleaseCut) {
-      problems.push(`${branch}: no rule requires ${RELEASE_CUT}`);
-    }
-    if (checks.some((c) => c.do_not_enforce_on_create !== true)) {
-      problems.push(`${branch}: a required-checks rule is enforced when main is created, so a new main can never be made`);
-    }
+  return problems;
+}
+
+const requiresReleaseCut = (checks: ChecksParameters[]): boolean =>
+  checks.some((c) => c.required_status_checks?.some((s) => s.context === RELEASE_CUT) === true);
+
+/** develop's required-checks rules: strict, enforced when created, and never asking for the release cut. */
+function developCheckProblems(checks: ChecksParameters[]): string[] {
+  const problems: string[] = [];
+  if (checks.some((c) => c.strict_required_status_checks_policy !== true)) {
+    problems.push('develop: a required-checks rule is not strict');
+  }
+  if (requiresReleaseCut(checks)) {
+    problems.push(`develop: a rule requires ${RELEASE_CUT}, which runs only on pull requests into main`);
+  }
+  if (checks.some((c) => c.do_not_enforce_on_create === true)) {
+    problems.push('develop: a required-checks rule is not enforced when develop is created');
+  }
+  return problems;
+}
+
+/** main's required-checks rules: not strict, asking for the release cut, and not enforced when created. */
+function mainCheckProblems(checks: ChecksParameters[]): string[] {
+  const problems: string[] = [];
+  if (checks.some((c) => c.strict_required_status_checks_policy !== false)) {
+    problems.push('main: a required-checks rule is strict, so a second release cut could never merge');
+  }
+  if (!requiresReleaseCut(checks)) {
+    problems.push(`main: no rule requires ${RELEASE_CUT}`);
+  }
+  if (checks.some((c) => c.do_not_enforce_on_create !== true)) {
+    problems.push('main: a required-checks rule is enforced when main is created, so a new main can never be made');
   }
   return problems;
 }
@@ -235,7 +257,7 @@ export function auditDevEnvironment(env: DevEnvironment | undefined): string[] {
 
 /** gh's JSON answer. */
 function gh(args: string[], input?: string): unknown {
-  return JSON.parse(execFileSync('gh', args, { encoding: 'utf8', input })); // NOSONAR: gh is found on PATH by design, its folder differs on the Mac and on CI (shyden-labs/repo-template#188)
+  return JSON.parse(execFileSync(toolPath('gh'), args, { encoding: 'utf8', input }));
 }
 
 type ListedEnvironment = DevEnvironment & { name: string; protection_rules?: { type: string }[] };
