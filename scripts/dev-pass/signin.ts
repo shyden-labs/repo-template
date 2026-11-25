@@ -174,11 +174,14 @@ async function embedPass(request: Request, embeds: NonNullable<SigninConfig['emb
   if (typeof form === 'number') return reply(form);
   const pass = form.get('pass') ?? undefined;
   const audience = form.get('for');
-  for (const [door, audiences] of Object.entries(embeds.audiences)) {
-    if (audience === null || !audiences.includes(audience)) continue;
-    const check = await verifyPass(pass, { host: door, keys: embeds.keys, now: config.now });
-    if (check.ok && check.kind !== 'embed') return passReply(await mint(config, audience, check.sub, 'embed'));
-  }
+  if (audience === null) return reply(401);
+  // Every door listing the audience is checked at once (SonarCloud S9382); the first in list order that accepts the pass wins.
+  const doors = Object.entries(embeds.audiences)
+    .filter(([, audiences]) => audiences.includes(audience))
+    .map(([door]) => door);
+  const checks = await Promise.all(doors.map((door) => verifyPass(pass, { host: door, keys: embeds.keys, now: config.now })));
+  const accepted = checks.find((check) => check.ok && check.kind !== 'embed');
+  if (accepted?.ok === true) return passReply(await mint(config, audience, accepted.sub, 'embed'));
   return reply(401);
 }
 

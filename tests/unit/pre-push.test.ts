@@ -5,6 +5,7 @@ import { CHECKS, commitsToCheck, main, parseUpdates, type Update } from '../../s
 
 // git, npm and the temporary worktree are stood in: a unit test starts no process and writes no file.
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
+vi.mock('../../scripts/tools.ts', () => ({ toolPath: (name: string) => `/fixed/${name}` }));
 vi.mock('node:fs', async (original) => ({
   ...(await original<typeof import('node:fs')>()),
   mkdtempSync: vi.fn(),
@@ -86,10 +87,10 @@ describe('main', () => {
     let checkedOut = '';
     run.mockImplementation(((cmd: string, args: string[], options?: { cwd?: string }) => {
       calls.push({ cmd, args, cwd: options?.cwd });
-      if (cmd === 'git' && args[0] === 'rev-parse') return `${ROOT}\n`;
-      if (cmd === 'git' && args[0] === 'rev-list') return revList;
-      if (cmd === 'git' && args[0] === 'worktree' && args[1] === 'add') checkedOut = args[4] as string;
-      if (cmd === 'npm' && checkedOut === failing && args[2] === failCheck) throw new Error(`${failCheck} exited 1`);
+      if (cmd === '/fixed/git' && args[0] === 'rev-parse') return `${ROOT}\n`;
+      if (cmd === '/fixed/git' && args[0] === 'rev-list') return revList;
+      if (cmd === '/fixed/git' && args[0] === 'worktree' && args[1] === 'add') checkedOut = args[4] as string;
+      if (cmd === '/fixed/npm' && checkedOut === failing && args[2] === failCheck) throw new Error(`${failCheck} exited 1`);
       return '';
     }) as never);
   };
@@ -111,10 +112,14 @@ describe('main', () => {
   it('checks the pushed commit in its own worktree, never the working tree', () => {
     serve(`${B}\n`);
     expect(main(['origin', 'url'], line(B, A))).toBe(0);
-    expect(calls.filter(({ cmd }) => cmd === 'npm')).toEqual(
-      CHECKS.map((check) => ({ cmd: 'npm', args: ['run', '--silent', check], cwd: TMP })),
+    expect(calls.filter(({ cmd }) => cmd === '/fixed/npm')).toEqual(
+      CHECKS.map((check) => ({ cmd: '/fixed/npm', args: ['run', '--silent', check], cwd: TMP })),
     );
-    expect(calls.find(({ args }) => args[1] === 'add')).toEqual({ cmd: 'git', args: ['worktree', 'add', '--detach', TMP, B], cwd: ROOT });
+    expect(calls.find(({ args }) => args[1] === 'add')).toEqual({
+      cmd: '/fixed/git',
+      args: ['worktree', 'add', '--detach', TMP, B],
+      cwd: ROOT,
+    });
     expect(symlink).toHaveBeenCalledWith(`${ROOT}/node_modules`, `${TMP}/node_modules`);
   });
 
@@ -142,7 +147,7 @@ describe('main', () => {
   it('removes each worktree, after a failure too', () => {
     serve(`${B}\n`, B, 'format:check');
     expect(() => main(['origin', 'url'], line(B, A))).toThrow('format:check failed');
-    expect(calls.at(-1)).toEqual({ cmd: 'git', args: ['worktree', 'remove', '--force', TMP], cwd: ROOT });
+    expect(calls.at(-1)).toEqual({ cmd: '/fixed/git', args: ['worktree', 'remove', '--force', TMP], cwd: ROOT });
   });
 
   it('says what it checked', () => {
@@ -162,7 +167,7 @@ describe('main', () => {
   it('passes a push of no new commits, saying so', () => {
     serve('');
     expect(main(['origin', 'url'], line(A, A))).toBe(0);
-    expect(calls.filter(({ cmd }) => cmd === 'npm')).toEqual([]);
+    expect(calls.filter(({ cmd }) => cmd === '/fixed/npm')).toEqual([]);
     expect(err).toEqual([`pre-push: format, lint and typecheck passed on 0 pushed commit(s)\n`]);
   });
 });

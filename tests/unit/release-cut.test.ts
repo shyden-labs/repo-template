@@ -7,6 +7,7 @@ import { auditReleaseCut, gatherFacts, main, MERGE_REF, parseParents, statusFor,
 
 // git is stood in: a unit test starts no process. Each test answers git by its arguments.
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
+vi.mock('../../scripts/tools.ts', () => ({ toolPath: (name: string) => `/fixed/${name}` }));
 const git = vi.mocked(execFileSync);
 
 /**
@@ -190,7 +191,7 @@ describe('gatherFacts', () => {
   // The stand-in answers only what a case gives it, so a question the code should not ask fails.
   it('stands in a git that refuses a question no case answered', () => {
     answer(repoReplies());
-    expect(() => execFileSync('git', ['status'])).toThrow('unexpected git status');
+    expect(() => execFileSync('/fixed/git', ['status'])).toThrow('unexpected git status');
   });
 
   // The workflow runs the default branch's copy, so the pull request is fetched as data, never checked out.
@@ -198,14 +199,14 @@ describe('gatherFacts', () => {
     answer(repoReplies());
     expect(gatherFacts('release/2026-10-23', HEAD, 7)).toEqual(good);
     expect(git.mock.calls.map((c) => [c[0], (c[1] as string[]).join(' ')])).toEqual([
-      ['git', FETCH],
-      ['git', LS_REMOTE],
-      ['git', ancestor(HEAD)],
-      ['git', 'rev-list --parents -n 1 refs/remotes/pull/merge'],
-      ['git', 'rev-parse refs/remotes/pull/merge^{tree}'],
-      ['git', `rev-parse ${HEAD}^{tree}`],
-      ['git', 'rev-list --parents origin/develop..origin/main'],
-      ['git', ancestor(OLD_CUT)],
+      ['/fixed/git', FETCH],
+      ['/fixed/git', LS_REMOTE],
+      ['/fixed/git', ancestor(HEAD)],
+      ['/fixed/git', 'rev-list --parents -n 1 refs/remotes/pull/merge'],
+      ['/fixed/git', 'rev-parse refs/remotes/pull/merge^{tree}'],
+      ['/fixed/git', `rev-parse ${HEAD}^{tree}`],
+      ['/fixed/git', 'rev-list --parents origin/develop..origin/main'],
+      ['/fixed/git', ancestor(OLD_CUT)],
     ]);
   });
 

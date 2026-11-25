@@ -109,32 +109,50 @@ export async function handleDevDoor(request: Request, env: DoorEnv, forward: (re
   const origin = request.headers.get('origin');
   const embedOrigin = origin !== null && env.embedOrigins?.includes(origin) === true ? origin : undefined;
   if (request.method === 'OPTIONS' && env.embedOrigins !== undefined && request.headers.has('access-control-request-method')) {
-    if (embedOrigin === undefined) return reply(403);
-    return reply(204, {
-      ...cors(embedOrigin),
-      'access-control-allow-headers': 'X-Dev-Pass, Content-Type',
-      'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE',
-      'access-control-max-age': '600',
-    });
+    return preflight(embedOrigin);
   }
 
   const pass = request.headers.get(PASS_HEADER) ?? passCookie(request.headers.get('cookie'));
   const check = await verifyPass(pass, { host: env.host, keys: env.keys, now: env.now });
-  if (!check.ok) {
-    if (embedOrigin !== undefined) return reply(401, cors(embedOrigin));
-    if (!wantsPage(request)) return reply(401);
-    const signin = new URL('/pass', SIGNIN_ORIGIN);
-    signin.search = new URLSearchParams({ for: env.host, back: url.pathname + url.search }).toString();
-    return reply(302, { location: signin.toString() });
-  }
+  if (!check.ok) return refuse(request, url, env, embedOrigin);
+  return forwardWithPass(request, env, check.sub, embedOrigin, forward);
+}
 
+/** A cross-site preflight: allowed for a listed embed origin, refused for any other. */
+function preflight(embedOrigin: string | undefined): Response {
+  if (embedOrigin === undefined) return reply(403);
+  return reply(204, {
+    ...cors(embedOrigin),
+    'access-control-allow-headers': 'X-Dev-Pass, Content-Type',
+    'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE',
+    'access-control-max-age': '600',
+  });
+}
+
+/** No valid pass: 401 for an embed or a non-page request, else a redirect to sign in and come back. */
+function refuse(request: Request, url: URL, env: DoorEnv, embedOrigin: string | undefined): Response {
+  if (embedOrigin !== undefined) return reply(401, cors(embedOrigin));
+  if (!wantsPage(request)) return reply(401);
+  const signin = new URL('/pass', SIGNIN_ORIGIN);
+  signin.search = new URLSearchParams({ for: env.host, back: url.pathname + url.search }).toString();
+  return reply(302, { location: signin.toString() });
+}
+
+/** The request forwarded without its pass, carrying the door's secret and the signed-in subject. */
+async function forwardWithPass(
+  request: Request,
+  env: DoorEnv,
+  sub: string,
+  embedOrigin: string | undefined,
+  forward: (request: Request) => Promise<Response>,
+): Promise<Response> {
   const headers = new Headers(request.headers);
   headers.delete(PASS_HEADER);
   const cookie = withoutPassCookie(headers.get('cookie'));
   if (cookie === undefined) headers.delete('cookie');
   else headers.set('cookie', cookie);
   headers.set(env.secretHeader, env.secret);
-  headers.set(SUB_HEADER, check.sub);
+  headers.set(SUB_HEADER, sub);
   const response = await forward(new Request(request, { headers }));
   if (embedOrigin === undefined) return response;
   const answer = new Response(response.body, response);

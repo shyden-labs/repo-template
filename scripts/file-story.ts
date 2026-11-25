@@ -18,6 +18,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { assertTitle } from './board-progress.ts';
 import { runIfEntry } from './cli.ts';
+import { toolPath } from './tools.ts';
 
 export interface Story {
   repo: string;
@@ -37,8 +38,8 @@ interface Field {
   options?: { id: string; name: string }[];
 }
 
-const ESTIMATES = [1, 2, 3, 5, 8, 13];
-const PRIORITIES = ['P0', 'P1', 'P2', 'P3', 'P4', 'P5'];
+const ESTIMATES = new Set([1, 2, 3, 5, 8, 13]);
+const PRIORITIES = new Set(['P0', 'P1', 'P2', 'P3', 'P4', 'P5']);
 const SECTIONS = ['Story', 'Context', 'Acceptance criteria', 'Announce', 'Definition of done'];
 /** GitHub closes an issue when one of these stands right before its number, even negated. */
 const CLOSING = /\b((?:close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)\s+#(\d+))/i;
@@ -61,10 +62,10 @@ export function parseStory(text: string): Story {
   const s = raw as Record<string, unknown>;
   if (typeof s.repo !== 'string' || !/^[^/\s]+\/[^/\s]+$/.test(s.repo)) fail('repo must be <owner>/<name>');
   if (typeof s.title !== 'string' || s.title.trim() === '') fail('the title is empty');
-  if (!ESTIMATES.includes(s.estimate as number)) {
+  if (!ESTIMATES.has(s.estimate as number)) {
     fail(`estimate ${String(s.estimate)} is not 1, 2, 3, 5, 8 or 13 (larger is an epic: split it)`);
   }
-  if (!PRIORITIES.includes(s.priority as string)) fail(`priority ${String(s.priority)} is not P0 to P5`);
+  if (!PRIORITIES.has(s.priority as string)) fail(`priority ${String(s.priority)} is not P0 to P5`);
   const status = s.status ?? 'Todo';
   if (typeof status !== 'string') fail('status must be the name of a Status option');
   const blockedBy = s.blockedBy ?? [];
@@ -113,7 +114,7 @@ export function boardFields(fields: Field[], story: Story) {
   };
 }
 
-const gh = (args: string[]): unknown => JSON.parse(execFileSync('gh', args, { encoding: 'utf8' })); // NOSONAR: gh is found on PATH by design, its folder differs on the Mac and on CI (shyden-labs/repo-template#188)
+const gh = (args: string[]): unknown => JSON.parse(execFileSync(toolPath('gh'), args, { encoding: 'utf8' }));
 
 const READ_BOARD = `query($id: ID!) { node(id: $id) { ... on ProjectV2 { title
   fields(first: 50) { nodes { ... on ProjectV2FieldCommon { id name dataType }
@@ -224,9 +225,10 @@ export function main(args: string[]): number {
     parentProblem,
   ].filter((p) => p !== '');
   if (problems.length > 0) fail(`${ref} was filed, but ${problems.join('; ')}`);
+  const parentNamed = parent === null ? 'none' : `#${parent}`;
   process.stdout.write(
     `file-story: read back: board ${back.project.title}, Estimate ${story.estimate}, Priority ${story.priority}, ` +
-      `Status ${story.status}, blocked by ${list(blockers)}, parent ${parent === null ? 'none' : `#${parent}`}\n`,
+      `Status ${story.status}, blocked by ${list(blockers)}, parent ${parentNamed}\n`,
   );
   return 0;
 }

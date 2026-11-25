@@ -97,6 +97,32 @@ export async function main(args: string[]): Promise<number> {
   }
 }
 
+interface Task {
+  status: string;
+  analysisId?: string;
+  pullRequest?: string;
+  errorMessage?: string;
+  componentKey?: string;
+  branch?: string;
+}
+
+/**
+ * The scan's background task once it has left the queue, read every `STEP_MS` until `ceiling`
+ * seconds have passed. One read per call, never awaited in a loop (SonarCloud S9382).
+ */
+async function finishedTask(
+  report: { serverUrl: string; ceTaskId: string },
+  token: string,
+  ceiling: number,
+  waited: number,
+): Promise<Task> {
+  const { task } = (await get(`${report.serverUrl}/api/ce/task?id=${report.ceTaskId}`, token)) as { task: Task };
+  if (task.status !== 'PENDING' && task.status !== 'IN_PROGRESS') return task;
+  if (waited >= ceiling) fail(`task ${report.ceTaskId} is still ${task.status} after ${ceiling} s; no verdict to read`);
+  await sleep(STEP_MS);
+  return finishedTask(report, token, ceiling, waited + STEP_MS / 1000);
+}
+
 /** This scan's verdict, or a throw naming why there is none. */
 async function judge(path: string): Promise<{ ok: boolean; lines: string[]; dashboardUrl: string }> {
   const token = process.env.SONAR_TOKEN;
@@ -111,22 +137,10 @@ async function judge(path: string): Promise<{ ok: boolean; lines: string[]; dash
     fail(`report-task.txt names the server ${JSON.stringify(report.serverUrl)}, not ${SONARCLOUD}; the token is sent to SonarCloud only`);
   }
   const ceiling = Number(process.env.SONAR_CEILING_SECONDS || 300);
-  let task: {
-    status: string;
-    analysisId?: string;
-    pullRequest?: string;
-    errorMessage?: string;
-    componentKey?: string;
-    branch?: string;
-  };
-  for (let waited = 0; ; waited += STEP_MS / 1000) {
-    task = ((await get(`${report.serverUrl}/api/ce/task?id=${report.ceTaskId}`, token)) as { task: typeof task }).task;
-    if (task.status !== 'PENDING' && task.status !== 'IN_PROGRESS') break;
-    if (waited >= ceiling) fail(`task ${report.ceTaskId} is still ${task.status} after ${ceiling} s; no verdict to read`);
-    await sleep(STEP_MS);
-  }
+  const task = await finishedTask(report, token, ceiling, 0);
   if (task.status !== 'SUCCESS') {
-    fail(`task ${report.ceTaskId} ended ${task.status}${task.errorMessage ? ` (${task.errorMessage})` : ''}; no verdict to read`);
+    const reason = task.errorMessage ? ` (${task.errorMessage})` : '';
+    fail(`task ${report.ceTaskId} ended ${task.status}${reason}; no verdict to read`);
   }
   if (task.analysisId === undefined) fail(`task ${report.ceTaskId} made no analysis; no verdict to read`);
   const pullRequest = process.env.SONAR_PULL_REQUEST || '';
@@ -157,8 +171,9 @@ async function requireSourceFiles(
   const { component } = (await get(url, token)) as { component: { measures: { metric: string; value: string }[] } };
   const files = component.measures.find((m) => m.metric === 'files')?.value;
   if (files === undefined || Number(files) === 0) {
+    const measured = files === undefined ? 'no files measure' : `files is ${files}`;
     fail(
-      `analysis ${analysisId} of branch ${String(task.branch)} indexed no source files (${files === undefined ? 'no files measure' : `files is ${files}`}); check sonar.sources, the gate passes on nothing`,
+      `analysis ${analysisId} of branch ${String(task.branch)} indexed no source files (${measured}); check sonar.sources, the gate passes on nothing`,
     );
   }
 }

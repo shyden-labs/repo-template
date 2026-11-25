@@ -25,6 +25,7 @@ import { mkdtempSync, readFileSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runIfEntry } from './cli.ts';
+import { toolPath } from './tools.ts';
 
 /** The npm scripts run on each commit, in this order. */
 export const CHECKS = ['format:check', 'lint', 'typecheck'];
@@ -75,7 +76,7 @@ function checkCommit(sha: string, root: string, git: (args: string[]) => string)
     symlinkSync(join(root, 'node_modules'), join(dir, 'node_modules'));
     for (const check of CHECKS) {
       try {
-        execFileSync('npm', ['run', '--silent', check], { cwd: dir, stdio: 'inherit' }); // NOSONAR: npm is found on PATH by design, its folder differs on the Mac and on CI (shyden-labs/repo-template#188)
+        execFileSync(toolPath('npm'), ['run', '--silent', check], { cwd: dir, stdio: 'inherit' });
       } catch {
         throw new Error(`pre-push: ${check} failed on ${sha.slice(0, 12)}: nothing pushed`);
       }
@@ -89,8 +90,8 @@ function checkCommit(sha: string, root: string, git: (args: string[]) => string)
 export function main(args: string[], stdin: string = readFileSync(0, 'utf8')): number {
   const [remote] = args;
   if (remote === undefined) throw new Error('usage: node scripts/pre-push.ts <remote> <url>, with the updates on stdin');
-  const root = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim(); // NOSONAR: git is found on PATH by design, its folder differs on the Mac and on CI (shyden-labs/repo-template#188)
-  const git = (gitArgs: string[]) => execFileSync('git', gitArgs, { cwd: root, encoding: 'utf8' }); // NOSONAR: git is found on PATH by design, its folder differs on the Mac and on CI (shyden-labs/repo-template#188)
+  const root = execFileSync(toolPath('git'), ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
+  const git = (gitArgs: string[]) => execFileSync(toolPath('git'), gitArgs, { cwd: root, encoding: 'utf8' });
   const commits = [...new Set(parseUpdates(stdin).flatMap((update) => commitsToCheck(update, remote, git)))];
   for (const sha of commits) checkCommit(sha, root, git);
   process.stderr.write(`pre-push: format, lint and typecheck passed on ${commits.length} pushed commit(s)\n`);

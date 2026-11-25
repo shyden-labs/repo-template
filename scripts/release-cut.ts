@@ -26,6 +26,7 @@
 import { execFileSync } from 'node:child_process';
 import { RELEASE_CUT } from './branch-rules-setup.ts';
 import { runIfEntry } from './cli.ts';
+import { toolPath } from './tools.ts';
 
 /** A commit `main` holds that `develop` lacks. `secondParentOnDevelop` is null unless it has two parents. */
 export interface MainCommit {
@@ -49,7 +50,7 @@ export interface ReleaseCutFacts {
 }
 
 const SHA = /^[0-9a-f]{40}$/;
-const PULL_NUMBER = /^[1-9][0-9]*$/;
+const PULL_NUMBER = /^[1-9]\d*$/;
 /** Where the pull request's merge commit is fetched to. */
 export const MERGE_REF = 'refs/remotes/pull/merge';
 /** GitHub refuses a commit status description longer than this. */
@@ -127,7 +128,7 @@ export function parseRemoteHead(lsRemote: string, ref: string, question: string)
 }
 
 function git(args: string[]): string {
-  return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); // NOSONAR: git is found on PATH by design, its folder differs on the Mac and on CI (shyden-labs/repo-template#188)
+  return execFileSync(toolPath('git'), args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 }
 
 /** Whether `sha` is on develop. git answers 0 (yes) or 1 (no); anything else is an error, never a no. */

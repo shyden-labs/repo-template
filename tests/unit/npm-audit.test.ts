@@ -6,6 +6,7 @@ import { withoutYamlComments } from './source-text.ts';
 
 // npm is stood in: a unit test starts no process.
 vi.mock('node:child_process', () => ({ spawnSync: vi.fn() }));
+vi.mock('../../scripts/tools.ts', () => ({ toolPath: (name: string) => `/fixed/${name}` }));
 const spawn = vi.mocked(spawnSync);
 
 /**
@@ -96,7 +97,7 @@ describe('main', () => {
   it('runs npm audit as JSON and passes a clean report', () => {
     spawn.mockReturnValue(result({ status: 0, stdout: JSON.stringify({ vulnerabilities: {} }) }));
     expect(main()).toBe(0);
-    expect(spawn).toHaveBeenCalledWith('npm', ['audit', '--json'], expect.objectContaining({ encoding: 'utf8' }));
+    expect(spawn).toHaveBeenCalledWith('/fixed/npm', ['audit', '--json'], expect.objectContaining({ encoding: 'utf8' }));
   });
 
   it('fails naming each problem', () => {

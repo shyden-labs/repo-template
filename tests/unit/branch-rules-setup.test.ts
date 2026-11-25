@@ -13,6 +13,7 @@ import {
 
 // `gh` is stood in: a unit test starts no process. Each test queues gh's replies in call order.
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
+vi.mock('../../scripts/tools.ts', () => ({ toolPath: (name: string) => `/fixed/${name}` }));
 const gh = vi.mocked(execFileSync);
 
 /**
@@ -155,9 +156,11 @@ describe('planRulesets', () => {
   // over it could drop a bypass nobody saw (shyden-labs/repo-template#115).
   it.each([null, undefined])('refuses to update a ruleset whose bypass list reads %s, naming it', (bypass) => {
     const hidden = { ...existing(11, 'develop', ['refs/heads/develop'], false), bypass_actors: bypass };
-    expect(() => planRulesets([hidden], CHECKS)).toThrow(
-      'ruleset 11 "develop" differs, but its bypass list is hidden (read it with admin rights), so an update could drop a bypass',
-    );
+    const message =
+      'ruleset 11 "develop" differs, but its bypass list is hidden (read it with admin rights), so an update could drop a bypass';
+    // A list that is not an array is a type check, so the error is a TypeError (SonarCloud S7786).
+    expect(() => planRulesets([hidden], CHECKS)).toThrow(new TypeError(message));
+    expect(() => planRulesets([hidden], CHECKS)).toThrow(TypeError);
   });
 
   it('keeps a matching ruleset whose bypass list is hidden, since nothing is written', () => {
@@ -530,4 +533,9 @@ describe('main', () => {
       'read back, the repository still falls short:\n  merged head branches are not deleted (delete_branch_on_merge is false)',
     );
   });
+});
+
+// Every gh call runs the absolute path toolPath gives, never a PATH lookup (SonarCloud S4036, shyden-labs/repo-template#217).
+afterEach(() => {
+  for (const call of gh.mock.calls) expect(call[0]).toBe('/fixed/gh');
 });

@@ -11,6 +11,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { runIfEntry } from './cli.ts';
+import { toolPath } from './tools.ts';
 
 export interface AuditException {
   /** The GitHub advisory id, e.g. GHSA-fc5q-39xc-vjpf. */
@@ -69,7 +70,7 @@ function readReport(stdout: string): AuditReport {
 }
 
 export function main(): number {
-  const run = spawnSync('npm', ['audit', '--json'], { encoding: 'utf8', stdio: ['inherit', 'pipe', 'inherit'] }); // NOSONAR: npm is found on PATH by design, its folder differs on the Mac and on CI (shyden-labs/repo-template#188)
+  const run = spawnSync(toolPath('npm'), ['audit', '--json'], { encoding: 'utf8', stdio: ['inherit', 'pipe', 'inherit'] });
   if (run.error) throw new Error(`npm audit did not run: ${run.error.message}`);
   const found = problems(readReport(run.stdout), EXCEPTIONS, new Date());
   if (found.length > 0) throw new Error(`npm audit found ${found.length} problem(s):\n${found.join('\n')}`);
