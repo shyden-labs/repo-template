@@ -55,6 +55,7 @@ describe('ci.yml', () => {
       { name: '', run: '' },
       { name: '', run: '|' },
       { name: '', run: '' },
+      { name: '', run: '' },
       { name: '', run: 'node scripts/npm-ci.ts' },
       { name: 'Audit', run: 'node scripts/npm-audit.ts' },
       { name: 'Typecheck', run: 'npm run typecheck' },

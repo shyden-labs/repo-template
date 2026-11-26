@@ -29,3 +29,14 @@ export function scanWithoutVerdict(file: string, text: string): string[] {
     ? []
     : [`${file} scans, but no step after it runs scripts/sonar-verdict.ts`];
 }
+
+/** Each job of a workflow, by id, as its own text (comments dropped). */
+export const jobsOf = (text: string): Record<string, string> => {
+  const body = withoutYamlComments(text).split(/^jobs:\n/m)[1] ?? '';
+  return Object.fromEntries(
+    body
+      .split(/^(?= {2}[\w-]+:\n)/m)
+      .filter((chunk) => /^ {2}[\w-]+:\n/.test(chunk))
+      .map((chunk) => [chunk.slice(2, chunk.indexOf(':')), chunk]),
+  );
+};

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
-import { withoutPinnedShas, withoutYamlComments, yamlBlock } from './source-text.ts';
-import { scanWithoutVerdict, swallowed, tokenGated } from './workflow-honesty.ts';
+import { withoutPinnedShas, yamlBlock } from './source-text.ts';
+import { jobsOf, scanWithoutVerdict, swallowed, tokenGated } from './workflow-honesty.ts';
 
 /**
  * A check is green only if it ran and passed (Shyden 2026-10-18: "don't pass
@@ -25,17 +25,6 @@ describe('every workflow', () => {
     expect([...swallowed(file, read(file)), ...tokenGated(file, read(file))]).toEqual([]);
   });
 });
-
-/** Each job of a workflow, by id, as its own text (comments dropped). */
-const jobsOf = (text: string): Record<string, string> => {
-  const body = withoutYamlComments(text).split(/^jobs:\n/m)[1] ?? '';
-  return Object.fromEntries(
-    body
-      .split(/^(?= {2}[\w-]+:\n)/m)
-      .filter((chunk) => /^ {2}[\w-]+:\n/.test(chunk))
-      .map((chunk) => [chunk.slice(2, chunk.indexOf(':')), chunk]),
-  );
-};
 
 // Issue shyden-labs/repo-template#193: the token never shares a job with a dependency install or
 // the branch's own code. One job installs and runs the coverage suite holding no secret, and hands
