@@ -42,7 +42,7 @@ export function contentKey(prefix: string, kept: string[]): string {
   return (
     prefix +
     createHash('sha256')
-      .update([...kept].sort().join('\n'))
+      .update([...kept].sort((a, b) => a.localeCompare(b)).join('\n'))
       .digest('hex')
       .slice(0, 16)
   );
@@ -60,7 +60,8 @@ export function keep(dir: string, prefix: string): string {
   // Every top-level entry starts unread; each file lifts its own entry to the latest read.
   const lastRead: Record<string, number> = Object.fromEntries(readdirSync(dir).map((name) => [name, 0]));
   for (const file of filesIn(dir)) {
-    const name = file.slice(dir.length + 1).replace(/\/.*$/s, '');
+    const relative = file.slice(dir.length + 1);
+    const name = relative.slice(0, `${relative}/`.indexOf('/')); // before the first slash, or all of a top-level file's name
     lastRead[name] = Math.max(lastRead[name] as number, lstatSync(file).atimeMs);
   }
   const dropped = unread(lastRead);

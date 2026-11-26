@@ -535,7 +535,7 @@ describe('check-release-cut.yml', () => {
         '        timeout-minutes: 5',
         '        with:',
         '          path: ${{ runner.tool_cache }}/node/${{ steps.node.outputs.version }}',
-        '          key: node-${{ steps.node.outputs.version }}-${{ runner.os }}-${{ runner.arch }}',
+        '          key: release-cut-node-${{ steps.node.outputs.version }}-${{ runner.os }}-${{ runner.arch }}',
       ].join('\n'),
       [
         '      - uses: actions/setup-node@<sha>',

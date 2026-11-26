@@ -24,21 +24,25 @@ const jobsIn = (file: string) => jobsOf(withoutPinnedShas(readFileSync(`${WORKFL
 /** A job's steps, each as its own text. */
 const stepsOf = (job: string): string[] => job.split(/^(?= {6}- )/m).slice(1);
 
+// [workflow, job, its Node cache's key prefix]. A job holding a token (the Sonar scan, the
+// release-cut judge) keeps a cache of its own, which only it saves: a job that installs
+// dependencies could otherwise plant a Node binary that then runs beside the token.
 const NODE_JOBS = [
-  ['check-release-cut.yml', 'judge-release-cut'],
-  ['ci.yml', 'build-and-test'],
-  ['ci.yml', 'coverage'],
-  ['sonarcloud.yml', 'coverage-report'],
-  ['sonarcloud.yml', 'sonarcloud'],
+  ['check-release-cut.yml', 'judge-release-cut', 'release-cut-node-'],
+  ['ci.yml', 'build-and-test', 'node-'],
+  ['ci.yml', 'coverage', 'node-'],
+  ['sonarcloud.yml', 'coverage-report', 'node-'],
+  ['sonarcloud.yml', 'sonarcloud', 'token-job-node-'],
 ] as const;
 
-const NODE_CACHE = [
-  '      - uses: actions/cache@<sha>',
-  '        timeout-minutes: 5',
-  '        with:',
-  '          path: ${{ runner.tool_cache }}/node/${{ steps.node.outputs.version }}',
-  '          key: node-${{ steps.node.outputs.version }}-${{ runner.os }}-${{ runner.arch }}',
-].join('\n');
+const nodeCache = (prefix: string) =>
+  [
+    '      - uses: actions/cache@<sha>',
+    '        timeout-minutes: 5',
+    '        with:',
+    '          path: ${{ runner.tool_cache }}/node/${{ steps.node.outputs.version }}',
+    `          key: ${prefix}\${{ steps.node.outputs.version }}-\${{ runner.os }}-\${{ runner.arch }}`,
+  ].join('\n');
 
 describe('Node', () => {
   it('is set up in exactly these jobs', () => {
@@ -48,15 +52,18 @@ describe('Node', () => {
         .filter(([, job]) => job.includes('actions/setup-node@'))
         .map(([id]) => [file, id]),
     );
-    expect(found).toEqual(NODE_JOBS);
+    expect(found).toEqual(NODE_JOBS.map(([file, id]) => [file, id]));
   });
 
-  it.each(NODE_JOBS)('%s %s restores Node under its exact version just before setting it up, in 5 minutes', (file, id) => {
-    const steps = stepsOf(jobsIn(file)[id] ?? '');
-    const setup = steps.findIndex((s) => s.includes('actions/setup-node@'));
-    expect(steps[setup - 1]?.trimEnd()).toBe(NODE_CACHE);
-    expect(steps[setup]).toContain('        timeout-minutes: 5\n');
-  });
+  it.each(NODE_JOBS)(
+    '%s %s restores Node under its exact version, keyed %s, just before setting it up, in 5 minutes',
+    (file, id, prefix) => {
+      const steps = stepsOf(jobsIn(file)[id] ?? '');
+      const setup = steps.findIndex((s) => s.includes('actions/setup-node@'));
+      expect(steps[setup - 1]?.trimEnd()).toBe(nodeCache(prefix));
+      expect(steps[setup]).toContain('        timeout-minutes: 5\n');
+    },
+  );
 
   it.each(NODE_JOBS)("%s %s uses npm's cache whenever it installs, and installs in 10 minutes", (file, id) => {
     const steps = stepsOf(jobsIn(file)[id] ?? '');

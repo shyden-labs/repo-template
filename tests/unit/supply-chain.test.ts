@@ -291,14 +291,19 @@ const READ_STEP = [
   '    test -n "$version"',
   '    echo "version=$version" >> "$GITHUB_OUTPUT"',
 ];
-/** Node's download cache, the one step allowed between the read and setup-node (shyden-labs/repo-template#224). */
+/**
+ * Node's download cache, the one step allowed between the read and setup-node (shyden-labs/repo-template#224),
+ * under any of its key prefixes (tests/unit/ci-download-cache.test.ts names which job takes which).
+ */
 const NODE_CACHE_STEP = [
-  '- uses: actions/cache@<sha>',
-  '  timeout-minutes: 5',
-  '  with:',
-  '    path: ${{ runner.tool_cache }}/node/${{ steps.node.outputs.version }}',
-  '    key: node-${{ steps.node.outputs.version }}-${{ runner.os }}-${{ runner.arch }}',
+  /^- uses: actions\/cache@<sha>$/,
+  /^ {2}timeout-minutes: 5$/,
+  /^ {2}with:$/,
+  /^ {4}path: \$\{\{ runner\.tool_cache \}\}\/node\/\$\{\{ steps\.node\.outputs\.version \}\}$/,
+  /^ {4}key: (?:release-cut-|token-job-)?node-\$\{\{ steps\.node\.outputs\.version \}\}-\$\{\{ runner\.os \}\}-\$\{\{ runner\.arch \}\}$/,
 ];
+const isNodeCache = (step: string[]) =>
+  step.length === NODE_CACHE_STEP.length && NODE_CACHE_STEP.every((re, i) => re.test(step[i] as string));
 const TAKES_THE_READ = /^\s+node-version:\s*\$\{\{\s*steps\.node\.outputs\.version\s*\}\}\s*$/;
 
 /**
@@ -331,7 +336,7 @@ const setupNodeSteps = (file: string, source: string): { where: string; wrong: s
       return { from, text };
     };
     const next = stepBefore(start);
-    const previous = JSON.stringify(next.text) === JSON.stringify(NODE_CACHE_STEP) ? stepBefore(next.from).text : next.text;
+    const previous = isNodeCache(next.text) ? stepBefore(next.from).text : next.text;
     const wrong = [
       ...(step.some((l) => TAKES_THE_READ.test(l)) ? [] : ["does not take the read step's version"]),
       ...(step.some((l) => /^\s+node-version-file:/.test(l)) ? ['reads a version file'] : []),
@@ -395,6 +400,13 @@ describe('the template runs one Node and one runner, pinned exactly', () => {
   const steps = (...lines: string[]) => ['    steps:', ...lines, ''].join('\n');
   const READ = READ_STEP.map((line) => `      ${line}`);
   const SETUP = [`      - uses: actions/setup-node@${SHA}`, '        with:', '          node-version: ${{ steps.node.outputs.version }}'];
+  const NODE_CACHE_PLANT = [
+    `      - uses: actions/cache@${SHA}`,
+    '        timeout-minutes: 5',
+    '        with:',
+    '          path: ${{ runner.tool_cache }}/node/${{ steps.node.outputs.version }}',
+    '          key: token-job-node-${{ steps.node.outputs.version }}-${{ runner.os }}-${{ runner.arch }}',
+  ];
   const wrongIn = (text: string) => setupNodeSteps('ci.yml', text).map(({ wrong }) => wrong);
 
   it.each([
@@ -420,10 +432,15 @@ describe('the template runs one Node and one runner, pinned exactly', () => {
       [['does not follow the read step']],
     ],
     ['has a step between the read and itself', steps(...READ, '      - run: true', ...SETUP), [['does not follow the read step']]],
-    ["has Node's cache between the read and itself", steps(...READ, ...NODE_CACHE_STEP.map((l) => `      ${l}`), ...SETUP), [[]]],
+    [
+      'has another cache between the read and itself',
+      steps(...READ, ...NODE_CACHE_PLANT.map((l) => l.replace('token-job-', 'other-')), ...SETUP),
+      [['does not follow the read step']],
+    ],
+    ["has Node's cache between the read and itself", steps(...READ, ...NODE_CACHE_PLANT, ...SETUP), [[]]],
     [
       "has Node's cache and another step between",
-      steps(...READ, '      - run: true', ...NODE_CACHE_STEP.map((l) => `      ${l}`), ...SETUP),
+      steps(...READ, '      - run: true', ...NODE_CACHE_PLANT, ...SETUP),
       [['does not follow the read step']],
     ],
     [

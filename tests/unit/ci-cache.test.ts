@@ -27,7 +27,7 @@ const folder = (files: Record<string, number>) => {
     if (options?.recursive) {
       return names.map((name) => {
         const at = name.lastIndexOf('/');
-        return { name: name.slice(at + 1), parentPath: `${dir}/${name.slice(0, at)}`.replace(/\/$/, ''), isFile: () => true };
+        return { name: name.slice(at + 1), parentPath: at === -1 ? dir : `${dir}/${name.slice(0, at)}`, isFile: () => true };
       }) as unknown as Dirent[];
     }
     return [...new Set(names.map((n) => n.split('/')[0]))];
@@ -85,6 +85,12 @@ describe('keep', () => {
     folder({ 'old/jre/bin/java': 0, 'new/jre/bin/java': 1_700, 'new/jre/lib/x': 0, 'plugin/p.jar': 1_800 });
     expect(keep('/r/cache', 'sonar-')).toBe(contentKey('sonar-', ['new', 'plugin']));
     expect(vi.mocked(rmSync).mock.calls).toEqual([['/r/cache/old', { recursive: true, force: true }]]);
+  });
+
+  it('judges a file at the top of the folder as its own entry', () => {
+    folder({ 'x64.complete': 1_700, 'old.complete': 0 });
+    expect(keep('/r/cache', 'p-')).toBe(contentKey('p-', ['x64.complete']));
+    expect(vi.mocked(rmSync).mock.calls).toEqual([['/r/cache/old.complete', { recursive: true, force: true }]]);
   });
 
   it('fails naming the folder when the run left none', () => {
