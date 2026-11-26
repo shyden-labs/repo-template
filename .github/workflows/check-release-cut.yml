@@ -36,7 +36,10 @@ jobs:
           version=$(sed -nE 's/^FROM node:([0-9]+\.[0-9]+\.[0-9]+)$/\1/p' docker/node/Dockerfile)
           test -n "$version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+      # No cache: this job posts a status, and a cached Node could have been written by a job that
+      # installs dependencies (shyden-labs/repo-template#224).
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        timeout-minutes: 5
         with:
           node-version: ${{ steps.node.outputs.version }}
       # The head ref is text the pull request's author chose: it reaches the shell through env, never through an expression.

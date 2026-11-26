@@ -530,7 +530,12 @@ describe('check-release-cut.yml', () => {
         '          test -n "$version"',
         '          echo "version=$version" >> "$GITHUB_OUTPUT"',
       ].join('\n'),
-      ['      - uses: actions/setup-node@<sha>', '        with:', '          node-version: ${{ steps.node.outputs.version }}'].join('\n'),
+      [
+        '      - uses: actions/setup-node@<sha>',
+        '        timeout-minutes: 5',
+        '        with:',
+        '          node-version: ${{ steps.node.outputs.version }}',
+      ].join('\n'),
     ]);
   });
 
@@ -587,6 +592,13 @@ describe('check-release-cut.yml', () => {
       usesLines(readFileSync(`.github/workflows/${file}`, 'utf8')).filter((line) => !line.startsWith('uses: ./'));
     // ci.yml runs several jobs, each pinning the same actions: compare the distinct
     // pins. A local reusable workflow (./.github/...) is in this repo, so has no pin.
-    expect(pins('check-release-cut.yml')).toEqual([...new Set(pins('ci.yml'))]);
+    // It uses no cache (shyden-labs/repo-template#224), so each of its pins is one ci.yml pins, not every one.
+    const ci = new Set(pins('ci.yml'));
+    expect({ count: pins('check-release-cut.yml').length, elsewhere: pins('check-release-cut.yml').filter((pin) => !ci.has(pin)) }).toEqual(
+      {
+        count: 2,
+        elsewhere: [],
+      },
+    );
   });
 });
