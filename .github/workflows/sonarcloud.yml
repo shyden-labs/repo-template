@@ -55,10 +55,20 @@ jobs:
           version=$(sed -nE 's/^FROM node:([0-9]+\.[0-9]+\.[0-9]+)$/\1/p' docker/node/Dockerfile)
           test -n "$version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+      # Node's download, kept between runs under its exact version (shyden-labs/repo-template#224):
+      # a Dockerfile bump misses this cache, so the new version downloads.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        timeout-minutes: 5
+        with:
+          path: ${{ runner.tool_cache }}/node/${{ steps.node.outputs.version }}
+          key: node-${{ steps.node.outputs.version }}-${{ runner.os }}-${{ runner.arch }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        timeout-minutes: 5
         with:
           node-version: ${{ steps.node.outputs.version }}
+          cache: 'npm'
       - run: node scripts/npm-ci.ts
+        timeout-minutes: 10
       - run: npm run test:coverage
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -97,11 +107,44 @@ jobs:
           version=$(sed -nE 's/^FROM node:([0-9]+\.[0-9]+\.[0-9]+)$/\1/p' docker/node/Dockerfile)
           test -n "$version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+      # Node's download, kept between runs under its exact version (shyden-labs/repo-template#224):
+      # a Dockerfile bump misses this cache, so the new version downloads.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        timeout-minutes: 5
+        with:
+          path: ${{ runner.tool_cache }}/node/${{ steps.node.outputs.version }}
+          key: node-${{ steps.node.outputs.version }}-${{ runner.os }}-${{ runner.arch }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        timeout-minutes: 5
         with:
           node-version: ${{ steps.node.outputs.version }}
+      # The scanner CLI, and the JRE and plugins SonarCloud hands it, kept between runs
+      # (shyden-labs/repo-template#224). Restored by prefix, never in place of a newer version: the
+      # action still installs the CLI version it pins, and the scanner still asks SonarCloud for its
+      # current JRE and plugins, so only unchanged bytes come from here. Each restored file is marked
+      # unread; after the scan, scripts/ci-cache.ts drops whatever the scan did not read and names
+      # the rest, which is saved only when it changed.
+      - id: sonar-scanner-restored
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        timeout-minutes: 5
+        with:
+          path: ${{ runner.tool_cache }}/sonar-scanner-cli
+          key: sonar-scanner-cli-${{ runner.os }}-${{ runner.arch }}-restore
+          restore-keys: sonar-scanner-cli-${{ runner.os }}-${{ runner.arch }}-
+      - name: Mark the scanner cache unread
+        run: node scripts/ci-cache.ts reset "$RUNNER_TOOL_CACHE/sonar-scanner-cli"
+      - id: sonar-plugins-restored
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        timeout-minutes: 5
+        with:
+          path: ~/.sonar/cache
+          key: sonar-cache-${{ runner.os }}-${{ runner.arch }}-restore
+          restore-keys: sonar-cache-${{ runner.os }}-${{ runner.arch }}-
+      - name: Mark the plugins cache unread
+        run: node scripts/ci-cache.ts reset ~/.sonar/cache
       - name: Scan
         uses: SonarSource/sonarqube-scan-action@59202af334b4ba7b5db01b701b8e79f8b3bef0f4 # v8.5.0
+        timeout-minutes: 15
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
@@ -114,6 +157,24 @@ jobs:
             -Dsonar.tests=tests
             -Dsonar.exclusions=tests/**
             -Dsonar.coverage.exclusions=eslint.config.js,vitest.unit.config.ts
+      - id: sonar-scanner-kept
+        name: Keep only what the scan read of the scanner cache
+        run: node scripts/ci-cache.ts keep "$RUNNER_TOOL_CACHE/sonar-scanner-cli" "sonar-scanner-cli-$RUNNER_OS-$RUNNER_ARCH-" >> "$GITHUB_OUTPUT"
+      - if: steps.sonar-scanner-kept.outputs.key != steps.sonar-scanner-restored.outputs.cache-matched-key
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        timeout-minutes: 5
+        with:
+          path: ${{ runner.tool_cache }}/sonar-scanner-cli
+          key: ${{ steps.sonar-scanner-kept.outputs.key }}
+      - id: sonar-plugins-kept
+        name: Keep only what the scan read of the plugins cache
+        run: node scripts/ci-cache.ts keep ~/.sonar/cache "sonar-cache-$RUNNER_OS-$RUNNER_ARCH-" >> "$GITHUB_OUTPUT"
+      - if: steps.sonar-plugins-kept.outputs.key != steps.sonar-plugins-restored.outputs.cache-matched-key
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        timeout-minutes: 5
+        with:
+          path: ~/.sonar/cache
+          key: ${{ steps.sonar-plugins-kept.outputs.key }}
       - name: Read the quality gate of this scan
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

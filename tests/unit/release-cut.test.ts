@@ -521,8 +521,8 @@ describe('check-release-cut.yml', () => {
     );
   });
 
-  it('reads the exact Node from the one file Dependabot bumps (#143), then sets it up and installs nothing, since the check imports only node and its own scripts', () => {
-    expect([steps()[1], steps()[2]]).toEqual([
+  it('reads the exact Node from the one file Dependabot bumps (#143), restores its download (shyden-labs/repo-template#224), then sets it up and installs nothing, since the check imports only node and its own scripts', () => {
+    expect([steps()[1], steps()[2], steps()[3]]).toEqual([
       [
         '      - id: node',
         '        run: |',
@@ -530,13 +530,25 @@ describe('check-release-cut.yml', () => {
         '          test -n "$version"',
         '          echo "version=$version" >> "$GITHUB_OUTPUT"',
       ].join('\n'),
-      ['      - uses: actions/setup-node@<sha>', '        with:', '          node-version: ${{ steps.node.outputs.version }}'].join('\n'),
+      [
+        '      - uses: actions/cache@<sha>',
+        '        timeout-minutes: 5',
+        '        with:',
+        '          path: ${{ runner.tool_cache }}/node/${{ steps.node.outputs.version }}',
+        '          key: node-${{ steps.node.outputs.version }}-${{ runner.os }}-${{ runner.arch }}',
+      ].join('\n'),
+      [
+        '      - uses: actions/setup-node@<sha>',
+        '        timeout-minutes: 5',
+        '        with:',
+        '          node-version: ${{ steps.node.outputs.version }}',
+      ].join('\n'),
     ]);
   });
 
   // The head ref is text the pull request's author chose: it reaches the shell through env, never through an expression.
   it('hands the head repository, head ref, head SHA, pull request number and token to the check through env', () => {
-    expect(steps()[3]).toBe(
+    expect(steps()[4]).toBe(
       [
         '      - name: Judge the release cut and post its status',
         '        env:',
@@ -573,10 +585,11 @@ describe('check-release-cut.yml', () => {
     ).toEqual(['echo "${{ github.head_ref }}"', 'true', 'echo done']);
   });
 
-  it('runs four steps: checkout, the Node read, node, then the check', () => {
+  it("runs five steps: checkout, the Node read, Node's download cache, node, then the check", () => {
     expect(steps().map((step) => step.split('\n')[0])).toEqual([
       '      - uses: actions/checkout@<sha>',
       '      - id: node',
+      '      - uses: actions/cache@<sha>',
       '      - uses: actions/setup-node@<sha>',
       '      - name: Judge the release cut and post its status',
     ]);

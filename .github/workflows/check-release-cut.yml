@@ -36,7 +36,15 @@ jobs:
           version=$(sed -nE 's/^FROM node:([0-9]+\.[0-9]+\.[0-9]+)$/\1/p' docker/node/Dockerfile)
           test -n "$version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+      # Node's download, kept between runs under its exact version (shyden-labs/repo-template#224):
+      # a Dockerfile bump misses this cache, so the new version downloads.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        timeout-minutes: 5
+        with:
+          path: ${{ runner.tool_cache }}/node/${{ steps.node.outputs.version }}
+          key: node-${{ steps.node.outputs.version }}-${{ runner.os }}-${{ runner.arch }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        timeout-minutes: 5
         with:
           node-version: ${{ steps.node.outputs.version }}
       # The head ref is text the pull request's author chose: it reaches the shell through env, never through an expression.
