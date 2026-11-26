@@ -1,0 +1,9 @@
+{
+  "//": "The DEV-pass files as a Cloudflare Worker sees them: the Workers runtime's types, no node types (issue shyden-labs/repo-template#221). `npm run typecheck` checks them under this as well as under ../../tsconfig.json, and lint reads them through this one.",
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "types": ["@cloudflare/workers-types"]
+  },
+  "include": ["*.ts"],
+  "exclude": []
+}

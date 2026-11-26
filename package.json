@@ -8,13 +8,14 @@
   "scripts": {
     "test:unit": "vitest run --config vitest.unit.config.ts",
     "test:coverage": "vitest run --config vitest.unit.config.ts --coverage.enabled",
-    "typecheck": "tsc --noEmit -p .",
+    "typecheck": "tsc --noEmit -p . && tsc --noEmit -p scripts/dev-pass",
     "lint": "eslint --max-warnings 0 .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "git config core.hooksPath .githooks"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "5.20261125.1",
     "@eslint/js": "10.0.1",
     "@types/node": "26.6.6",
     "@vitest/coverage-v8": "5.1.0",

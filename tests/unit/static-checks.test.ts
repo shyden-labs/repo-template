@@ -23,9 +23,22 @@ const steps = (job: string) =>
       run: /^ {6}(?:- | {2})run: (.*)/m.exec(step)?.[1] ?? '',
     }));
 
+describe('scripts/dev-pass/tsconfig.json', () => {
+  // A Cloudflare Worker has the Workers runtime's types and no node types (shyden-labs/repo-template#221).
+  it("checks the DEV-pass files with the Workers runtime's types and no node types", () => {
+    const config = JSON.parse(readFileSync('scripts/dev-pass/tsconfig.json', 'utf8')) as Record<string, unknown>;
+    expect({ extends: config['extends'], compilerOptions: config['compilerOptions'], include: config['include'] }).toEqual({
+      extends: '../../tsconfig.json',
+      compilerOptions: { types: ['@cloudflare/workers-types'] },
+      include: ['*.ts'],
+    });
+  });
+});
+
 describe('package.json', () => {
   it.each([
-    ['typecheck', 'tsc --noEmit -p .'],
+    // The DEV-pass files are checked a second time as a Cloudflare Worker sees them (shyden-labs/repo-template#221).
+    ['typecheck', 'tsc --noEmit -p . && tsc --noEmit -p scripts/dev-pass'],
     ['lint', 'eslint --max-warnings 0 .'],
     ['format:check', 'prettier --check .'],
     ['format', 'prettier --write .'],

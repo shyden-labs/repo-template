@@ -51,6 +51,23 @@ describe('readForm with a body of no declared length', () => {
     expect(seen.cancelled).toBe(false);
   });
 
+  // A Worker types a request's body as a stream of any (shyden-labs/repo-template#221): a chunk that is not bytes is refused, the stream cancelled.
+  it('refuses a body whose chunks are not bytes, and cancels the stream', async () => {
+    let cancelled = false;
+    const body = new ReadableStream<unknown>({
+      start(controller) {
+        controller.enqueue('a=b');
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const request = { headers: new Headers(FORM_TYPE), body } as unknown as Request;
+
+    await expect(readForm(request)).rejects.toThrow(new TypeError('a form body chunk is not bytes'));
+    expect(cancelled).toBe(true);
+  });
+
   it('reads a POST with no body as an empty form', async () => {
     const request = new Request('https://dev.example.com/__devpass/accept', { method: 'POST', headers: FORM_TYPE });
     expect(request.body).toBeNull();

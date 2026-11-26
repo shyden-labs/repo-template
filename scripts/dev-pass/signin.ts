@@ -3,7 +3,6 @@
 // Cloudflare Access, and mints DEV passes for the hosts in its map. The Worker entry
 // (env wiring, the certs cache, the clock) is shyden.co.uk's, where it is deployed.
 // The type import is erased: it only names WebCrypto's types, as the template has no DOM lib.
-import type { webcrypto } from 'node:crypto';
 import { readForm } from './form.ts';
 import {
   CLOCK_SKEW_SECONDS,
@@ -17,8 +16,19 @@ import {
   type SigningKey,
 } from './pass.ts';
 
-/** One of Access's signing keys, from `https://<team>.cloudflareaccess.com/cdn-cgi/access/certs`. */
-export type AccessCert = webcrypto.JsonWebKey & { readonly kid: string };
+/**
+ * One of Access's signing keys, from `https://<team>.cloudflareaccess.com/cdn-cgi/access/certs`: an RSA
+ * public key as a JSON Web Key. Written out rather than as JsonWebKey, which Node's types do not declare
+ * globally and a Worker cannot import from node:crypto (shyden-labs/repo-template#221).
+ */
+export interface AccessCert {
+  readonly kid: string;
+  readonly kty: string;
+  readonly n: string;
+  readonly e: string;
+  readonly alg?: string;
+  readonly use?: string;
+}
 /** The slice of a Workers KV namespace the app codes need. */
 export interface CodeStore {
   get(key: string): Promise<string | null>;
