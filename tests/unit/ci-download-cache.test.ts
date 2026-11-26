@@ -52,6 +52,9 @@ const NODE_CACHE = [
   '          key: node-${{ steps.node.outputs.version }}-${{ runner.os }}-${{ runner.arch }}',
 ].join('\n');
 
+/** A job restores something from the cache: `actions/cache`, or a setup action's own `cache:` input (shyden-labs/repo-template#227). */
+const restoresCache = (job: string) => job.includes('actions/cache') || /^ {10}cache: /m.test(job);
+
 /** A job holds a secret, or a permission to write. */
 const holdsPower = (job: string) => /secrets[.:]|environment:|^ {6}[\w-]+: write$/m.test(job);
 
@@ -67,7 +70,20 @@ describe('every job', () => {
 
   it.each(TRUSTED_JOBS)('%s %s holds a secret or a write permission, and restores nothing from the cache', (file, id) => {
     const job = jobsIn(file)[id] ?? '';
-    expect({ power: holdsPower(job), cache: job.includes('actions/cache') }).toEqual({ power: true, cache: false });
+    expect({ power: holdsPower(job), cache: restoresCache(job) }).toEqual({ power: true, cache: false });
+  });
+});
+
+describe('restoresCache', () => {
+  const setupNode = (extra: string) =>
+    ['    steps:', '      - uses: actions/setup-node@<sha>', '        with:', '          node-version: 26', extra].join('\n');
+
+  it.each([
+    ['actions/cache', '      - uses: actions/cache@<sha>', true],
+    ["setup-node's npm cache", "          cache: 'npm'", true],
+    ['neither', '      - run: npm run build', false],
+  ])('judges a job with %s', (_, extra, restores) => {
+    expect(restoresCache(setupNode(extra))).toBe(restores);
   });
 });
 
