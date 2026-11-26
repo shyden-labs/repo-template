@@ -121,7 +121,7 @@ const splitPins = (uses: Use[]) => {
 describe('the CI supply chain is pinned', () => {
   it('pins each action at one SHA in every workflow, judged over every pinned use', () => {
     const uses = externalUses();
-    expect({ pinned: uses.length, split: splitPins(uses) }).toEqual({ pinned: 23, split: [] });
+    expect({ pinned: uses.length, split: splitPins(uses) }).toEqual({ pinned: 17, split: [] });
   });
 
   it('names an action whose bump reached one workflow and missed another', () => {
@@ -292,15 +292,14 @@ const READ_STEP = [
   '    echo "version=$version" >> "$GITHUB_OUTPUT"',
 ];
 /**
- * Node's download cache, the one step allowed between the read and setup-node (shyden-labs/repo-template#224),
- * under any of its key prefixes (tests/unit/ci-download-cache.test.ts names which job takes which).
+ * Node's download cache, the one step allowed between the read and setup-node (shyden-labs/repo-template#224).
  */
 const NODE_CACHE_STEP = [
   /^- uses: actions\/cache@<sha>$/,
   /^ {2}timeout-minutes: 5$/,
   /^ {2}with:$/,
   /^ {4}path: \$\{\{ runner\.tool_cache \}\}\/node\/\$\{\{ steps\.node\.outputs\.version \}\}$/,
-  /^ {4}key: (?:release-cut-|token-job-)?node-\$\{\{ steps\.node\.outputs\.version \}\}-\$\{\{ runner\.os \}\}-\$\{\{ runner\.arch \}\}$/,
+  /^ {4}key: node-\$\{\{ steps\.node\.outputs\.version \}\}-\$\{\{ runner\.os \}\}-\$\{\{ runner\.arch \}\}$/,
 ];
 const isNodeCache = (step: string[]) =>
   step.length === NODE_CACHE_STEP.length && NODE_CACHE_STEP.every((re, i) => re.test(step[i] as string));
@@ -405,7 +404,7 @@ describe('the template runs one Node and one runner, pinned exactly', () => {
     '        timeout-minutes: 5',
     '        with:',
     '          path: ${{ runner.tool_cache }}/node/${{ steps.node.outputs.version }}',
-    '          key: token-job-node-${{ steps.node.outputs.version }}-${{ runner.os }}-${{ runner.arch }}',
+    '          key: node-${{ steps.node.outputs.version }}-${{ runner.os }}-${{ runner.arch }}',
   ];
   const wrongIn = (text: string) => setupNodeSteps('ci.yml', text).map(({ wrong }) => wrong);
 
@@ -434,7 +433,7 @@ describe('the template runs one Node and one runner, pinned exactly', () => {
     ['has a step between the read and itself', steps(...READ, '      - run: true', ...SETUP), [['does not follow the read step']]],
     [
       'has another cache between the read and itself',
-      steps(...READ, ...NODE_CACHE_PLANT.map((l) => l.replace('token-job-', 'other-')), ...SETUP),
+      steps(...READ, ...NODE_CACHE_PLANT.map((l) => l.replace('key: node-', 'key: other-node-')), ...SETUP),
       [['does not follow the read step']],
     ],
     ["has Node's cache between the read and itself", steps(...READ, ...NODE_CACHE_PLANT, ...SETUP), [[]]],

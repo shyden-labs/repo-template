@@ -9,13 +9,16 @@ import { jobsOf } from './workflow-honesty.ts';
  * check for a newer version though"; issue shyden-labs/repo-template#224).
  *
  * Node's download is kept under a key naming its exact version, so a
- * Dockerfile bump misses and downloads the new one. npm uses setup-node's own
- * cache. The Sonar scanner CLI and the JRE and plugins SonarCloud hands it are
- * restored by prefix: the action still installs the version it pins and the
- * scanner still asks SonarCloud for its current JRE and plugins; afterwards
- * whatever the scan did not read is dropped, and the rest is saved under a key
- * naming what is left. Every download step has its own time limit, so a stall
- * fails on that step, whose log names what it was fetching.
+ * Dockerfile bump misses and downloads the new one, and npm uses setup-node's
+ * own cache. Each download step has its own time limit, so a stall fails on
+ * that step, whose log names what it was fetching.
+ *
+ * A job holding a secret or a write permission restores nothing from the
+ * cache. A cache key is a name, not a lock: any job in the same cache scope
+ * can write any key, and a dependency's install script in one job could plant
+ * a binary that would then run beside the token in another. The Sonar scan
+ * and the release-cut judge download fresh (the scan action checks its
+ * scanner's signature).
  */
 
 const WORKFLOWS = '.github/workflows';
@@ -24,128 +27,78 @@ const jobsIn = (file: string) => jobsOf(withoutPinnedShas(readFileSync(`${WORKFL
 /** A job's steps, each as its own text. */
 const stepsOf = (job: string): string[] => job.split(/^(?= {6}- )/m).slice(1);
 
-// [workflow, job, its Node cache's key prefix]. A job holding a token (the Sonar scan, the
-// release-cut judge) keeps a cache of its own, which only it saves: a job that installs
-// dependencies could otherwise plant a Node binary that then runs beside the token.
-const NODE_JOBS = [
-  ['check-release-cut.yml', 'judge-release-cut', 'release-cut-node-'],
-  ['ci.yml', 'build-and-test', 'node-'],
-  ['ci.yml', 'coverage', 'node-'],
-  ['sonarcloud.yml', 'coverage-report', 'node-'],
-  ['sonarcloud.yml', 'sonarcloud', 'token-job-node-'],
+const FILES = ['check-release-cut.yml', 'ci.yml', 'deploy-dev.yml', 'sonarcloud.yml'];
+
+/** The jobs that hold no secret and no write permission, and so cache their downloads. */
+const CACHING_JOBS = [
+  ['ci.yml', 'build-and-test'],
+  ['ci.yml', 'coverage'],
+  ['sonarcloud.yml', 'coverage-report'],
 ] as const;
 
-const nodeCache = (prefix: string) =>
-  [
-    '      - uses: actions/cache@<sha>',
-    '        timeout-minutes: 5',
-    '        with:',
-    '          path: ${{ runner.tool_cache }}/node/${{ steps.node.outputs.version }}',
-    `          key: ${prefix}\${{ steps.node.outputs.version }}-\${{ runner.os }}-\${{ runner.arch }}`,
-  ].join('\n');
+/** The jobs that hold a secret or a write permission, and so restore nothing. */
+const TRUSTED_JOBS = [
+  ['check-release-cut.yml', 'judge-release-cut'],
+  ['ci.yml', 'sonarcloud'],
+  ['deploy-dev.yml', 'deploy-dev'],
+  ['sonarcloud.yml', 'sonarcloud'],
+] as const;
 
-describe('Node', () => {
-  it('is set up in exactly these jobs', () => {
-    const files = ['check-release-cut.yml', 'ci.yml', 'deploy-dev.yml', 'sonarcloud.yml'];
-    const found = files.flatMap((file) =>
-      Object.entries(jobsIn(file))
-        .filter(([, job]) => job.includes('actions/setup-node@'))
-        .map(([id]) => [file, id]),
-    );
-    expect(found).toEqual(NODE_JOBS.map(([file, id]) => [file, id]));
+const NODE_CACHE = [
+  '      - uses: actions/cache@<sha>',
+  '        timeout-minutes: 5',
+  '        with:',
+  '          path: ${{ runner.tool_cache }}/node/${{ steps.node.outputs.version }}',
+  '          key: node-${{ steps.node.outputs.version }}-${{ runner.os }}-${{ runner.arch }}',
+].join('\n');
+
+/** A job holds a secret, or a permission to write. */
+const holdsPower = (job: string) => /secrets[.:]|environment:|^ {6}[\w-]+: write$/m.test(job);
+
+describe('every job', () => {
+  it('is either a caching job or a trusted one', () => {
+    const all = FILES.flatMap((file) => Object.keys(jobsIn(file)).map((id) => `${file} ${id}`));
+    expect(all.sort()).toEqual([...CACHING_JOBS, ...TRUSTED_JOBS].map(([file, id]) => `${file} ${id}`).sort());
   });
 
-  it.each(NODE_JOBS)(
-    '%s %s restores Node under its exact version, keyed %s, just before setting it up, in 5 minutes',
-    (file, id, prefix) => {
-      const steps = stepsOf(jobsIn(file)[id] ?? '');
-      const setup = steps.findIndex((s) => s.includes('actions/setup-node@'));
-      expect(steps[setup - 1]?.trimEnd()).toBe(nodeCache(prefix));
-      expect(steps[setup]).toContain('        timeout-minutes: 5\n');
-    },
-  );
+  it.each(CACHING_JOBS)('%s %s holds no secret and no write permission', (file, id) => {
+    expect(holdsPower(jobsIn(file)[id] ?? '')).toBe(false);
+  });
 
-  it.each(NODE_JOBS)("%s %s uses npm's cache whenever it installs, and installs in 10 minutes", (file, id) => {
-    const steps = stepsOf(jobsIn(file)[id] ?? '');
-    const install = steps.find((s) => s.includes('scripts/npm-ci.ts'));
-    const setup = steps.find((s) => s.includes('actions/setup-node@')) ?? '';
-    expect({
-      npmCache: setup.includes("          cache: 'npm'\n"),
-      limit: install === undefined || install.includes('        timeout-minutes: 10\n'),
-    }).toEqual({ npmCache: install !== undefined, limit: true });
+  it.each(TRUSTED_JOBS)('%s %s holds a secret or a write permission, and restores nothing from the cache', (file, id) => {
+    const job = jobsIn(file)[id] ?? '';
+    expect({ power: holdsPower(job), cache: job.includes('actions/cache') }).toEqual({ power: true, cache: false });
   });
 });
 
-describe('the Sonar scan', () => {
-  const steps = stepsOf(jobsIn('sonarcloud.yml')['sonarcloud'] ?? '').map((s) => s.trimEnd());
-  const at = (needle: string) => steps.findIndex((s) => s.includes(needle));
-
-  const restore = (id: string, path: string, prefix: string) =>
-    [
-      `      - id: ${id}`,
-      '        uses: actions/cache/restore@<sha>',
-      '        timeout-minutes: 5',
-      '        with:',
-      `          path: ${path}`,
-      `          key: ${prefix}restore`,
-      `          restore-keys: ${prefix}`,
-    ].join('\n');
-
-  const save = (restored: string, kept: string, path: string) =>
-    [
-      `      - if: steps.${kept}.outputs.key != steps.${restored}.outputs.cache-matched-key`,
-      '        uses: actions/cache/save@<sha>',
-      '        timeout-minutes: 5',
-      '        with:',
-      `          path: ${path}`,
-      `          key: \${{ steps.${kept}.outputs.key }}`,
-    ].join('\n');
-
-  // [name, the cache's path, its key prefix, the same two as the shell sees them: no expression in a shell line]
-  const CACHES = [
-    [
-      'scanner',
-      '${{ runner.tool_cache }}/sonar-scanner-cli',
-      'sonar-scanner-cli-${{ runner.os }}-${{ runner.arch }}-',
-      '"$RUNNER_TOOL_CACHE/sonar-scanner-cli"',
-      '"sonar-scanner-cli-$RUNNER_OS-$RUNNER_ARCH-"',
-    ],
-    [
-      'plugins',
-      '~/.sonar/cache',
-      'sonar-cache-${{ runner.os }}-${{ runner.arch }}-',
-      '~/.sonar/cache',
-      '"sonar-cache-$RUNNER_OS-$RUNNER_ARCH-"',
-    ],
-  ] as const;
-
-  it.each(CACHES)('restores the %s cache by prefix, then marks it unread, before the scan', (name, path, prefix, shellPath) => {
-    const restored = at(`      - id: sonar-${name}-restored\n`);
-    expect(steps[restored]).toBe(restore(`sonar-${name}-restored`, path, prefix));
-    expect(steps[restored + 1]).toBe(
-      [`      - name: Mark the ${name} cache unread`, `        run: node scripts/ci-cache.ts reset ${shellPath}`].join('\n'),
-    );
-    expect(restored + 1).toBeLessThan(at('SonarSource/sonarqube-scan-action@'));
+describe('a caching job', () => {
+  it.each(CACHING_JOBS)('%s %s restores Node under its exact version just before setting it up, in 5 minutes', (file, id) => {
+    const steps = stepsOf(jobsIn(file)[id] ?? '');
+    const setup = steps.findIndex((s) => s.includes('actions/setup-node@'));
+    expect(steps[setup - 1]?.trimEnd()).toBe(NODE_CACHE);
+    expect(steps[setup]).toContain('        timeout-minutes: 5\n');
   });
 
-  it.each(CACHES)(
-    'after the scan keeps only what it read of the %s cache, and saves it when that changed',
-    (name, path, _prefix, shellPath, shellPrefix) => {
-      const kept = at(`      - id: sonar-${name}-kept\n`);
-      expect(steps[kept]).toBe(
-        [
-          `      - id: sonar-${name}-kept`,
-          `        name: Keep only what the scan read of the ${name} cache`,
-          `        run: node scripts/ci-cache.ts keep ${shellPath} ${shellPrefix} >> "$GITHUB_OUTPUT"`,
-        ].join('\n'),
-      );
-      expect(steps[kept + 1]).toBe(save(`sonar-${name}-restored`, `sonar-${name}-kept`, path));
-      expect(kept).toBeGreaterThan(at('SonarSource/sonarqube-scan-action@'));
-      expect(kept).toBeLessThan(at('scripts/sonar-verdict.ts'));
-    },
-  );
+  it.each(CACHING_JOBS)("%s %s uses npm's cache and installs in 10 minutes", (file, id) => {
+    const steps = stepsOf(jobsIn(file)[id] ?? '');
+    expect({
+      npmCache: steps.find((s) => s.includes('actions/setup-node@'))?.includes("          cache: 'npm'\n"),
+      limit: steps.find((s) => s.includes('scripts/npm-ci.ts'))?.includes('        timeout-minutes: 10\n'),
+    }).toEqual({ npmCache: true, limit: true });
+  });
+});
+
+describe('a trusted job', () => {
+  it.each([
+    ['check-release-cut.yml', 'judge-release-cut'],
+    ['sonarcloud.yml', 'sonarcloud'],
+  ])('%s %s sets Node up in 5 minutes', (file, id) => {
+    const steps = stepsOf(jobsIn(file)[id] ?? '');
+    expect(steps.find((s) => s.includes('actions/setup-node@'))).toContain('        timeout-minutes: 5\n');
+  });
 
   it('scans in 15 minutes', () => {
-    expect(steps[at('SonarSource/sonarqube-scan-action@')]).toContain('        timeout-minutes: 15\n');
+    const steps = stepsOf(jobsIn('sonarcloud.yml')['sonarcloud'] ?? '');
+    expect(steps.find((s) => s.includes('SonarSource/sonarqube-scan-action@'))).toContain('        timeout-minutes: 15\n');
   });
 });

@@ -521,21 +521,14 @@ describe('check-release-cut.yml', () => {
     );
   });
 
-  it('reads the exact Node from the one file Dependabot bumps (#143), restores its download (shyden-labs/repo-template#224), then sets it up and installs nothing, since the check imports only node and its own scripts', () => {
-    expect([steps()[1], steps()[2], steps()[3]]).toEqual([
+  it('reads the exact Node from the one file Dependabot bumps (#143), then sets it up and installs nothing, since the check imports only node and its own scripts', () => {
+    expect([steps()[1], steps()[2]]).toEqual([
       [
         '      - id: node',
         '        run: |',
         "          version=$(sed -nE 's/^FROM node:([0-9]+\\.[0-9]+\\.[0-9]+)$/\\1/p' docker/node/Dockerfile)",
         '          test -n "$version"',
         '          echo "version=$version" >> "$GITHUB_OUTPUT"',
-      ].join('\n'),
-      [
-        '      - uses: actions/cache@<sha>',
-        '        timeout-minutes: 5',
-        '        with:',
-        '          path: ${{ runner.tool_cache }}/node/${{ steps.node.outputs.version }}',
-        '          key: release-cut-node-${{ steps.node.outputs.version }}-${{ runner.os }}-${{ runner.arch }}',
       ].join('\n'),
       [
         '      - uses: actions/setup-node@<sha>',
@@ -548,7 +541,7 @@ describe('check-release-cut.yml', () => {
 
   // The head ref is text the pull request's author chose: it reaches the shell through env, never through an expression.
   it('hands the head repository, head ref, head SHA, pull request number and token to the check through env', () => {
-    expect(steps()[4]).toBe(
+    expect(steps()[3]).toBe(
       [
         '      - name: Judge the release cut and post its status',
         '        env:',
@@ -585,11 +578,10 @@ describe('check-release-cut.yml', () => {
     ).toEqual(['echo "${{ github.head_ref }}"', 'true', 'echo done']);
   });
 
-  it("runs five steps: checkout, the Node read, Node's download cache, node, then the check", () => {
+  it('runs four steps: checkout, the Node read, node, then the check', () => {
     expect(steps().map((step) => step.split('\n')[0])).toEqual([
       '      - uses: actions/checkout@<sha>',
       '      - id: node',
-      '      - uses: actions/cache@<sha>',
       '      - uses: actions/setup-node@<sha>',
       '      - name: Judge the release cut and post its status',
     ]);
@@ -600,6 +592,13 @@ describe('check-release-cut.yml', () => {
       usesLines(readFileSync(`.github/workflows/${file}`, 'utf8')).filter((line) => !line.startsWith('uses: ./'));
     // ci.yml runs several jobs, each pinning the same actions: compare the distinct
     // pins. A local reusable workflow (./.github/...) is in this repo, so has no pin.
-    expect(pins('check-release-cut.yml')).toEqual([...new Set(pins('ci.yml'))]);
+    // It uses no cache (shyden-labs/repo-template#224), so each of its pins is one ci.yml pins, not every one.
+    const ci = new Set(pins('ci.yml'));
+    expect({ count: pins('check-release-cut.yml').length, elsewhere: pins('check-release-cut.yml').filter((pin) => !ci.has(pin)) }).toEqual(
+      {
+        count: 2,
+        elsewhere: [],
+      },
+    );
   });
 });
