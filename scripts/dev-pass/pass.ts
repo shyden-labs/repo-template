@@ -3,14 +3,13 @@
 // without padding; `sig` is Ed25519 over the ASCII bytes `v1.<kid>.<payload>`.
 // Pure WebCrypto, so the same file runs in a Cloudflare Worker and in Node.
 // The type import is erased: it only names WebCrypto's types, as the template has no DOM lib.
-import type { webcrypto } from 'node:crypto';
 
 export type PassKind = 'browser' | 'app' | 'machine' | 'embed';
 /** A door's keys: `kid` → the Ed25519 public key's JWK `x`. Public, so plain vars, not secrets. */
 export type PublicKeys = Readonly<Record<string, string>>;
 export interface SigningKey {
   readonly kid: string;
-  readonly privateKey: webcrypto.CryptoKey;
+  readonly privateKey: CryptoKey;
 }
 export interface PassClaims {
   /** The one door this pass opens, e.g. `dev.yaweloidle.com`. */
